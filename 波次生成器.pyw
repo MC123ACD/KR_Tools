@@ -475,6 +475,11 @@ class WaveDataGenerator:
             self.current_wave_index = max(0, self.current_wave_index - 1)
 
             self.update_wave_buttons()
+            self.load_current_wave()
+
+            self.group_listbox.selection_clear(0, tk.END)
+            self.group_listbox.selection_set(0)
+            self.on_group_select()
 
             self.entry_focus(self.wave_arrive_time_entry)
 

@@ -1,5 +1,7 @@
 {
     "setting": {
+        "window_size": [1100, 650],
+
         "time_to_s": false,
         
         "Dove_spawn_criket": false,
@@ -42,7 +44,7 @@
             "fixed_sub_path": 0,
             "interval_next": 50
         },
-        "go_enemies_acaroth":[
+        "required_textures": [
             "go_enemies_ancient_metropolis",
             "go_enemies_bandits",
             "go_enemies_bittering_rancor",
@@ -64,6 +66,9 @@
             "go_enemies_torment",
             "go_enemies_underground",
             "go_enemies_wastelands"
+        ],
+        "required_sounds": [
+            "hero_gerald"
         ]
     },
 

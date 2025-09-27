@@ -16,9 +16,6 @@ lua = lib.init_lua()
 
 class SplitAtlases:
     def setup_lua_environment(self):
-        """初始化Lua环境并注入自定义函数"""
-        lua = LuaRuntime(unpack_returned_tuples=True)
-
         # 注入自定义table函数
         lua.execute(
             """
@@ -284,60 +281,53 @@ class SplitAtlases:
         while len(os.listdir(input_path)) == 0:
             input("❌ 错误, 输入目录为空, 请放入图集与数据文件后按回车重试 >")
 
-        for filename in os.listdir(input_path):
-            if filename.endswith(".lua"):
-                filepath = os.path.join(input_path, filename)
-                print(f"📖 读取文件: {filename}")
-                filepath_lua = (
-                    os.path.basename(input_path) + "." + filename.replace(".lua", "")
-                )
+        try:
+            for filename in os.listdir(input_path):
+                if filename.endswith(".lua"):
+                    filepath = os.path.join(input_path, filename)
+                    print(f"📖 读取文件: {filename}")
+                    filepath_lua = (
+                        os.path.basename(input_path)
+                        + "."
+                        + filename.replace(".lua", "")
+                    )
 
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        content = f.read()
+                    atlases = lua.globals().split_atlas(filepath_lua)
 
-                        # 处理Lua表数据
-                        atlases = lua.globals().split_atlas(filepath_lua)
+                    for a_name, atlas in atlases.items():
+                        size = atlas["size"]
+                        del atlas["size"]  # 移除size字段
 
-                        for a_name, atlas in atlases.items():
-                            size = atlas["size"]
-                            del atlas["size"]  # 移除size字段
+                        # 提取基础文件名
+                        match = re.search(r"\.(png|dds|pkm|pkm\.lz4)$", a_name)
+                        if not match:
+                            print(f"⚠️ 跳过无效文件名: {a_name}")
+                            continue
 
-                            # 提取基础文件名
-                            match = re.search(r"\.(png|dds|pkm|pkm\.lz4)$", a_name)
-                            if not match:
-                                print(f"⚠️ 跳过无效文件名: {a_name}")
-                                continue
+                        base_name = a_name[: match.start()]
+                        plist_filename = f"{base_name}.plist"
+                        plist_path = os.path.join(output_path, plist_filename)
 
-                            base_name = a_name[: match.start()]
-                            plist_filename = f"{base_name}.plist"
-                            plist_path = os.path.join(output_path, plist_filename)
+                        # 生成Plist内容
+                        plist_data = lua.globals().to_plist(atlas, a_name, size)
 
-                            # 生成Plist内容
-                            plist_data = lua.globals().to_plist(atlas, a_name, size)
+                        # 写入Plist文件
+                        with open(plist_path, "w", encoding="utf-8") as plist_file:
+                            plist_file.write(plist_data)
+                        print(f"✅ 生成Plist: {plist_filename}")
 
-                            # 写入Plist文件
-                            with open(plist_path, "w", encoding="utf-8") as plist_file:
-                                plist_file.write(plist_data)
-                            print(f"✅ 生成Plist: {plist_filename}")
+                        # 处理对应图集
+                        atlas_image = os.path.join(input_path, a_name)
+                        if os.path.exists(atlas_image):
+                            # 生成小图
+                            self.gen_png_from_plist(plist_path, atlas_image)
+                        else:
+                            print(f"⚠️ 图集不存在: {a_name}")
 
-                            # 处理对应图集
-                            atlas_image = os.path.join(input_path, a_name)
-                            if os.path.exists(atlas_image):
-                                # 生成小图
-                                self.gen_png_from_plist(plist_path, atlas_image)
-                            else:
-                                print(f"⚠️ 图集不存在: {a_name}")
+                elif filename.endswith(".plist"):
+                    filepath = os.path.join(input_path, filename)
+                    print(f"📖 读取文件: {filename}")
 
-                except Exception as e:
-                    print(f"❌ 处理错误 {filename}: {str(e)}")
-                    traceback.print_exc()
-
-            elif filename.endswith(".plist"):
-                filepath = os.path.join(input_path, filename)
-                print(f"📖 读取文件: {filename}")
-
-                try:
                     with open(filepath, "rb") as file:
                         open_plist = plistlib.load(file)
                         frames = open_plist["metadata"]["realTextureFileName"]
@@ -350,9 +340,12 @@ class SplitAtlases:
                     else:
                         print(f"⚠️ 图集不存在: {frames}")
 
-                except Exception as e:
-                    print(f"❌ 处理错误 {filename}: {str(e)}")
-                    traceback.print_exc()
+                else:
+                    print(f"⚠️ 跳过无效文件: {a_name}")
+                    continue
+        except Exception as e:
+            print(f"❌ 处理错误 {filename}: {str(e)}")
+            traceback.print_exc()
 
     def process_animations(self, immutable_path, alterable_path):
         """处理动画文件"""

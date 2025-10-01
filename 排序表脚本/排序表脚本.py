@@ -1,5 +1,3 @@
-import lupa.luajit20 as lupa
-from lupa import LuaRuntime
 import re, os, traceback, sys
 
 # 添加上级目录到Python路径

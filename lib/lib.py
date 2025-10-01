@@ -1,4 +1,4 @@
-import lupa
+import lupa.luajit20
 from lupa import LuaRuntime
 import re, os, traceback
 

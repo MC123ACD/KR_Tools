@@ -1,6 +1,4 @@
 import os, re, sys, traceback, plistlib, imageio
-import lupa.luajit20 as lupa
-from lupa import LuaRuntime
 from PIL import Image
 
 # 添加上级目录到Python路径
@@ -291,7 +289,7 @@ class SplitAtlases:
                         + "."
                         + filename.replace(".lua", "")
                     )
-
+ 
                     atlases = lua.globals().split_atlas(filepath_lua)
 
                     for a_name, atlas in atlases.items():
@@ -301,7 +299,7 @@ class SplitAtlases:
                         # 提取基础文件名
                         match = re.search(r"\.(png|dds|pkm|pkm\.lz4)$", a_name)
                         if not match:
-                            print(f"⚠️ 跳过无效文件名: {a_name}")
+                            print(f"⚠️ 跳过无效文件: {a_name}")
                             continue
 
                         base_name = a_name[: match.start()]
@@ -340,9 +338,6 @@ class SplitAtlases:
                     else:
                         print(f"⚠️ 图集不存在: {frames}")
 
-                else:
-                    print(f"⚠️ 跳过无效文件: {a_name}")
-                    continue
         except Exception as e:
             print(f"❌ 处理错误 {filename}: {str(e)}")
             traceback.print_exc()
@@ -467,6 +462,8 @@ class SplitAtlases:
     def main(self):
         print("🚀 开始转换流程")
         print("=" * 50)
+
+        self.setup_lua_environment()
 
         # 处理Plist转换和小图生成
         self.process_plist_conversion()

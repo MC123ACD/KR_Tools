@@ -1,7 +1,5 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import lupa.luajit20 as lupa
-from lupa import LuaRuntime
 import json, os, sys
 
 # 添加上级目录到Python路径

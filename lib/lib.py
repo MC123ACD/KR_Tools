@@ -18,6 +18,9 @@ def find_and_create_directory(caller_file: str) -> tuple[str, str, str]:
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
+    while len(os.listdir(input_path)) == 0:
+        input("❌ 错误, 输入目录为空, 请放入Lua模块后按回车重试 >")
+
     return base_dir, input_path, output_path
 
 

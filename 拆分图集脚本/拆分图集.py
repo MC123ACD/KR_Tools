@@ -46,7 +46,7 @@ class SplitAtlases:
                 "textureRect": format_rect(
                     v["f_quad"][1], v["f_quad"][2], spriteWidth, spriteHeight
                 ),
-                "textureRotated": v["textureRotated"] if v["textureRotated"] else False
+                "textureRotated": v["textureRotated"] if v["textureRotated"] else False,
             }
 
         return atlases
@@ -222,11 +222,6 @@ class SplitAtlases:
 
     def process_plist_conversion(self):
         """处理Plist文件生成并生成小图"""
-        print(f"🔍 扫描目录: {input_path}")
-
-        while len(os.listdir(input_path)) == 0:
-            input("❌ 错误, 输入目录为空, 请放入图集与数据文件后按回车重试 >")
-
         try:
             for filename in os.listdir(input_path):
                 if filename.endswith(".lua"):

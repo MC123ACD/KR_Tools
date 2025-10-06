@@ -13,140 +13,103 @@ lua = lib.init_lua()
 
 
 class SplitAtlases:
-    def setup_lua_environment(self):
-        # 注入自定义table函数
-        lua.execute(
-            """
-        table.contains = function(t, value)
-            for _, v in ipairs(t) do
-                if v == value then return true end
-            end
-            return false
-        end
-        
-        table.filter = function(t, func)
-            local result = {}
-            for k, v in ipairs(t) do
-                if func(k, v) then
-                    table.insert(result, v)
-                end
-            end
-            return result
-        end
-        
-        table.merge = function(t1, t2)
-            for k, v in pairs(t2) do
-                t1[k] = v
-            end
-        end
-        
-        math.ceil = function(x)
-            return math.floor(x + 0.5)
-        end
-        """
-        )
+    def read_atlases_data(self, lua_module_return):
+        """读取图集数据"""
+        if not lua_module_return:
+            print("⚠️ 空的图集数据")
+            return {}
 
+        def format_point(x, y):
+            return f"{{{x}, {y}}}"
+
+        def format_rect(x, y, width, height):
+            return f"{{{format_point(x, y)}, {format_point(width, height)}}}"
+
+        atlases = {}
+        names = []
+
+        for k, v in lua_module_return.items():
+            a_name = v["a_name"]
+            if not a_name in names:
+                names.append(a_name)
+                atlases[a_name] = {"size": [v["a_size"][1], v["a_size"][2]]}
+
+            spriteWidth, spriteHeight = v["f_quad"][3], v["f_quad"][4]
+            spriteSourceWidth, spriteSourceHeight = v["size"][1], v["size"][2]
+            spriteOffsetX = int(v["trim"][1] - (spriteSourceWidth - spriteWidth) / 2)
+            spriteOffsetY = int((spriteSourceHeight - spriteHeight) / 2 - v["trim"][2])
+
+            atlases[a_name][k + ".png"] = {
+                "spriteOffset": format_point(spriteOffsetX, spriteOffsetY),
+                "spriteSize": format_point(spriteWidth, spriteHeight),
+                "spriteSourceSize": format_point(spriteSourceWidth, spriteSourceHeight),
+                "textureRect": format_rect(
+                    v["f_quad"][1], v["f_quad"][2], spriteWidth, spriteHeight
+                ),
+                "textureRotated": v["textureRotated"] if v["textureRotated"] else False
+            }
+
+        return atlases
+
+    def to_plist(self, t, a_name, size):
+        def to_xml(t, level):
+            def indent(l):
+                v = ""
+                for i in range(l):
+                    v += "\t"
+
+                return v
+
+            o = ""
+            if isinstance(t, dict):
+                o += f"{indent(level)}<dict>\n"
+                for k, v in t.items():
+                    o += f"{indent(level + 1)}<key>{str(k)}</key>\n"
+                    o += to_xml(v, level + 1)
+
+                o += f"{indent(level)}</dict>\n"
+            elif isinstance(t, list):
+                o += f"{indent(level)}<array>\n"
+                for v in t:
+                    o += to_xml(v, level + 1)
+                o += f"{indent(level)}</array>\n"
+            elif isinstance(t, bool):
+                o += f"{indent(level)}{"<true/>" if t else "<false/>"}\n"
+            elif isinstance(t, int) or isinstance(t, float):
+                o += f"{indent(level)}<real>{str(t)}</real>\n"
+            elif isinstance(t, str):
+                o += f"{indent(level)}<string>{str(t)}</string>\n"
+
+            return o
+
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+\t<dict>
+\t\t<key>frames</key>
+{to_xml(t, 2)}
+\t\t<key>metadata</key>
+\t\t<dict>
+\t\t\t<key>format</key>
+\t\t\t<integer>3</integer>
+\t\t\t<key>pixelFormat</key>
+\t\t\t<string>RGBA8888</string>
+\t\t\t<key>premultiplyAlpha</key>
+\t\t\t<false/>
+\t\t\t<key>realTextureFileName</key>
+\t\t\t<string>{a_name}</string>
+\t\t\t<key>size</key>
+\t\t\t<string>{size}</string>
+\t\t\t<key>textureFileName</key>
+\t\t\t<string>{a_name}</string>
+\t\t</dict>
+\t</dict>
+</plist>"""
+
+    def setup_lua_environment(self):
         # 定义核心转换函数
         lua.execute(
             """
-        function to_xml(t, level)
-            local function indent(l)
-                local v = ""
-                for i = 1, l do v = v .. "\\t" end
-                return v
-            end
-
-            local o = ""
-            if type(t) == "table" then
-                if #t > 0 then
-                    o = o .. indent(level) .. "<array>\\n"
-                    for _, v in ipairs(t) do
-                        o = o .. to_xml(v, level + 1)
-                    end
-                    o = o .. indent(level) .. "</array>\\n"
-                else
-                    o = o .. indent(level) .. "<dict>\\n"
-                    for k, v in pairs(t) do
-                        o = o .. indent(level + 1) .. "<key>" .. tostring(k) .. "</key>\\n"
-                        o = o .. to_xml(v, level + 1)
-                    end
-                    o = o .. indent(level) .. "</dict>\\n"
-                end
-            elseif type(t) == "boolean" then
-                o = o .. indent(level) .. (t and "<true/>" or "<false/>") .. "\\n"
-            elseif type(t) == "number" then
-                o = o .. indent(level) .. "<real>" .. tostring(t) .. "</real>\\n"
-            elseif type(t) == "string" then
-                o = o .. indent(level) .. "<string>" .. tostring(t) .. "</string>\\n"
-            end
-            return o
-        end
-
-        function to_plist(t, a_name, size)
-            local o = ""
-            o = o .. '<?xml version="1.0" encoding="UTF-8"?>\\n'
-            o = o .. '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\\n'
-            o = o .. '<plist version="1.0">\\n'
-            o = o .. '\\t<dict>\\n'
-            o = o .. '\\t\\t<key>frames</key>\\n'
-            o = o .. to_xml(t, 2)
-            o = o .. '\\t\\t<key>metadata</key>\\n'
-            o = o .. '\\t\\t<dict>\\n'
-            o = o .. '\\t\\t\\t<key>format</key>\\n'
-            o = o .. '\\t\\t\\t<integer>3</integer>\\n'
-            o = o .. '\\t\\t\\t<key>pixelFormat</key>\\n'
-            o = o .. '\\t\\t\\t<string>RGBA8888</string>\\n'
-            o = o .. '\\t\\t\\t<key>premultiplyAlpha</key>\\n'
-            o = o .. '\\t\\t\\t<false/>\\n'
-            o = o .. '\\t\\t\\t<key>realTextureFileName</key>\\n'
-            o = o .. '\\t\\t\\t<string>' .. a_name .. '</string>\\n'
-            o = o .. '\\t\\t\\t<key>size</key>\\n'
-            o = o .. '\\t\\t\\t<string>' .. size .. '</string>\\n'
-            o = o .. '\\t\\t\\t<key>textureFileName</key>\\n'
-            o = o .. '\\t\\t\\t<string>' .. a_name .. '</string>\\n'
-            o = o .. '\\t\\t</dict>\\n'
-            o = o .. '\\t</dict>\\n'
-            o = o .. '</plist>\\n'
-            return o
-        end
-
-        function split_atlas(t)
-            local t = require(t)
-
-            if not t then
-                return false
-            end
-
-            local atlases = {}
-            local names = {}
-            for k, v in pairs(t) do
-                if not table.contains(names, v.a_name) then
-                    table.insert(names, v.a_name)
-                    local newAtlas = {size = "{" .. v.a_size[1] .. "," .. v.a_size[2] .. "}"}
-                    atlases[v.a_name] = newAtlas
-                end
-                local atlas = atlases[v.a_name]
-                local spriteWidth, spriteHeight = v.f_quad[3], v.f_quad[4]
-                local spriteSourceWidth, spriteSourceHeight = v.size[1], v.size[2]
-                local spriteOffsetX = math.ceil(v.trim[1] - (spriteSourceWidth - spriteWidth) / 2)
-                local spriteOffsetY = math.floor((spriteSourceHeight - spriteHeight) / 2 - v.trim[2])
-                local newTable = {
-                    spriteOffset = "{" .. spriteOffsetX .. "," .. spriteOffsetY .. "}",
-                    spriteSize = "{" .. spriteWidth .. "," .. spriteHeight .. "}",
-                    spriteSourceSize = "{" .. spriteSourceWidth .. "," .. spriteSourceHeight .. "}",
-                    textureRect = "{{" .. v.f_quad[1] .. "," .. v.f_quad[2] .. "},{" .. spriteWidth .. "," .. spriteHeight .. "}}",
-                    textureRotated = v.textureRotated or false
-                }
-                atlas[k .. ".png"] = newTable
-                if v.alias and #v.alias > 0 then
-                    for _, alias in ipairs(v.alias) do
-                        atlas[alias .. ".png"] = newTable
-                    end
-                end
-            end
-            return atlases
-        end
-
         function value_to_string(t, level, key)
             local function indent(l)
                 local v = ""
@@ -181,21 +144,6 @@ class SplitAtlases:
         """
         )
         return lua
-
-    def clean_lua_content(self, content):
-        """清理Lua文件内容，确保是有效的表格式"""
-        # 移除 BOM
-        content = re.sub(r"^\s*\ufeff\s*", "", content.strip())
-
-        # 移除单行注释
-        content = re.sub(r"--.*$", "", content, flags=re.MULTILINE)
-
-        # 移除多行注释
-        content = re.sub(r"--\[\[.*?\]\]", "", content, flags=re.DOTALL)
-
-        # 移除开头的 'return' 关键字（如果有）
-        content = re.sub(r"^\s*return\s*", "", content.strip())
-        return content.strip()
 
     def gen_png_from_plist(self, plist_path, png_path, open_plist=None):
         """根据Plist文件和图集生成小图"""
@@ -283,44 +231,38 @@ class SplitAtlases:
             for filename in os.listdir(input_path):
                 if filename.endswith(".lua"):
                     filepath = os.path.join(input_path, filename)
-                    print(f"📖 读取文件: {filename}")
-                    filepath_lua = (
-                        os.path.basename(input_path)
-                        + "."
-                        + filename.replace(".lua", "")
-                    )
- 
-                    atlases = lua.globals().split_atlas(filepath_lua)
 
-                    for a_name, atlas in atlases.items():
-                        size = atlas["size"]
-                        del atlas["size"]  # 移除size字段
+                    with open(filepath, "r", encoding="utf-8-sig") as f:
+                        print(f"📖 读取文件: {filename}")
 
-                        # 提取基础文件名
-                        match = re.search(r"\.(png|dds|pkm|pkm\.lz4)$", a_name)
-                        if not match:
-                            print(f"⚠️ 跳过无效文件: {a_name}")
-                            continue
+                        atlases = self.read_atlases_data(lua.execute(f.read()))
 
-                        base_name = a_name[: match.start()]
-                        plist_filename = f"{base_name}.plist"
-                        plist_path = os.path.join(output_path, plist_filename)
+                        for a_name, atlas in atlases.items():
+                            size = atlas["size"]
+                            del atlas["size"]
 
-                        # 生成Plist内容
-                        plist_data = lua.globals().to_plist(atlas, a_name, size)
+                            match = re.search(r"\.(png|dds|pkm|pkm\.lz4)$", a_name)
+                            if not match:
+                                print(f"⚠️ 跳过无效文件: {a_name}")
+                                continue
 
-                        # 写入Plist文件
-                        with open(plist_path, "w", encoding="utf-8") as plist_file:
-                            plist_file.write(plist_data)
-                        print(f"✅ 生成Plist: {plist_filename}")
+                            base_name = a_name.rsplit(".", 1)[0]
+                            plist_filename = f"{base_name}.plist"
+                            plist_path = os.path.join(output_path, plist_filename)
+                            a = self.to_plist(atlas, a_name, size)
+                            with open(
+                                plist_path, "w", encoding="utf-8-sig"
+                            ) as plist_file:
+                                plist_file.write(self.to_plist(atlas, a_name, size))
+                                print(f"✅ 生成Plist: {plist_filename}")
 
-                        # 处理对应图集
-                        atlas_image = os.path.join(input_path, a_name)
-                        if os.path.exists(atlas_image):
-                            # 生成小图
-                            self.gen_png_from_plist(plist_path, atlas_image)
-                        else:
-                            print(f"⚠️ 图集不存在: {a_name}")
+                            # 处理对应图集
+                            atlas_image = os.path.join(input_path, a_name)
+                            if os.path.exists(atlas_image):
+                                # 生成小图
+                                self.gen_png_from_plist(plist_path, atlas_image)
+                            else:
+                                print(f"⚠️ 图集不存在: {a_name}")
 
                 elif filename.endswith(".plist"):
                     filepath = os.path.join(input_path, filename)

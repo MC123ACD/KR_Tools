@@ -54,6 +54,8 @@ class SplitAtlases:
                 names.append(a_name)
                 atlases[a_name] = {"size": format_point(v["a_size"][1], v["a_size"][2])}
 
+            atlas = atlases[a_name]
+
             # 获取精灵尺寸和源尺寸
             spriteWidth, spriteHeight = v["f_quad"][3], v["f_quad"][4]
             spriteSourceWidth, spriteSourceHeight = v["size"][1], v["size"][2]
@@ -62,8 +64,7 @@ class SplitAtlases:
             spriteOffsetX = int(v["trim"][1] - (spriteSourceWidth - spriteWidth) / 2)
             spriteOffsetY = int((spriteSourceHeight - spriteHeight) / 2 - v["trim"][2])
 
-            # 为每个精灵创建数据条目
-            atlases[a_name][k + ".png"] = {
+            atlas_data = {
                 "spriteOffset": format_point(spriteOffsetX, spriteOffsetY),
                 "spriteSize": format_point(spriteWidth, spriteHeight),
                 "spriteSourceSize": format_point(spriteSourceWidth, spriteSourceHeight),
@@ -72,6 +73,14 @@ class SplitAtlases:
                 ),
                 "textureRotated": v["textureRotated"] if v["textureRotated"] else False,
             }
+
+            # 为每个精灵创建数据条目
+            atlas[k + ".png"] = atlas_data
+
+            # 别名处理
+            if v["alias"] and len(["alias"]) > 0:
+                for _, alias in v["alias"].items():
+                    atlas[alias + ".png"] = atlas_data
 
         return atlases
 

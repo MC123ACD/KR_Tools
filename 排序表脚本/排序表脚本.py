@@ -59,12 +59,21 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
         s = s.replace("\r", "\\r")
         s = s.replace("\t", "\\t")
         return s
+    
+    def is_simple_key(key):
+        """检查键名是否为简单标识符（只包含字母、数字、下划线，不以数字开头）"""
+        if not key or key[0].isdigit():
+            return False
+        return all(c.isalnum() or c == '_' for c in key)
 
     with open(lua_file_path, "w", encoding="utf-8") as f:
         f.write("return {\n")
 
         for k, v in sorted_dict.items():
-            f.write(f'\t["{escape_lua_string(k)}"] = "{escape_lua_string(v)}",\n')
+            if is_simple_key(k):
+                f.write(f'\t{escape_lua_string(k)} = "{escape_lua_string(v)}",\n')
+            else:
+                f.write(f'\t["{escape_lua_string(k)}"] = "{escape_lua_string(v)}",\n')
 
         for v in sorted_list:
             f.write(f'\t"{escape_lua_string(str(v))}",\n')

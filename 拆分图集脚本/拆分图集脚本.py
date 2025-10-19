@@ -1,4 +1,4 @@
-import os, re, sys, traceback, plistlib
+import os, re, sys, traceback, plistlib, subprocess
 from PIL import Image
 
 # 添加上级目录到Python路径，以便导入自定义库
@@ -284,12 +284,25 @@ class SplitAtlases:
 
     def process_plist_conversion(self):
         """处理Plist文件生成并生成小图"""
+
+        def run_decompiler(file_path):
+            """反编译lua文件"""
+            subprocess.run([
+                "luajit-decompiler-v2.exe",
+                file_path,
+                "-s",   # 禁用错误弹窗
+                "-f",   # 始终替换
+                "-o", "input"   # 输出目录
+            ], capture_output=True)
+
         try:
             # 遍历输入目录中的所有文件
             for filename in os.listdir(input_path):
                 if filename.endswith(".lua"):
                     # 处理Lua文件
                     filepath = os.path.join(input_path, filename)
+
+                    run_decompiler(filepath)
 
                     with open(filepath, "r", encoding="utf-8-sig") as f:
                         print(f"📖 读取文件: {filename}")

@@ -55,6 +55,7 @@ class LuaJITDecompiler:
                 self.decompiler_path,
                 target_folder,
                 "-e", ".lua",  # 只反编译.lua文件
+                "-f",   # 始终替换
                 "-s"    # 禁用错误窗口
             ], creationflags=subprocess.CREATE_NO_WINDOW)
             messagebox.showinfo("完成", "反编译完毕")

@@ -17,6 +17,7 @@ base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
 # 定义矩形类
 Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
+MINAREA = "min_area"
 
 
 class TexturePacker:
@@ -65,24 +66,24 @@ class TexturePacker:
         in_free_rect_idx = None
 
         for free_rect in self.free_rectangles:
-            for strategy in ["min_area"]:
-                if (
-                    free_rect.width < min_rectangle[1]
-                    or free_rect.height < min_rectangle[2]
-                ):
-                    continue
-                elif free_rect.width < width or free_rect.height < height:
-                    new_free_rectangles.append(free_rect)
-                    continue
+            if (
+                free_rect.width < min_rectangle[1]
+                or free_rect.height < min_rectangle[2]
+            ):
+                continue
+            elif free_rect.width < width or free_rect.height < height:
+                new_free_rectangles.append(free_rect)
+                continue
 
-                score = self.calculate_score(free_rect, strategy)
+            score = self.calculate_score(free_rect, MINAREA)
 
-                if score < best_score:
-                    best_score = score
-                    best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
-                    in_free_rect = free_rect
-                    in_free_rect_idx = len(new_free_rectangles)
+            if score < best_score:
+                best_score = score
+                best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
+                in_free_rect = free_rect
+                in_free_rect_idx = len(new_free_rectangles)
 
+            if free_rect not in new_free_rectangles:
                 new_free_rectangles.append(free_rect)
 
         self.free_rectangles = new_free_rectangles
@@ -93,8 +94,8 @@ class TexturePacker:
         return None
 
     def calculate_score(self, rect, strategy):
-        if strategy == "min_area":
-            return rect.width * rect.height  # 优先使用小面积区域
+        if strategy == MINAREA:
+            return rect.width * rect.height
 
         return 0
 
@@ -102,33 +103,6 @@ class TexturePacker:
         """分割空闲区域"""
         right = None
         bottom = None
-
-        # def add_available(x, y, width, height):
-        #     if width >= min_rectangle[1] and height >= min_rectangle[2]:
-        #         splits.append(
-        #             Rectangle(
-        #                 x,
-        #                 y,
-        #                 width,
-        #                 height,
-        #             )
-        #         )
-
-        # 暂时仅考虑放置左上角
-        # # 左侧区域
-        # if used_rect.x != free_rect.x:
-        #     add_available(
-        #         x=free_rect.x,
-        #         y=free_rect.y,
-        #         width=used_rect.x - free_rect.x,
-        #         height=free_rect.height,
-        #     )
-
-        # # 上方区域
-        # if used_rect.y != free_rect.y:
-        #     add_available(
-        #         x=used_rect.x, y=free_rect.y, width=used_rect.width, height=used_rect.y
-        #     )
 
         # 右侧区域
         if used_rect.x + used_rect.width != free_rect.x + free_rect.width:
@@ -155,8 +129,6 @@ class TexturePacker:
             )
 
         if right and bottom:
-            # 暂时仅考虑放置左上角
-
             if right.width * right.height < free_rect.width * bottom.height:
                 right, bottom = Rectangle(
                     right.x,
@@ -330,10 +302,10 @@ def make_trim(img, new_img):
     bottom_cropped = origin_height - (offset_y + new_height)
 
     return {
-        'top': top_cropped,
-        'left': left_cropped,
-        'right': right_cropped,
-        'bottom': bottom_cropped,
+        "top": top_cropped,
+        "left": left_cropped,
+        "right": right_cropped,
+        "bottom": bottom_cropped,
     }
 
 
@@ -346,7 +318,7 @@ def handle_same_images(images):
             continue
 
         # 创建特征键
-        key = (img["hash"])
+        key = img["hash"]
 
         if key not in groups:
             groups[key] = {"main": img, "similar": []}

@@ -1,10 +1,4 @@
-#!/usr/bin/env python3
-"""
-高级图集打包脚本
-使用多种算法优化图片排列，尽量减少空白区域
-"""
-
-import os, sys
+import sys
 import argparse
 from pathlib import Path
 from wand.image import Image

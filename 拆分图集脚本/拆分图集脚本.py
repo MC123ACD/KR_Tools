@@ -1,16 +1,16 @@
-import os, re, sys, traceback, plistlib, subprocess
+import re, sys, traceback, plistlib, subprocess
 from PIL import Image
+from pathlib import Path
+
 
 # 添加上级目录到Python路径，以便导入自定义库
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
-from lib import lib
+import lib
 
-# 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
-# 初始化Lua环境
 lua = lib.init_lua()
 
 
@@ -270,17 +270,14 @@ class SplitAtlases:
             result_image.paste(rect_on_big, position)
 
             # 创建输出目录（如果不存在）
-            output_dir = os.path.join(
-                output_path,
-                os.path.splitext(os.path.basename(plist_path))[0],
-            )
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+            output_dir = output_path / plist_path.stem
+
+            output_dir.mkdir(exist_ok=True)
 
             # 保存结果图像
-            output_file = os.path.join(output_dir, framename + ".png")
+            output_file = output_dir / f"{framename}.png"
             result_image.save(output_file)
-            print(f"🖼️ 生成小图: {os.path.basename(output_file)}")
+            print(f"🖼️ 生成小图: {output_file.name}")
 
     def process_plist_conversion(self):
         """处理Plist文件生成并生成小图"""
@@ -289,24 +286,22 @@ class SplitAtlases:
             """反编译lua文件"""
             subprocess.run([
                 "luajit-decompiler-v2.exe",
-                file_path,
+                str(file_path),
                 "-s",   # 禁用错误弹窗
                 "-f",   # 始终替换
                 "-o", "input"   # 输出目录
             ], capture_output=True, text=True)
 
-            print(f"🔧 反编译: {os.path.basename(file_path)}")
+            print(f"🔧 反编译: {file_path.name}")
 
         try:
             # 遍历输入目录中的所有文件
-            for filename in os.listdir(input_path):
-                if filename.endswith(".lua"):
+            for filename in input_path.iterdir():
+                if filename.suffix == ".lua":
                     # 处理Lua文件
-                    filepath = os.path.join(input_path, filename)
+                    run_decompiler(filename)
 
-                    run_decompiler(filepath)
-
-                    with open(filepath, "r", encoding="utf-8-sig") as f:
+                    with open(filename, "r", encoding="utf-8-sig") as f:
                         print(f"📖 读取文件: {filename}")
 
                         # 读取图集数据
@@ -326,7 +321,7 @@ class SplitAtlases:
                             # 生成Plist文件
                             base_name = a_name.rsplit(".", 1)[0]
                             plist_filename = f"{base_name}.plist"
-                            plist_path = os.path.join(output_path, plist_filename)
+                            plist_path = output_path / plist_filename
 
                             with open(
                                 plist_path, "w", encoding="utf-8-sig"
@@ -335,32 +330,30 @@ class SplitAtlases:
                                 print(f"✅ 生成Plist: {plist_filename}")
 
                             # 处理对应图集
-                            atlas_image = os.path.join(input_path, a_name)
-                            if os.path.exists(atlas_image):
+                            atlas_image = input_path / a_name
+                            if atlas_image.exists():
                                 # 生成小图
                                 self.gen_png_from_plist(plist_path, atlas_image)
                             else:
                                 print(f"⚠️ 图集不存在: {a_name}")
 
-                elif filename.endswith(".plist"):
+                elif filename.suffix == ".plist":
                     # 处理现有的Plist文件
-                    filepath = os.path.join(input_path, filename)
                     print(f"📖 读取文件: {filename}")
 
-                    with open(filepath, "rb") as file:
+                    with open(filename, "rb") as file:
                         open_plist = plistlib.load(file)
                         frames = open_plist["metadata"]["realTextureFileName"]
 
                     # 处理对应图集
-                    atlas_image = os.path.join(input_path, frames)
-                    if os.path.exists(atlas_image):
+                    atlas_image = input_path / frames
+                    if atlas_image.exists():
                         # 生成小图
-                        self.gen_png_from_plist(filepath, atlas_image, open_plist)
+                        self.gen_png_from_plist(filename, atlas_image, open_plist)
                     else:
                         print(f"⚠️ 图集不存在: {frames}")
 
         except Exception as e:
-            print(f"❌ 处理错误 {filename}: {str(e)}")
             traceback.print_exc()
 
     def clean_lua_content(self, content):
@@ -381,134 +374,6 @@ class SplitAtlases:
         content = re.sub(r"\n\s*\n", "\n", content)
         return content.strip()
 
-    def process_animations(self, immutable_path, alterable_path):
-        """
-        处理动画文件
-
-        Args:
-            immutable_path: 不可变动画文件路径
-            alterable_path: 可变动画文件路径
-        """
-        print("\n🔄 处理动画文件...")
-        immutable_anims = {}
-
-        # 收集所有immutable动画
-        if os.path.exists(immutable_path):
-            for filename in os.listdir(immutable_path):
-                if filename.endswith(".lua"):
-                    filepath = os.path.join(immutable_path, filename)
-                    try:
-                        with open(filepath, "r", encoding="utf-8") as f:
-                            content = f.read()
-                            if content.strip():
-                                cleaned_content = self.clean_lua_content(content)
-                                anims = lua.eval(f"return {cleaned_content}")
-                                for k, v in anims.items():
-                                    immutable_anims[k] = v
-                        print(f"📥 加载: {filename} ({len(anims)}动画)")
-                    except Exception as e:
-                        print(f"❌ 加载错误 {filename}: {str(e)}")
-
-        # 处理alterable文件
-        if os.path.exists(alterable_path):
-            alterable_files = [
-                f for f in os.listdir(alterable_path) if f.endswith(".lua")
-            ]
-
-            if alterable_files:
-                alterable_file = os.path.join(alterable_path, alterable_files[0])
-                print(f"🛠️ 处理: {alterable_file}")
-
-                try:
-                    with open(alterable_file, "r", encoding="utf-8") as f:
-                        content = f.read()
-                        if content.strip():
-                            cleaned_content = self.clean_lua_content(content)
-                            alterable_anims = lua.eval(f"return {cleaned_content}")
-                        else:
-                            alterable_anims = {}
-                            print("⚠️ 空文件，初始化为空表")
-
-                    # 移除重复动画
-                    original_count = len(alterable_anims)
-                    for key in list(alterable_anims.keys()):
-                        if key in immutable_anims:
-                            del alterable_anims[key]
-
-                    removed = original_count - len(alterable_anims)
-                    print(f"🗑️ 移除 {removed} 个重复动画")
-
-                    # 生成新内容
-                    output_content = "return {\n"
-                    for key, value in alterable_anims.items():
-                        output_content += lua.globals().value_to_string(
-                            value, 1, f'["{key}"]'
-                        )
-                    output_content += "}"
-
-                    with open(alterable_file, "w", encoding="utf-8") as f:
-                        f.write(output_content)
-                    print(f"💾 保存更新: {alterable_file}")
-
-                except Exception as e:
-                    print(f"❌ 处理错误: {str(e)}")
-                    traceback.print_exc()
-
-    def process_dds_conversion(self, dds_path):
-        """
-        处理DDS到PKM转换
-
-        Args:
-            dds_path: DDS文件路径
-        """
-        print("\n🖼️ 处理纹理转换...")
-
-        for filename in os.listdir(dds_path):
-            if filename.endswith(".lua"):
-                filepath = os.path.join(dds_path, filename)
-                print(f"🔧 转换: {filename}")
-
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        content = f.read()
-                        if content.strip():
-                            cleaned_content = self.clean_lua_content(content)
-                            atlas = lua.eval(f"{cleaned_content}")
-                        else:
-                            atlas = {}
-                            print("⚠️ 空文件，初始化为空表")
-
-                    # 更新a_name字段，将.dds替换为.pkm.lz4
-                    updated = 0
-                    for key, value in atlas.items():
-                        if "a_name" in value and isinstance(value["a_name"], str):
-                            if value["a_name"].endswith(".dds"):
-                                value["a_name"] = re.sub(
-                                    r"\.dds$", ".pkm.lz4", value["a_name"]
-                                )
-                                updated += 1
-
-                    print(f"🔄 更新 {updated} 个纹理引用")
-
-                    # 排序并生成新内容
-                    keys = list(atlas.keys())
-                    keys.sort()
-
-                    output_content = "return {\n"
-                    for key in keys:
-                        output_content += lua.globals().value_to_string(
-                            atlas[key], 1, f'["{key}"]'
-                        )
-                    output_content += "}"
-
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        f.write(output_content)
-                    print(f"💾 保存: {filename}")
-
-                except Exception as e:
-                    print(f"❌ 转换错误: {str(e)}")
-                    traceback.print_exc()
-
     def main(self):
         """主函数，协调整个转换流程"""
         print("🚀 开始转换流程")
@@ -519,15 +384,6 @@ class SplitAtlases:
 
         # 处理Plist转换和小图生成
         self.process_plist_conversion()
-
-        # 处理动画文件
-        immutable_path = os.path.join(base_dir, "animations", "immutable")
-        alterable_path = os.path.join(base_dir, "animations", "alterable")
-        self.process_animations(immutable_path, alterable_path)
-
-        # 处理纹理转换
-        dds_path = os.path.join(base_dir, "dds2pkm_lz4")
-        self.process_dds_conversion(dds_path)
 
         print("=" * 50)
         print("🎉 所有转换完成!")

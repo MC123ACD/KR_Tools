@@ -1,5 +1,6 @@
 from lupa.luajit20 import LuaRuntime
-import re, os, traceback
+import traceback
+from pathlib import Path
 
 
 def find_and_create_directory(caller_file: str) -> tuple[str, str, str]:
@@ -7,18 +8,18 @@ def find_and_create_directory(caller_file: str) -> tuple[str, str, str]:
     查找与创建输入与输出目录
     """
 
-    base_dir = os.path.dirname(os.path.abspath(caller_file))
-    input_path = os.path.join(base_dir, "input")
-    output_path = os.path.join(base_dir, "output")
+    base_dir = Path(caller_file).parent
+    input_path = base_dir / "input"
+    output_path = base_dir / "output"
 
-    if not os.path.exists(input_path):
-        os.makedirs(input_path)
+    if not input_path.exists():
+        input_path.mkdir()
         input("💬 输入目录 input 不存在, 已自动创建, 按回车继续 >")
 
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    if not output_path.exists():
+        output_path.mkdir()
 
-    while len(os.listdir(input_path)) == 0:
+    while len(list(input_path.iterdir())) == 0:
         input("❌ 错误, 输入目录为空, 请放入Lua模块后按回车重试 >")
 
     return base_dir, input_path, output_path

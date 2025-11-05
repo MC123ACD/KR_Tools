@@ -1,42 +1,60 @@
 import os, sys
 from pathlib import Path
-from PIL import Image
+from wand.image import Image
+
 # 添加上级目录到Python路径，以便导入自定义库
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
-from lib import lib
+import lib
 
-# 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
 
-def resize_images():
-    for dir in Path(input_path).iterdir():
-        print(f"📖 读取目录: {dir}")
+def set_size(img, size):
+    width, height = img.size
 
-        for file in Path(dir).iterdir():
-            # 打开并处理图片
-            with Image.open(file) as img:
-                width, height = img.size
+    new_width = int(width * size)
+    new_height = int(height * size)
 
-                new_width = int(width * 0.71)
-                new_height = int(height * 0.71)
+    img.resize(new_width, new_height)
 
-                # 调整尺寸
-                resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-                # 保存图片
-                output_dir = Path(output_path) / dir.name
+def resize_images(size):
+    for dir in input_path.iterdir():
+        print(f"📖 读取: {dir.name}")
 
-                output_dir.mkdir(exist_ok=True)
+        if dir.is_dir():
+            for file in dir.iterdir():
+                # 打开并处理图片
+                with Image(filename=file) as img:
+                    set_size(img, size)
 
-                resized_img.save(output_dir / file.name, quality=100, optimize=True)
+                    # 保存图片
+                    output_dir = output_path / dir.name
 
-                print(f"🖼️ 保存缩放后图片: {file.name}")
+                    output_dir.mkdir(exist_ok=True)
+
+                    img.save(filename=output_dir / file.name)
+
+                    print(f"🖼️ 保存缩放后图片: {file.name}")
+        else:
+            with Image(filename=dir) as img:
+                set_size(img, size)
+
+                img.save(filename=output_path / dir.name)
+
+                print(f"🖼️ 保存缩放后图片: {dir.name}")
+
 
 if __name__ == "__main__":
-    resize_images()
+    try:
+        size = float(input("请输入缩放百分比> "))
+    except ValueError:
+        print("错误，请输入数字")
+        size = float(input("请输入缩放百分比> "))
 
-    input("程序执行完毕，按回车键退出...")
+    resize_images(size)
+
+    input("程序执行完毕，按回车键退出> ")

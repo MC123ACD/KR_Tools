@@ -1,4 +1,4 @@
-import os, sys
+import sys
 from pathlib import Path
 from wand.image import Image
 import math, random, hashlib
@@ -6,11 +6,11 @@ from collections import namedtuple
 
 
 # 添加上级目录到Python路径，以便导入自定义库
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
-from lib import lib
+import lib
 
 # 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
@@ -340,7 +340,7 @@ def get_input_subdir():
     input_subdir = {}
 
     try:
-        for dir in Path(input_path).iterdir():
+        for dir in input_path.iterdir():
             input_subdir[dir.name] = []
             images = input_subdir[dir.name]
 
@@ -384,7 +384,7 @@ def write_texture_atlas(images, atlas_width, atlas_height, filename):
     with Image(
         width=atlas_width, height=atlas_height, background="transparent"
     ) as atlas:
-        output_dds = output_path + "/" + filename + ".dds"
+        output_dds = output_path / f"{filename}.dds"
 
         for img_info in images:
             img_pos = img_info["pos"]
@@ -407,7 +407,7 @@ def is_simple_key(key):
 
 
 def write_lua_data(images, atlas_width, atlas_height, atlas_name):
-    filepath = output_path + "/" + atlas_name + ".lua"
+    filepath = output_path / f"{atlas_name}.lua"
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write("return {\n")

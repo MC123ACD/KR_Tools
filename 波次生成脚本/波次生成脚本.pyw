@@ -1,13 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import json, os, sys
+import json, sys
+from pathlib import Path
 
-# 添加上级目录到Python路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
 
-from lib import lib
+# 添加上级目录到Python路径，以便导入自定义库
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
+
+import lib
 
 lua = lib.init_lua()
 
@@ -39,8 +41,7 @@ class WaveDataGenerator:
         self.root.after(10, self.entry_focus, self.cash_entry)
 
     def load_json_data(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        setting_path = os.path.join(current_dir, "setting.json")
+        setting_path = current_dir/ "setting.json"
 
         with open(setting_path, "r", encoding="utf-8") as f:
             self.setting = json.load(f)
@@ -917,11 +918,11 @@ class WaveDataGenerator:
         return dictionary
 
     def save_to_lua(self):
-        file_path = filedialog.asksaveasfilename(
+        file_path = Path(filedialog.asksaveasfilename(
             defaultextension=".lua",
             filetypes=[("Lua 文件", "*.lua")],
             initialfile=self.load_luafile,
-        )
+        ))
 
         self.save_initial_resource()
         if self.group_listbox.curselection():
@@ -1071,7 +1072,7 @@ class WaveDataGenerator:
                     f.write("\t}\n")
                     f.write("}")
 
-            self.status_var.set(f"文件已保存: {os.path.basename(file_path)}")
+            self.status_var.set(f"文件已保存: {file_path.name}")
             messagebox.showinfo("成功", "Lua文件保存成功！")
 
         except Exception as e:
@@ -1144,9 +1145,7 @@ class WaveDataGenerator:
                                     else ""
                                 ),
                                 "max_same": (
-                                    d_spawn["max_same"]
-                                    if d_spawn["max_same"]
-                                    else 0
+                                    d_spawn["max_same"] if d_spawn["max_same"] else 0
                                 ),
                                 "max": d_spawn["max"],
                                 "interval": d_spawn["interval"],
@@ -1198,9 +1197,7 @@ class WaveDataGenerator:
                                 else ""
                             ),
                             "max_same": (
-                                d_spawn["max_same"]
-                                if d_spawn["max_same"]
-                                else 0
+                                d_spawn["max_same"] if d_spawn["max_same"] else 0
                             ),
                             "max": d_spawn["max"],
                             "interval": d_spawn["interval"],
@@ -1228,7 +1225,7 @@ class WaveDataGenerator:
         self.on_group_select()
 
         if not self.setted["Dove_spawn_criket"]:
-            self.load_luafile = os.path.basename(file_path).replace(".lua", "")
+            self.load_luafile = file_path.name.replace(".lua", "")
 
         self.status_var.set(f"已加载 {self.load_luafile} 文件")
 

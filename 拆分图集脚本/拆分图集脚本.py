@@ -293,7 +293,9 @@ class SplitAtlases:
                 "-s",   # 禁用错误弹窗
                 "-f",   # 始终替换
                 "-o", "input"   # 输出目录
-            ], capture_output=True)
+            ], capture_output=True, text=True)
+
+            print(f"🔧 反编译: {os.path.basename(file_path)}")
 
         try:
             # 遍历输入目录中的所有文件

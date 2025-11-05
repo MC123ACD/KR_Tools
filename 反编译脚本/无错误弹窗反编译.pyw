@@ -8,14 +8,6 @@ class LuaJITDecompiler:
         self.root.title("无错误弹窗反编译文件夹")
         self.root.geometry("400x150")
         
-        # 自动查找同目录下的反编译器
-        self.decompiler_path = self.find_decompiler()
-        
-        if not self.decompiler_path:
-            messagebox.showerror("错误", "未找到 luajit-decompiler-v2.exe")
-            root.destroy()
-            return
-        
         # 创建UI
         ttk.Label(root, text="选择包含LuaJIT字节码的文件夹:").pack(pady=10)
         
@@ -31,11 +23,12 @@ class LuaJITDecompiler:
         ttk.Button(btn_frame, text="开始反编译", command=self.run_decompiler).pack(side=tk.LEFT, padx=5)
     
     def find_decompiler(self):
-        # 在当前目录查找反编译器
-        for file in os.listdir():
-            if file.lower() == "luajit-decompiler-v2.exe":
-                return os.path.abspath(file)
-        return None
+        if os.path.exists("luajit-decompiler-v2.exe"):
+            return "luajit-decompiler-v2.exe"
+        else:
+            messagebox.showerror("错误", "未找到 luajit-decompiler-v2.exe")
+            root.destroy()
+            return
     
     def browse_folder(self):
         folder = filedialog.askdirectory(title="选择包含LuaJIT字节码的文件夹")
@@ -52,12 +45,12 @@ class LuaJITDecompiler:
         
         try:
             subprocess.run([
-                self.decompiler_path,
+                self.find_decompiler(),
                 target_folder,
                 "-e", ".lua",  # 只反编译.lua文件
                 "-f",   # 始终替换
                 "-s"    # 禁用错误窗口
-            ], creationflags=subprocess.CREATE_NO_WINDOW)
+            ], creationflags=subprocess.CREATE_NO_WINDOW, capture_output=True, text=True)
             messagebox.showinfo("完成", "反编译完毕")
         except Exception as e:
             messagebox.showerror("错误", f"无法进行反编译: {str(e)}")

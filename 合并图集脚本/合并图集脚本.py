@@ -384,6 +384,8 @@ def get_input_subdir():
                             "image": new_img,
                             "width": new_img.width,
                             "height": new_img.height,
+                            "origin_width": img.width,
+                            "origin_height": img.height,
                             "name": image_file.stem,
                             "samed_img": [],
                             "removed": False,
@@ -397,7 +399,7 @@ def get_input_subdir():
                         f"加载: {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
                     )
 
-            images = handle_same_images(images)
+            input_subdir[dir.name] = handle_same_images(images)
 
     except Exception as e:
         print(f"加载图片时出错: {e}")
@@ -424,8 +426,70 @@ def write_texture_atlas(images, atlas_width, atlas_height, filename):
         atlas.compression = "dxt5"
         atlas.save(filename=output_dds)
 
-# def write_lua_data(images, atlas_width, atlas_height, atlas_name):
 
+def is_simple_key(key):
+    """检查键名是否为简单标识符（只包含字母、数字、下划线，不以数字开头）"""
+    if not key or key[0].isdigit():
+        return False
+    return all(c.isalnum() or c == "_" for c in key)
+
+
+def write_lua_data(images, atlas_width, atlas_height, atlas_name):
+    filepath = output_path + "/" + atlas_name + ".lua"
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("return {\n")
+        for idx, img in enumerate(images):
+            pos = img["pos"]
+            trim = img["trim"]
+
+            if is_simple_key(img["name"]):
+                f.write(f"\t{img["name"]} = {{\n")
+            else:
+                f.write(f'\t["{img["name"]}"] = {{\n')
+            f.write(f'\t\ta_name = "{atlas_name}.dds",\n')
+
+            f.write(f"\t\tsize = {{\n")
+            f.write(f"\t\t\t{img["origin_width"]},\n")
+            f.write(f"\t\t\t{img["origin_height"]}\n")
+            f.write(f"\t\t}},\n")
+
+            f.write(f"\t\ttrim = {{\n")
+            f.write(f"\t\t\t{trim["top"]},\n")
+            f.write(f"\t\t\t{trim["left"]},\n")
+            f.write(f"\t\t\t{trim["right"]},\n")
+            f.write(f"\t\t\t{trim["bottom"]}\n")
+            f.write(f"\t\t}},\n")
+
+            f.write(f"\t\ta_size = {{\n")
+            f.write(f"\t\t\t{atlas_width},\n")
+            f.write(f"\t\t\t{atlas_height}\n")
+            f.write(f"\t\t}},\n")
+
+            f.write(f"\t\tf_quad = {{\n")
+            f.write(f"\t\t\t{pos["x"]},\n")
+            f.write(f"\t\t\t{pos["y"]},\n")
+            f.write(f"\t\t\t{img["width"]},\n")
+            f.write(f"\t\t\t{img["height"]}\n")
+            f.write(f"\t\t}},\n")
+
+            if len(img["samed_img"]) > 0:
+                f.write(f"\t\talias = {{\n")
+                for i, alia in enumerate(img["samed_img"]):
+                    if i == len(img["samed_img"]) - 1:
+                        f.write(f'\t\t\t"{alia["name"]}"\n')
+                    else:
+                        f.write(f'\t\t\t"{alia["name"]}",\n')
+                f.write(f"\t\t}}\n")
+            else:
+                f.write(f"\t\talias = {{}}\n")
+
+            if idx == len(images) - 1:
+                f.write(f"\t}}\n")
+            else:
+                f.write(f"\t}},\n")
+
+        f.write("}")
 
 
 def main():
@@ -443,7 +507,7 @@ def main():
         # try:
         write_texture_atlas(images, atlas_width, atlas_height, atlas_name)
 
-        # write_lua_data(images, atlas_width, atlas_height, atlas_name)
+        write_lua_data(images, atlas_width, atlas_height, atlas_name)
 
         # except Exception as e:
         #     print(f"写入图集时出错: {e}")

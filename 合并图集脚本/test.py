@@ -10,37 +10,40 @@ import random
 
 
 # 添加上级目录到Python路径，以便导入自定义库
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
-from lib import lib
+import lib
+
+is_simple_key = lib.is_simple_key
+
 
 # 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
+
 def main():
-    for image_file in Path(input_path).iterdir():
+    for image_file in input_path.iterdir():
         with Image(filename=image_file) as img:
-            new_img = img.clone()
+            img.trim()
+            img_border = 3
+            new_width = img.width + 2 * img_border
+            new_height = img.height + 2 * img_border
 
-            with Image(width=img.width, height=img.height, background="transparent") as atlas:
-                --atlas.composite(img, 0, 0)
+            # 扩展画布，图片居中
+            img.extent(
+                width=new_width,
+                height=new_height,
+                x=-img_border,
+                y=-img_border,
+            )
 
-                print(new_img.page)
-                new_img.trim()
-                print(new_img.page)
+            output_dds = output_path / f"{image_file.name}.png"
 
-                atlas.composite(new_img, 0, 0)
+            img.save(filename=output_dds)
 
-                output_dds = output_path + "/" + image_file.name + ".png"
-
-                # 保存为DDS BC3格式
-                print(f"保存为DDS BC3格式: {output_dds}")
-                atlas.format = "png"
-                atlas.save(filename=output_dds)
-
-                print("图集创建成功!")
+            print("图集创建成功!")
 
 
 if __name__ == "__main__":

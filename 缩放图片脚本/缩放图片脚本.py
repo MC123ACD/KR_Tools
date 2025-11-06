@@ -15,10 +15,10 @@ base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 def set_size(img, size):
     width, height = img.size
 
-    new_width = int(width * size)
-    new_height = int(height * size)
+    new_width = round(width * size)
+    new_height = round(height * size)
 
-    img.resize(new_width, new_height)
+    img.resize(new_width, new_height, filter="mitchell")
 
 
 def resize_images(size):

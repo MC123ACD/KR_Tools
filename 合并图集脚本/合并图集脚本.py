@@ -1,6 +1,7 @@
-import sys
+import sys, traceback, subprocess
 from pathlib import Path
 from wand.image import Image
+from wand.color import Color
 import math, random, hashlib
 from collections import namedtuple
 
@@ -12,6 +13,8 @@ sys.path.insert(0, str(parent_dir))
 
 import lib
 
+is_simple_key = lib.is_simple_key
+
 # 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
@@ -19,14 +22,20 @@ base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"
 
+padding = 2
+# img_border = 3
+border = 2
+
 
 class TexturePacker:
-    def __init__(self, width, height, padding=2):
+    def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.padding = padding
+        self.border = border
         self.used_rectangles = []
-        self.free_rectangles = [Rectangle(0, 0, width, height)]
+        self.free_rectangles = [
+            Rectangle(border, border, width - border, height - border)
+        ]
 
     def fit(self, rectangles):
         """使用MaxRects算法排列矩形"""
@@ -213,8 +222,7 @@ class TexturePacker:
 
 def maxrects_packing(images, atlas_width, atlas_height):
     """使用MaxRects算法进行排列"""
-    padding = 2
-    packer = TexturePacker(atlas_width, atlas_height, padding)
+    packer = TexturePacker(atlas_width, atlas_height)
 
     # 准备矩形数据 (id, width, height)
     rectangles = [
@@ -224,13 +232,11 @@ def maxrects_packing(images, atlas_width, atlas_height):
 
     results = packer.fit(rectangles)
 
-    # 转换为实际位置（去掉padding）
+    # 转换为实际位置
     for rect_id, rect in results:
         images[rect_id]["pos"] = {
             "x": rect.x,
             "y": rect.y,
-            "width": rect.width - padding,
-            "height": rect.height - padding,
         }
 
 
@@ -247,7 +253,7 @@ def calculate_optimal_size(images):
     for size in sizes:
         efficiency = simulate_packing_efficiency(images, size, size)
 
-        if efficiency > best_efficiency and efficiency > 0.8:  # 至少80%利用率
+        if efficiency > best_efficiency and efficiency > 0.25:  # 至少25%利用率
             best_efficiency = efficiency
             best_size = (size, size)
 
@@ -256,7 +262,7 @@ def calculate_optimal_size(images):
             if efficiency > 0.8:
                 ...
             else:
-                print("最大图集利用率较低，启用多图集打包")
+                print("最大图集大小利用率较低，启用多图集打包")
                 is_several_atlas = True
 
             best_efficiency = efficiency
@@ -265,9 +271,9 @@ def calculate_optimal_size(images):
     return best_size, is_several_atlas
 
 
-def simulate_packing_efficiency(images, width, height, padding=20):
+def simulate_packing_efficiency(images, width, height):
     """模拟排列并计算空间利用率"""
-    packer = TexturePacker(width, height, padding)
+    packer = TexturePacker(width, height)
 
     rectangles = [
         (i, img["width"] + padding, img["height"] + padding)
@@ -285,8 +291,10 @@ def simulate_packing_efficiency(images, width, height, padding=20):
     return used_area / total_area
 
 
-def make_trim(img, new_img):
+def make_trim(img, new_img, images, image_file):
     new_img.trim()
+
+    # 实际裁剪计算
     origin_width = img.width
     origin_height = img.height
     new_width = new_img.width
@@ -295,15 +303,14 @@ def make_trim(img, new_img):
 
     _, _, offset_x, offset_y = new_page
 
-    # 实际裁剪计算
     left_cropped = offset_x
     top_cropped = offset_y
     right_cropped = origin_width - (offset_x + new_width)
     bottom_cropped = origin_height - (offset_y + new_height)
 
     return {
-        "top": top_cropped,
         "left": left_cropped,
+        "top": top_cropped,
         "right": right_cropped,
         "bottom": bottom_cropped,
     }
@@ -348,7 +355,18 @@ def get_input_subdir():
                 with Image(filename=image_file) as img:
                     new_img = img.clone()
 
-                    trim = make_trim(img, new_img)
+                    trim = make_trim(img, new_img, images, image_file)
+
+                    # new_width = new_img.width + 2 * img_border
+                    # new_height = new_img.height + 2 * img_border
+
+                    # # 扩展画布，图片居中
+                    # img.extent(
+                    #     width=new_width,
+                    #     height=new_height,
+                    #     x=-img_border,
+                    #     y=-img_border,
+                    # )
 
                     images.append(
                         {
@@ -375,8 +393,40 @@ def get_input_subdir():
 
     except Exception as e:
         print(f"加载图片时出错: {e}")
+        traceback.print_exc()
+        return
 
     return input_subdir
+
+
+def save_to_dds_bc7(output_file, atlas):
+    output_file = str(output_file) + ".png"
+    atlas.save(filename=output_file)
+
+    print(f"保存为DDS BC7格式: {output_file}...")
+    subprocess.run(
+        [
+            "texconv.exe",
+            "-f",
+            "BC7_UNORM",  # BC7 格式
+            "-y",  # 覆盖已存在文件
+            "-o",
+            str(output_path),
+            output_file,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+def save_to_dds_bc3(output_file, atlas):
+    output_file = str(output_file) + ".dds"
+
+    # 保存为DDS BC3格式
+    print(f"保存为DDS BC3格式: {output_file}")
+    atlas.format = "dds"
+    atlas.compression = "dxt5"
+    atlas.save(filename=output_file)
 
 
 def write_texture_atlas(images, atlas_width, atlas_height, filename):
@@ -384,7 +434,7 @@ def write_texture_atlas(images, atlas_width, atlas_height, filename):
     with Image(
         width=atlas_width, height=atlas_height, background="transparent"
     ) as atlas:
-        output_dds = output_path / f"{filename}.dds"
+        output_file = output_path / filename
 
         for img_info in images:
             img_pos = img_info["pos"]
@@ -392,18 +442,7 @@ def write_texture_atlas(images, atlas_width, atlas_height, filename):
             if len(img_pos) > 0:
                 atlas.composite(img_info["image"], left=img_pos["x"], top=img_pos["y"])
 
-        # 保存为DDS BC3格式
-        print(f"保存为DDS BC3格式: {output_dds}")
-        atlas.format = "dds"
-        atlas.compression = "dxt5"
-        atlas.save(filename=output_dds)
-
-
-def is_simple_key(key):
-    """检查键名是否为简单标识符（只包含字母、数字、下划线，不以数字开头）"""
-    if not key or key[0].isdigit():
-        return False
-    return all(c.isalnum() or c == "_" for c in key)
+        save_to_dds_bc7(output_file, atlas)
 
 
 def write_lua_data(images, atlas_width, atlas_height, atlas_name):
@@ -427,8 +466,8 @@ def write_lua_data(images, atlas_width, atlas_height, atlas_name):
             f.write(f"\t\t}},\n")
 
             f.write(f"\t\ttrim = {{\n")
-            f.write(f"\t\t\t{trim["top"]},\n")
             f.write(f"\t\t\t{trim["left"]},\n")
+            f.write(f"\t\t\t{trim["top"]},\n")
             f.write(f"\t\t\t{trim["right"]},\n")
             f.write(f"\t\t\t{trim["bottom"]}\n")
             f.write(f"\t\t}},\n")
@@ -467,23 +506,27 @@ def write_lua_data(images, atlas_width, atlas_height, atlas_name):
 def main():
     input_subdir = get_input_subdir()
 
-    for atlas_name, images in input_subdir.items():
-        # 计算最优图集尺寸
-        texture_size, is_several_atlas = calculate_optimal_size(images)
-        print(f"自动计算图集尺寸: {texture_size[0]}x{texture_size[1]}")
+    if input_subdir:
+        for atlas_name, images in input_subdir.items():
+            # 计算最优图集尺寸
+            texture_size, is_several_atlas = calculate_optimal_size(images)
+            print(f"自动计算图集尺寸: {texture_size[0]}x{texture_size[1]}")
 
-        atlas_width, atlas_height = texture_size
+            atlas_width, atlas_height = texture_size
 
-        maxrects_packing(images, atlas_width, atlas_height)
+            maxrects_packing(images, atlas_width, atlas_height)
 
-        # try:
-        write_texture_atlas(images, atlas_width, atlas_height, atlas_name)
+            # try:
+            write_texture_atlas(images, atlas_width, atlas_height, atlas_name)
 
-        write_lua_data(images, atlas_width, atlas_height, atlas_name)
+            write_lua_data(images, atlas_width, atlas_height, atlas_name)
 
-        # except Exception as e:
-        #     print(f"写入图集时出错: {e}")
-        #     return False
+            # except Exception as e:
+            #     print(f"写入图集时出错: {e}")
+            #     return False
+
+            for img_info in images:
+                img_info['image'].close()
 
 
 if __name__ == "__main__":

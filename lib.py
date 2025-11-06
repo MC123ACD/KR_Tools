@@ -42,3 +42,10 @@ def init_lua(fn: str = None) -> object:
     except Exception as e:
         print(f"❌ Lua初始化失败: {str(e)}")
         return
+
+
+def is_simple_key(key: str):
+    """检查键名是否为简单标识符（只包含字母、数字、下划线，不以数字开头）"""
+    if not key or key[0].isdigit():
+        return False
+    return all(c.isalnum() or c == "_" for c in key)

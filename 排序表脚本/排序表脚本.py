@@ -11,6 +11,7 @@ import lib
 
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 lua = lib.init_lua()
+is_simple_key = lib.is_simple_key
 
 
 def sort_lua_table():
@@ -28,7 +29,9 @@ def sort_lua_table():
 
                     sorted_dict, sorted_list = process_table(lua_module_return)
 
-                    write_lua_file(output_path / filename.name, sorted_dict, sorted_list)
+                    write_lua_file(
+                        output_path / filename.name, sorted_dict, sorted_list
+                    )
 
             except Exception as e:
                 print(f"❌ 处理错误 {filename}: {str(e)}")
@@ -57,12 +60,6 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
         s = s.replace("\r", "\\r")
         s = s.replace("\t", "\\t")
         return s
-
-    def is_simple_key(key):
-        """检查键名是否为简单标识符（只包含字母、数字、下划线，不以数字开头）"""
-        if not key or key[0].isdigit():
-            return False
-        return all(c.isalnum() or c == "_" for c in key)
 
     with open(lua_file_path, "w", encoding="utf-8") as f:
         f.write("return {\n")

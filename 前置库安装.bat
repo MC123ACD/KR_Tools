@@ -1,3 +1,3 @@
-pip install Wand lupa
+pip install Pillow lupa
 
 pause

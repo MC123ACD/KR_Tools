@@ -1,6 +1,6 @@
 import os, sys
 from pathlib import Path
-from wand.image import Image
+from PIL import Image
 
 # 添加上级目录到Python路径，以便导入自定义库
 current_dir = Path(__file__).parent
@@ -18,7 +18,9 @@ def set_size(img, size):
     new_width = round(width * size)
     new_height = round(height * size)
 
-    img.resize(new_width, new_height, filter="mitchell")
+    new_img = img.resize((new_width, new_height))
+
+    return new_img
 
 
 def resize_images(size):
@@ -28,22 +30,22 @@ def resize_images(size):
         if dir.is_dir():
             for file in dir.iterdir():
                 # 打开并处理图片
-                with Image(filename=file) as img:
-                    set_size(img, size)
+                with Image.open(file) as img:
+                    img = set_size(img, size)
 
                     # 保存图片
                     output_dir = output_path / dir.name
 
                     output_dir.mkdir(exist_ok=True)
 
-                    img.save(filename=output_dir / file.name)
+                    img.save(output_dir / file.name)
 
                     print(f"🖼️ 保存缩放后图片: {file.name}")
         else:
-            with Image(filename=dir) as img:
-                set_size(img, size)
+            with Image.open(dir) as img:
+                img = set_size(img, size)
 
-                img.save(filename=output_path / dir.name)
+                img.save(output_path / dir.name)
 
                 print(f"🖼️ 保存缩放后图片: {dir.name}")
 

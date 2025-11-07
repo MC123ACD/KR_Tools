@@ -23,9 +23,9 @@ Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"
 
 padding = 2
-# img_border = 3
 border = 2
-
+output_format = "bc7"
+shake_offset = 1
 
 class TexturePacker:
     def __init__(self, width, height):
@@ -291,7 +291,7 @@ def simulate_packing_efficiency(images, width, height):
     return used_area / total_area
 
 
-def make_trim(img, new_img, images, image_file):
+def make_trim(img, new_img, images, image_file, last_loaded_img):
     new_img.trim()
 
     # 实际裁剪计算
@@ -308,6 +308,21 @@ def make_trim(img, new_img, images, image_file):
     right_cropped = origin_width - (offset_x + new_width)
     bottom_cropped = origin_height - (offset_y + new_height)
 
+    # 检查位置是否有偏移，抵消抖动
+    if last_loaded_img:
+        last_img = last_loaded_img["image"]
+        last_img_page = last_img.page
+        _, _, last_offset_x, last_offset_y = last_img_page
+
+        if last_offset_x - left_cropped == shake_offset:
+            left_cropped += shake_offset
+        elif last_offset_x - left_cropped == -shake_offset:
+            left_cropped -= shake_offset
+        if last_offset_y - top_cropped == shake_offset:
+            top_cropped += shake_offset
+        elif last_offset_y - top_cropped == -shake_offset:
+            top_cropped -= shake_offset
+
     return {
         "left": left_cropped,
         "top": top_cropped,
@@ -315,81 +330,65 @@ def make_trim(img, new_img, images, image_file):
         "bottom": bottom_cropped,
     }
 
-
-def handle_same_images(images):
-    # 使用字典按特征分组
-    groups = {}
-
-    for img in images:
-        if img["removed"]:
-            continue
-
-        # 创建特征键
-        key = img["hash"]
-
-        if key not in groups:
-            groups[key] = {"main": img, "similar": []}
-        else:
-            # 添加到相似列表
-            groups[key]["similar"].append(img)
-            # 标记为已移除
-            img["removed"] = True
-
-    # 将相似图片添加到主图片的 samed_img 中
-    for group in groups.values():
-        group["main"]["samed_img"].extend(group["similar"])
-
-    # 过滤出未移除的图片
-    return [img for img in images if not img.get("removed", False)]
-
-
 def get_input_subdir():
+    last_loaded_img = None
+
     input_subdir = {}
 
     try:
         for dir in input_path.iterdir():
+            hash_groups = {}
+
             input_subdir[dir.name] = []
             images = input_subdir[dir.name]
 
             for image_file in Path(dir).iterdir():
-                with Image(filename=image_file) as img:
-                    new_img = img.clone()
+                image_file_name = image_file.stem
 
-                    trim = make_trim(img, new_img, images, image_file)
+                img = Image(filename=image_file)
 
-                    # new_width = new_img.width + 2 * img_border
-                    # new_height = new_img.height + 2 * img_border
+                # 创建特征键
+                hash_key = hashlib.md5(img.make_blob()).hexdigest()
 
-                    # # 扩展画布，图片居中
-                    # img.extent(
-                    #     width=new_width,
-                    #     height=new_height,
-                    #     x=-img_border,
-                    #     y=-img_border,
-                    # )
+                if hash_key in hash_groups:
+                    hash_group = hash_groups[hash_key]
+                    hash_group["similar"].append(image_file_name)
 
-                    images.append(
-                        {
-                            "path": image_file,
-                            "image": new_img,
-                            "width": new_img.width,
-                            "height": new_img.height,
-                            "origin_width": img.width,
-                            "origin_height": img.height,
-                            "name": image_file.stem,
-                            "samed_img": [],
-                            "removed": False,
-                            "pos": {},
-                            "trim": trim,
-                            "hash": hashlib.md5(new_img.make_blob()).hexdigest(),
-                        }
-                    )
+                    print(f"跳过加载与 {hash_group["main"]["name"]} 相同的图像 {image_file_name}")
 
-                    print(
-                        f"加载: {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
-                    )
+                    continue
 
-            input_subdir[dir.name] = handle_same_images(images)
+                new_img = img.clone()
+
+                trim = make_trim(img, new_img, images, image_file, last_loaded_img)
+
+                img_data = {
+                    "path": image_file,
+                    "image": new_img,
+                    "width": new_img.width,
+                    "height": new_img.height,
+                    "origin_width": img.width,
+                    "origin_height": img.height,
+                    "name": image_file_name,
+                    "samed_img": [],
+                    "removed": False,
+                    "pos": {},
+                    "trim": trim,
+                }
+
+                images.append(img_data)
+
+                if hash_key not in hash_groups:
+                    hash_groups[hash_key] = {
+                        "main": img_data,
+                        "similar": img_data["samed_img"],
+                    }
+
+                last_loaded_img = img_data
+
+                print(
+                    f"加载: {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                )
 
     except Exception as e:
         print(f"加载图片时出错: {e}")
@@ -400,9 +399,6 @@ def get_input_subdir():
 
 
 def save_to_dds_bc7(output_file, atlas):
-    output_file = str(output_file) + ".png"
-    atlas.save(filename=output_file)
-
     print(f"保存为DDS BC7格式: {output_file}...")
     subprocess.run(
         [
@@ -420,13 +416,20 @@ def save_to_dds_bc7(output_file, atlas):
 
 
 def save_to_dds_bc3(output_file, atlas):
-    output_file = str(output_file) + ".dds"
-
-    # 保存为DDS BC3格式
-    print(f"保存为DDS BC3格式: {output_file}")
-    atlas.format = "dds"
-    atlas.compression = "dxt5"
-    atlas.save(filename=output_file)
+    print(f"保存为DDS BC3格式: {output_file}...")
+    subprocess.run(
+        [
+            "texconv.exe",
+            "-f",
+            "BC3_UNORM",  # BC3 格式
+            "-y",  # 覆盖已存在文件
+            "-o",
+            str(output_path),
+            output_file,
+        ],
+        capture_output=True,
+        text=True,
+    )
 
 
 def write_texture_atlas(images, atlas_width, atlas_height, filename):
@@ -442,8 +445,13 @@ def write_texture_atlas(images, atlas_width, atlas_height, filename):
             if len(img_pos) > 0:
                 atlas.composite(img_info["image"], left=img_pos["x"], top=img_pos["y"])
 
-        save_to_dds_bc7(output_file, atlas)
+        output_file = str(output_file) + ".png"
+        atlas.save(filename=output_file)
 
+        if output_format == "bc7":
+            save_to_dds_bc7(output_file, atlas)
+        elif output_path == "bc3":
+            save_to_dds_bc3(output_file, atlas)
 
 def write_lua_data(images, atlas_width, atlas_height, atlas_name):
     filepath = output_path / f"{atlas_name}.lua"
@@ -486,11 +494,11 @@ def write_lua_data(images, atlas_width, atlas_height, atlas_name):
 
             if len(img["samed_img"]) > 0:
                 f.write(f"\t\talias = {{\n")
-                for i, alia in enumerate(img["samed_img"]):
+                for i, name in enumerate(img["samed_img"]):
                     if i == len(img["samed_img"]) - 1:
-                        f.write(f'\t\t\t"{alia["name"]}"\n')
+                        f.write(f'\t\t\t"{name}"\n')
                     else:
-                        f.write(f'\t\t\t"{alia["name"]}",\n')
+                        f.write(f'\t\t\t"{name}",\n')
                 f.write(f"\t\t}}\n")
             else:
                 f.write(f"\t\talias = {{}}\n")
@@ -516,17 +524,19 @@ def main():
 
             maxrects_packing(images, atlas_width, atlas_height)
 
-            # try:
-            write_texture_atlas(images, atlas_width, atlas_height, atlas_name)
+            try:
+                write_texture_atlas(images, atlas_width, atlas_height, atlas_name)
 
-            write_lua_data(images, atlas_width, atlas_height, atlas_name)
+                write_lua_data(images, atlas_width, atlas_height, atlas_name)
 
-            # except Exception as e:
-            #     print(f"写入图集时出错: {e}")
-            #     return False
+            except Exception as e:
+                print(f"写入图集时出错: {e}")
+                traceback.print_exc()
+
+                return False
 
             for img_info in images:
-                img_info['image'].close()
+                img_info["image"].close()
 
 
 if __name__ == "__main__":

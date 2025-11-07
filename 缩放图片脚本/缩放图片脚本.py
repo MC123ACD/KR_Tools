@@ -17,8 +17,9 @@ def set_size(img, size):
 
     new_width = round(width * size)
     new_height = round(height * size)
+    position = (new_width, new_height)
 
-    new_img = img.resize((new_width, new_height))
+    new_img = img.resize(position)
 
     return new_img
 

@@ -1,7 +1,6 @@
 import sys, traceback, subprocess
 from pathlib import Path
-from wand.image import Image
-from wand.color import Color
+from PIL import Image
 import math, random, hashlib
 from collections import namedtuple
 
@@ -18,14 +17,14 @@ is_simple_key = lib.is_simple_key
 # 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
-# 定义矩形类
+v2 = namedtuple("v2", ["x", "y"])
+v4 = namedtuple("v4", ["left", "top", "right", "bottom"])
 Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"
 
 padding = 2
 border = 2
 output_format = "bc7"
-shake_offset = 1
 
 class TexturePacker:
     def __init__(self, width, height):
@@ -234,10 +233,7 @@ def maxrects_packing(images, atlas_width, atlas_height):
 
     # 转换为实际位置
     for rect_id, rect in results:
-        images[rect_id]["pos"] = {
-            "x": rect.x,
-            "y": rect.y,
-        }
+        images[rect_id]["pos"] = v2(rect.x, rect.y)
 
 
 def calculate_optimal_size(images):
@@ -291,44 +287,26 @@ def simulate_packing_efficiency(images, width, height):
     return used_area / total_area
 
 
-def make_trim(img, new_img, images, image_file, last_loaded_img):
-    new_img.trim()
-
-    # 实际裁剪计算
+def process_img(img):
     origin_width = img.width
     origin_height = img.height
+
+    alpha = img.getchannel("A")
+
+    # 获取非透明区域的边界框
+    bbox = alpha.getbbox()
+    left, top = bbox[0], bbox[1]
+
+    new_img = img.crop(bbox)
+
     new_width = new_img.width
     new_height = new_img.height
-    new_page = new_img.page
 
-    _, _, offset_x, offset_y = new_page
+    right_cropped = origin_width - (left + new_width)
+    bottom_cropped = origin_height - (top + new_height)
 
-    left_cropped = offset_x
-    top_cropped = offset_y
-    right_cropped = origin_width - (offset_x + new_width)
-    bottom_cropped = origin_height - (offset_y + new_height)
+    return new_img, v4(int(left), int(top), int(right_cropped), int(bottom_cropped))
 
-    # 检查位置是否有偏移，抵消抖动
-    if last_loaded_img:
-        last_img = last_loaded_img["image"]
-        last_img_page = last_img.page
-        _, _, last_offset_x, last_offset_y = last_img_page
-
-        if last_offset_x - left_cropped == shake_offset:
-            left_cropped += shake_offset
-        elif last_offset_x - left_cropped == -shake_offset:
-            left_cropped -= shake_offset
-        if last_offset_y - top_cropped == shake_offset:
-            top_cropped += shake_offset
-        elif last_offset_y - top_cropped == -shake_offset:
-            top_cropped -= shake_offset
-
-    return {
-        "left": left_cropped,
-        "top": top_cropped,
-        "right": right_cropped,
-        "bottom": bottom_cropped,
-    }
 
 def get_input_subdir():
     last_loaded_img = None
@@ -345,50 +323,48 @@ def get_input_subdir():
             for image_file in Path(dir).iterdir():
                 image_file_name = image_file.stem
 
-                img = Image(filename=image_file)
+                with Image.open(image_file) as img:
+                    # 创建特征键
+                    hash_key = hashlib.md5(img.tobytes()).hexdigest()
 
-                # 创建特征键
-                hash_key = hashlib.md5(img.make_blob()).hexdigest()
+                    if hash_key in hash_groups:
+                        hash_group = hash_groups[hash_key]
+                        hash_group["similar"].append(image_file_name)
 
-                if hash_key in hash_groups:
-                    hash_group = hash_groups[hash_key]
-                    hash_group["similar"].append(image_file_name)
+                        print(
+                            f"跳过加载与 {hash_group["main"]["name"]} 相同的图像 {image_file_name}"
+                        )
 
-                    print(f"跳过加载与 {hash_group["main"]["name"]} 相同的图像 {image_file_name}")
+                        continue
 
-                    continue
+                    new_img, trim = process_img(img)
 
-                new_img = img.clone()
-
-                trim = make_trim(img, new_img, images, image_file, last_loaded_img)
-
-                img_data = {
-                    "path": image_file,
-                    "image": new_img,
-                    "width": new_img.width,
-                    "height": new_img.height,
-                    "origin_width": img.width,
-                    "origin_height": img.height,
-                    "name": image_file_name,
-                    "samed_img": [],
-                    "removed": False,
-                    "pos": {},
-                    "trim": trim,
-                }
-
-                images.append(img_data)
-
-                if hash_key not in hash_groups:
-                    hash_groups[hash_key] = {
-                        "main": img_data,
-                        "similar": img_data["samed_img"],
+                    img_data = {
+                        "path": image_file,
+                        "image": new_img,
+                        "width": new_img.width,
+                        "height": new_img.height,
+                        "origin_width": img.width,
+                        "origin_height": img.height,
+                        "name": image_file_name,
+                        "samed_img": [],
+                        "removed": False,
+                        "trim": trim,
                     }
 
-                last_loaded_img = img_data
+                    images.append(img_data)
 
-                print(
-                    f"加载: {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
-                )
+                    if hash_key not in hash_groups:
+                        hash_groups[hash_key] = {
+                            "main": img_data,
+                            "similar": img_data["samed_img"],
+                        }
+
+                    last_loaded_img = img_data
+
+                    print(
+                        f"加载: {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                    )
 
     except Exception as e:
         print(f"加载图片时出错: {e}")
@@ -434,27 +410,28 @@ def save_to_dds_bc3(output_file, atlas):
 
 def write_texture_atlas(images, atlas_width, atlas_height, filename):
     # 创建图集
-    with Image(
-        width=atlas_width, height=atlas_height, background="transparent"
-    ) as atlas:
+    with Image.new("RGBA", (atlas_width, atlas_height), (0, 0, 0, 0)) as atlas:
         output_file = output_path / filename
 
         for img_info in images:
             img_pos = img_info["pos"]
 
             if len(img_pos) > 0:
-                atlas.composite(img_info["image"], left=img_pos["x"], top=img_pos["y"])
+                position = (img_pos.x, img_pos.y)
+
+                atlas.paste(img_info["image"], position)
 
         output_file = str(output_file) + ".png"
-        atlas.save(filename=output_file)
+        atlas.save(output_file)
 
         if output_format == "bc7":
             save_to_dds_bc7(output_file, atlas)
         elif output_path == "bc3":
             save_to_dds_bc3(output_file, atlas)
 
+
 def write_lua_data(images, atlas_width, atlas_height, atlas_name):
-    filepath = output_path / f"{atlas_name}.lua"
+    filepath = output_path / f"{atlas_name.split("-")[0]}.lua"
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write("return {\n")
@@ -474,10 +451,10 @@ def write_lua_data(images, atlas_width, atlas_height, atlas_name):
             f.write(f"\t\t}},\n")
 
             f.write(f"\t\ttrim = {{\n")
-            f.write(f"\t\t\t{trim["left"]},\n")
-            f.write(f"\t\t\t{trim["top"]},\n")
-            f.write(f"\t\t\t{trim["right"]},\n")
-            f.write(f"\t\t\t{trim["bottom"]}\n")
+            f.write(f"\t\t\t{trim.left},\n")
+            f.write(f"\t\t\t{trim.top},\n")
+            f.write(f"\t\t\t{trim.right},\n")
+            f.write(f"\t\t\t{trim.bottom}\n")
             f.write(f"\t\t}},\n")
 
             f.write(f"\t\ta_size = {{\n")
@@ -486,8 +463,8 @@ def write_lua_data(images, atlas_width, atlas_height, atlas_name):
             f.write(f"\t\t}},\n")
 
             f.write(f"\t\tf_quad = {{\n")
-            f.write(f"\t\t\t{pos["x"]},\n")
-            f.write(f"\t\t\t{pos["y"]},\n")
+            f.write(f"\t\t\t{pos.x},\n")
+            f.write(f"\t\t\t{pos.y},\n")
             f.write(f"\t\t\t{img["width"]},\n")
             f.write(f"\t\t\t{img["height"]}\n")
             f.write(f"\t\t}},\n")

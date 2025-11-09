@@ -1,6 +1,6 @@
 import sys, traceback, subprocess
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageDraw
 import math, random, hashlib
 from collections import namedtuple
 
@@ -22,8 +22,8 @@ v4 = namedtuple("v4", ["left", "top", "right", "bottom"])
 Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"
 
-padding = 2
-border = 2
+padding = 3
+border = 4
 output_format = "bc7"
 
 
@@ -31,7 +31,6 @@ class TexturePacker:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.border = border
         self.used_rectangles = []
         self.free_rectangles = [
             Rectangle(border, border, width - border, height - border)
@@ -234,8 +233,6 @@ class CreateAtlas:
 
             self.create_atlas(remaining_rect, idx + 1)
 
-        self.write_texture_atlas()
-
     def maxrects_packing(self, rectangles, atlas_size, idx):
         """使用MaxRects算法进行排列"""
         packer = TexturePacker(atlas_size[0], atlas_size[1])
@@ -352,12 +349,17 @@ class CreateAtlas:
                     atlas.paste(img_info["image"], position)
 
             output_file = str(output_file) + ".png"
+
+            # 左上角增加用于血条的像素
+            draw = ImageDraw.Draw(atlas)
+            draw.rectangle([0, 0, 3, 3], "white", None, 0)
+
             atlas.save(output_file)
 
-            # if output_format == "bc7":
-            #     self.save_to_dds(output_file, 7)
-            # elif output_path == "bc3":
-            #     self.save_to_dds(output_file, 3)
+            if output_format == "bc7":
+                self.save_to_dds(output_file, 7)
+            elif output_path == "bc3":
+                self.save_to_dds(output_file, 3)
 
     def write_lua_data(self):
         filepath = output_path / f"{self.atlas_name}.lua"
@@ -540,6 +542,10 @@ def main():
             create_texture_atlas = CreateAtlas(images, atlas_name.split("-")[0])
 
             create_texture_atlas.create_atlas(rectangles)
+
+            create_texture_atlas.write_texture_atlas()
+
+            print(f"{atlas_name}图集生成完毕")
 
             for img_info in images:
                 img_info["image"].close()

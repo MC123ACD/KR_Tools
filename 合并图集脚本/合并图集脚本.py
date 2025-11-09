@@ -266,7 +266,7 @@ class CreateAtlas:
             )
 
             if size > 1024 and 0.2 < efficiency < 0.45:
-                print(f"{size}x{size} 图集利用率较低，启用多图集打包")
+                print(f"{self.atlas_name}, {size}x{size}利用率较低，启用多图集打包")
 
                 best_size = (sizes[i - 1], sizes[i - 1])
                 self.is_several_atlas = True
@@ -283,7 +283,9 @@ class CreateAtlas:
                 break
 
         if best_size:
-            print(f"自动计算图集{idx}尺寸: {best_size[0]}x{best_size[1]}")
+            print(
+                f"自动计算{self.atlas_name}-{idx}尺寸: {best_size[0]}x{best_size[1]}"
+            )
 
         return best_size, remaining_rect
 
@@ -295,7 +297,7 @@ class CreateAtlas:
 
         if len(results) < len(rectangles):
             remaining_rect = [
-                rect for rect in rectangles if rect[0] not in [r[0] for r in results]
+                rect for rect in rectangles if rect[0] not in set([r[0] for r in results])
             ]
 
             return 0, remaining_rect
@@ -437,6 +439,11 @@ def process_img(img, last_img_data):
     new_width = new_img.width
     new_height = new_img.height
 
+    right_cropped = origin_width - (left + new_width)
+    bottom_cropped = origin_height - (top + new_height)
+
+    origin_trim_data = trim_data = v4(int(left), int(top), int(right_cropped), int(bottom_cropped))
+
     # if last_img_data:
     #     last_width = last_img_data["width"]
     #     last_height = last_img_data["height"]
@@ -450,12 +457,12 @@ def process_img(img, last_img_data):
     #     if abs(offset_top) == 1:
     #         top += offset_top
 
-    right_cropped = origin_width - (left + new_width)
-    bottom_cropped = origin_height - (top + new_height)
+    #     right_cropped = origin_width - (left + new_width)
+    #     bottom_cropped = origin_height - (top + new_height)
 
-    trim_data = v4(int(left), int(top), int(right_cropped), int(bottom_cropped))
+        # trim_data = v4(int(left), int(top), int(right_cropped), int(bottom_cropped))
 
-    return new_img, trim_data
+    return new_img, trim_data, origin_trim_data
 
 
 def get_input_subdir():
@@ -486,7 +493,7 @@ def get_input_subdir():
 
                         continue
 
-                    new_img, trim = process_img(img, last_img_data)
+                    new_img, trim, origin_trim = process_img(img, last_img_data)
 
                     img_data = {
                         "path": image_file,
@@ -499,6 +506,7 @@ def get_input_subdir():
                         "samed_img": [],
                         "removed": False,
                         "trim": trim,
+                        "origin_trim": origin_trim,
                     }
 
                     images.append(img_data)
@@ -545,7 +553,7 @@ def main():
 
             create_texture_atlas.write_texture_atlas()
 
-            print(f"{atlas_name}图集生成完毕")
+            print(f"{atlas_name}图集生成完毕\n")
 
             for img_info in images:
                 img_info["image"].close()

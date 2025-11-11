@@ -1,7 +1,7 @@
 import sys, traceback, subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw
-import math, random, hashlib
+import math, random, hashlib, json
 from collections import namedtuple
 
 # 添加上级目录到Python路径，以便导入自定义库
@@ -16,6 +16,18 @@ is_simple_key = lib.is_simple_key
 # 获取基础目录、输入路径和输出路径
 base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
 
+setting_path = current_dir / "setting.json"
+
+with open(setting_path, "r", encoding="utf-8") as f:
+    setting = json.load(f)
+
+    # 图集打包参数
+    padding = setting["padding"]  # 图片之间的内边距
+    border = setting["border"]  # 图集边界留白
+    output_format = setting["output_format"]  # 输出格式
+    alignment_offset_fix = setting["alignment_offset_fix"]  # 对齐偏移修正
+    trigger_several_efficiency = setting["trigger_several_efficiency"]  # 多图集打包时机
+
 # 定义数据结构：
 # v2: 二维向量，表示位置坐标 (x, y)
 # v4: 四维向量，表示裁剪边界 (left, top, right, bottom)
@@ -24,13 +36,6 @@ v2 = namedtuple("v2", ["x", "y"])
 v4 = namedtuple("v4", ["left", "top", "right", "bottom"])
 Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"  # 最小面积策略标识
-
-# 图集打包参数
-padding = 3  # 图片之间的内边距
-border = 4  # 图集边界留白
-output_format = "png"  # 输出格式
-alignment_offset_fix = 1    # 对齐偏移修正
-trigger_several_efficiency = 0.45    # 多图集打包时机
 
 class TexturePacker:
     """纹理打包器，使用MaxRects算法进行矩形排列"""

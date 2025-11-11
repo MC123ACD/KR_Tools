@@ -356,29 +356,8 @@ class SplitAtlases:
         except Exception as e:
             traceback.print_exc()
 
-    def clean_lua_content(self, content):
-        """
-        清理Lua内容，移除注释和多余空格
-
-        Args:
-            content: 原始Lua内容
-
-        Returns:
-            str: 清理后的Lua内容
-        """
-        # 移除单行注释
-        content = re.sub(r"--.*$", "", content, flags=re.MULTILINE)
-        # 移除多行注释
-        content = re.sub(r"--\[\[.*?\]\]", "", content, flags=re.DOTALL)
-        # 移除多余空格和空行
-        content = re.sub(r"\n\s*\n", "\n", content)
-        return content.strip()
-
     def main(self):
         """主函数，协调整个转换流程"""
-        print("🚀 开始转换流程")
-        print("=" * 50)
-
         # 设置Lua环境
         self.setup_lua_environment()
 

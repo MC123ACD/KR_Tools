@@ -1,0 +1,14 @@
+{
+    "padding": 3,
+    "border": 4,
+    "output_format": "png",
+    "alignment_offset_fix": 2,
+    "trigger_alignment_offset_fix_similarity_percentage": 0.05,
+    "trigger_several_efficiency": 0.4,
+    "sizes": [
+        [512, 512],
+        [1024, 1024],
+        [2048, 2048],
+        [4096, 4096]
+    ]
+}

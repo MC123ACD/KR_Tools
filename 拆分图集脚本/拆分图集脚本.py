@@ -1,4 +1,4 @@
-import re, sys, traceback, plistlib, subprocess
+import re, sys, traceback, plistlib, subprocess, math
 from PIL import Image
 from pathlib import Path
 
@@ -61,8 +61,10 @@ class SplitAtlases:
             spriteSourceWidth, spriteSourceHeight = v["size"][1], v["size"][2]
 
             # 计算偏移量
-            spriteOffsetX = int(v["trim"][1] - (spriteSourceWidth - spriteWidth) / 2)
-            spriteOffsetY = int((spriteSourceHeight - spriteHeight) / 2 - v["trim"][2])
+            spriteOffsetX = math.ceil(
+                v["trim"][1] - (spriteSourceWidth - spriteWidth) / 2
+            )
+            spriteOffsetY = math.floor((spriteSourceHeight - spriteHeight) / 2 - v["trim"][2])
 
             atlas_data = {
                 "spriteOffset": format_point(spriteOffsetX, spriteOffsetY),
@@ -78,7 +80,7 @@ class SplitAtlases:
             atlas[k + ".png"] = atlas_data
 
             # 别名处理
-            if v["alias"] and len(["alias"]) > 0:
+            if v["alias"] and len(v["alias"]) > 0:
                 for _, alias in v["alias"].items():
                     atlas[alias + ".png"] = atlas_data
 

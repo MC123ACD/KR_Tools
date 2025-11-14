@@ -25,7 +25,6 @@ with open(setting_path, "r", encoding="utf-8") as f:
     padding = setting["padding"]  # 图片之间的内边距
     border = setting["border"]  # 图集边界留白
     output_format = setting["output_format"]  # 输出格式
-    alignment_offset_fix = setting["alignment_offset_fix"]  # 对齐偏移修正
     trigger_several_efficiency = setting["trigger_several_efficiency"]  # 多图集打包时机
 
 # 定义数据结构：
@@ -397,10 +396,6 @@ class CreateAtlas:
 
             # 利用率可接受，使用当前尺寸
             if 0 < efficiency < trigger_several_efficiency:
-                print(
-                    f"⚠️ {self.atlas_name}, {size[0]}x{size[1]}尺寸利用率较低，启用多图集打包"
-                )
-
                 best_size = last_size
                 self.is_several_atlas = True
 
@@ -517,8 +512,9 @@ class CreateAtlas:
                     atlas.paste(img_info["image"], position)
 
             # 在左上角添加白色像素（可能用于特殊用途，如血条）
-            draw = ImageDraw.Draw(atlas)
-            draw.rectangle([0, 0, 3, 3], "white", None, 0)
+            if setting["add_white_rect"]:
+                draw = ImageDraw.Draw(atlas)
+                draw.rectangle([0, 0, 3, 3], "white", None, 0)
 
             # 保存PNG文件
             atlas.save(output_file)
@@ -607,177 +603,7 @@ class CreateAtlas:
 
             f.write("}")
 
-
-def similarity_percentage(rc1, rc2):
-    """
-    计算两行或两列像素的相似度百分比
-
-    Returns:
-        avg_similarity: 差异值，值越大差异越大
-    """
-    if not (rc1 and rc2):
-        return -1
-
-    max_possible_diff = 4 * 255  # 最大可能差异
-    diff = 0
-    total_similarity = 0
-    l = 0
-
-    for pixel1, pixel2 in zip(rc1, rc2):
-        if sum(pixel1) + sum(pixel2) > 0:
-            for c1, c2 in zip(pixel1, pixel2):
-                a = abs(c1 - c2)
-                diff += a
-
-            l += 1
-
-    total_similarity += diff / max_possible_diff
-
-    avg_similarity = total_similarity / l
-
-    return round(avg_similarity, 2)
-
-
-# def fix_alignment_offset(img_main, img_b, direction, added, added_pos, trim_data):
-#     """
-#     修正两个图像之间偏移
-#     """
-#     trigger_similarity_percentage = setting[
-#         "trigger_alignment_offset_fix_similarity_percentage"
-#     ]
-
-#     left, top, right, bottom = trim_data
-#     left_offset = top_offset = right_offset = bottom_offset = 0
-#     row_main_top = []
-#     row_main_bottom = []
-#     row_main_left = []
-#     row_main_right = []
-
-#     if direction == "y":
-#         for y in range(img_main.height):
-#             row_main_left.append(img_main.getpixel((0, y)))
-#             row_main_right.append(img_main.getpixel((img_main.width - 1, y)))
-
-#         if added_pos == "left":
-#             for x in range(added):
-#                 column_b = [img_b.getpixel((x, y)) for y in range(img_b.height)]
-
-#                 if (
-#                     similarity_percentage(row_main_left, column_b)
-#                     < trigger_similarity_percentage
-#                 ):
-#                     left_offset = x + 1
-#                     break
-
-#             if left_offset:
-#                 for x in range(
-#                     img_b.width - added - 1, img_b.width - added - added - 2, -1
-#                 ):
-#                     column_b = [img_b.getpixel((x, y)) for y in range(img_b.height)]
-
-#                     if (
-#                         similarity_percentage(row_main_right, column_b)
-#                         < trigger_similarity_percentage
-#                     ):
-#                         right_offset = x - (img_b.width - added - 1)
-#                         break
-
-#         elif added_pos == "right":
-#             for x in range(img_b.width - 1, img_b.width - added - 1, -1):
-#                 column_b = [img_b.getpixel((x, y)) for y in range(img_b.height)]
-
-#                 if (
-#                     similarity_percentage(row_main_right, column_b)
-#                     < trigger_similarity_percentage
-#                 ):
-#                     right_offset = -x + img_b.width - added - 1
-#                     break
-
-#             if right_offset:
-#                 for x in range(added, added + added + 1):
-#                     column_b = [img_b.getpixel((x, y)) for y in range(img_b.height)]
-
-#                     if (
-#                         similarity_percentage(row_main_left, column_b)
-#                         < trigger_similarity_percentage
-#                     ):
-#                         left_offset = -x + added
-#                         break
-
-#     elif direction == "x":
-#         for x in range(img_main.width):
-#             row_main_top.append(img_main.getpixel((x, 0)))
-#             row_main_bottom.append(img_main.getpixel((x, img_main.height - 1)))
-
-#         if added_pos == "top":
-#             for y in range(added):
-#                 row_b = [img_b.getpixel((x, y)) for x in range(img_b.width)]
-
-#                 if (
-#                     similarity_percentage(row_main_top, row_b)
-#                     < trigger_similarity_percentage
-#                 ):
-#                     top_offset = y + 1
-#                     break
-
-#             if top_offset:
-#                 for y in range(
-#                     img_b.height - added - 1, img_b.height - added - added - 2, -1
-#                 ):
-#                     row_b = [img_b.getpixel((x, y)) for x in range(img_b.width)]
-
-#                     if (
-#                         similarity_percentage(row_main_bottom, row_b)
-#                         < trigger_similarity_percentage
-#                     ):
-#                         bottom_offset = y - (img_b.height - added - 1)
-#                         break
-
-#         elif added_pos == "bottom":
-#             for y in range(img_b.height - 1, img_b.height - added - 1, -1):
-#                 row_b = [img_b.getpixel((x, y)) for x in range(img_b.width)]
-
-#                 if (
-#                     similarity_percentage(row_main_bottom, row_b)
-#                     < trigger_similarity_percentage
-#                 ):
-#                     bottom_offset = -y + img_b.height - 1
-#                     break
-
-#             if bottom_offset:
-#                 for y in range(added, added + added + 1):
-#                     row_b = [img_b.getpixel((x, y)) for x in range(img_b.width)]
-
-#                     if (
-#                         similarity_percentage(row_main_top, row_b)
-#                         < trigger_similarity_percentage
-#                     ):
-#                         top_offset = -y + added
-#                         break
-
-#     if top_offset * bottom_offset < 0:
-#         a = min(abs(top_offset), abs(bottom_offset))
-
-#         if top_offset > 0:
-#             top += a
-#             bottom -= a
-#         elif bottom_offset > 0:
-#             bottom += a
-#             top -= a
-#     if left_offset * right_offset < 0:
-#         a = min(abs(left_offset), abs(right_offset))
-
-#         if left_offset > 0:
-#             left += a
-#             right -= a
-#         elif right_offset > 0:
-#             left -= a
-#             right += a
-
-#     return v4(int(left), int(top), int(right), int(bottom))
-
-
-def process_img(img, last_img_data):
+def process_img(img):
     """
     处理单张图片：裁剪透明区域并计算裁剪信息
 
@@ -811,87 +637,6 @@ def process_img(img, last_img_data):
 
     trim_data = v4(int(left), int(top), int(right), int(bottom))
 
-    # if last_img_data:
-    #     last_img = last_img_data["image"]
-    #     last_trim = last_img_data["trim"]
-
-    #     def fix_alignment(direction, added, added_pos, trim_data):
-    #         return fix_alignment_offset(
-    #             last_img, new_img, direction, added, added_pos, trim_data
-    #         )
-
-    #     left_difference = left - last_trim.left
-    #     right_difference = right - last_trim.right
-    #     top_difference = top - last_trim.top
-    #     bottom_difference = bottom - last_trim.bottom
-    #     offset_x = offset_y = added_left = added_right = added_top = added_bottom = 0
-
-    #     if left_difference * right_difference < 0:
-    #         a = min(abs(left_difference), abs(right_difference))
-
-    #         if left_difference < 0:
-    #             left_difference += a
-    #             right_difference -= a
-    #             offset_x -= a
-    #         elif right_difference < 0:
-    #             left_difference -= a
-    #             right_difference += a
-    #             offset_x += a
-
-    #     if top_difference * bottom_difference < 0:
-    #         a = min(abs(top_difference), abs(bottom_difference))
-
-    #         if top_difference < 0:
-    #             top_difference += a
-    #             bottom_difference -= a
-
-    #             offset_y -= a
-    #         elif bottom_difference < 0:
-    #             bottom_difference += a
-    #             top_difference -= a
-
-    #             offset_y += a
-
-    #     if left_difference != 0:
-    #         added_left -= left_difference
-    #         left_difference = 0
-    #     elif right_difference != 0:
-    #         added_right -= right_difference
-    #         right_difference = 0
-    #     if top_difference != 0:
-    #         added_top -= top_difference
-    #         top_difference = 0
-    #     if bottom_difference != 0:
-    #         added_bottom -= bottom_difference
-    #         bottom_difference = 0
-
-    #     if 0 < abs(offset_x) <= alignment_offset_fix:
-    #         if offset_x > 0:
-    #             left += offset_x
-    #             right -= offset_x
-    #         elif offset_x < 0:
-    #             left -= offset_x
-    #             right += offset_x
-
-    #     if 0 < abs(offset_y) <= alignment_offset_fix:
-    #         if offset_y > 0:
-    #             top += offset_y
-    #             bottom -= offset_y
-    #         elif offset_y < 0:
-    #             top -= offset_y
-    #             bottom += offset_y
-
-    #     trim_data = v4(int(left), int(top), int(right), int(bottom))
-
-    #     if 0 < added_left <= alignment_offset_fix:
-    #         trim_data = fix_alignment("y", added_left, "left", trim_data)
-    #     if 0 < added_right <= alignment_offset_fix:
-    #         trim_data = fix_alignment("y", added_right, "right", trim_data)
-    #     if 0 < added_top <= alignment_offset_fix:
-    #         trim_data = fix_alignment("x", added_top, "top", trim_data)
-    #     if 0 < added_bottom <= alignment_offset_fix:
-    #         trim_data = fix_alignment("x", added_bottom, "bottom", trim_data)
-
     return new_img, trim_data
 
 
@@ -902,10 +647,8 @@ def get_input_subdir():
     Returns:
         input_subdir: 按子目录组织的图片数据字典
     """
-    last_img_data = None
     input_subdir = {}
 
-    # try:
     # 遍历输入目录下的所有子目录
     for dir in input_path.iterdir():
         hash_groups = {}  # 用于检测重复图片
@@ -930,7 +673,7 @@ def get_input_subdir():
                     continue
 
                 # 处理图片：裁剪透明区域
-                new_img, trim = process_img(img, last_img_data)
+                new_img, trim = process_img(img)
 
                 # 构建图片数据字典
                 img_data = {
@@ -955,8 +698,6 @@ def get_input_subdir():
                         "similar": img_data["samed_img"],
                     }
 
-                last_img_data = img_data
-
                 print(
                     f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
                 )
@@ -971,11 +712,6 @@ def get_input_subdir():
             input_subdir[dir.name]["rectangles"] = sorted(
                 rectangles, key=lambda r: r[1] * r[2], reverse=True
             )
-
-    # except Exception as e:
-    #     print(f"加载图片时出错: {e}")
-    #     traceback.print_exc()
-    #     return
 
     return input_subdir
 
@@ -1012,11 +748,11 @@ def main():
 
 
 if __name__ == "__main__":
-    # try:
-    main()
-    # except Exception as e:
-    #     print(f"错误: {e}")
-    #     traceback.print_exc()
+    try:
+        main()
+    except Exception as e:
+        print(f"错误: {e}")
+        traceback.print_exc()
 
     # 等待用户确认退出
     input("程序执行完毕，按回车键退出...")

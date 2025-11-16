@@ -1,4 +1,4 @@
-import os, sys, json
+import os, sys, json, traceback
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
 
@@ -27,13 +27,18 @@ def get_input_files():
             input_subdir[dir.name] = []
 
             for file in dir.iterdir():
-                img = Image.open(file)
-                input_subdir[dir.name].append(
-                    {"name": file.name, "image": img, "in_dir": dir.name}
-                )
+                with Image.open(file) as img:
+                    input_subdir[dir.name].append(
+                        {"name": file.name, "image": img.copy(), "in_dir": dir.name}
+                    )
+
+                    print(f"加载 {file.name}")
+
         else:
-            img = Image.open(dir)
-            input_subdir["nil"].append({"name": dir.name, "image": img, "in_dir": None})
+            with Image.open(dir) as img:
+                input_subdir["nil"].append({"name": dir.name, "image": img.copy(), "in_dir": None})
+
+                print(f"加载 {dir.name}")
 
     return input_subdir
 
@@ -109,10 +114,14 @@ def process_img(file_data):
 
 
 if __name__ == "__main__":
-    input_subdir = get_input_files()
+    try:
+        input_subdir = get_input_files()
 
-    for dir in input_subdir.values():
-        for file_data in dir:
-            process_img(file_data)
+        for dir in input_subdir.values():
+            for file_data in dir:
+                process_img(file_data)
+    except Exception as e:
+        print(f"错误: {e}")
+        traceback.print_exc()
 
     input("程序执行完毕，按回车键退出> ")

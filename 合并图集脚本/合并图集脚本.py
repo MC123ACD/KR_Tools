@@ -113,9 +113,9 @@ class TexturePacker:
 
         # 遍历所有空闲区域
         for free_rect in self.free_rectangles:
-            # 跳过过小的空闲区域
+            # 删除过小的空闲区域
             if (
-                free_rect.width < min_rectangle[1]
+                free_rect == "removed" or free_rect.width < min_rectangle[1]
                 or free_rect.height < min_rectangle[2]
             ):
                 continue
@@ -216,6 +216,13 @@ class TexturePacker:
             self.free_rectangles[free_rect_idx] = right
         elif bottom:
             self.free_rectangles[free_rect_idx] = bottom
+        else:
+            self.free_rectangles[free_rect_idx] = Rectangle(
+                0,
+                0,
+                0,
+                0,
+            )
 
     def merge_free_rectangles(self, rectangles):
         """

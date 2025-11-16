@@ -16,6 +16,7 @@ setting_path = current_dir / "setting.json"
 with open(setting_path, "r", encoding="utf-8") as f:
     setting = json.load(f)
 
+
 def get_input_files():
     input_subdir = {"nil": []}
 
@@ -23,10 +24,9 @@ def get_input_files():
         print(f"📖 读取: {dir.name}")
 
         if dir.is_dir():
-            input_subdir[dir.name] = {}
+            input_subdir[dir.name] = []
 
             for file in dir.iterdir():
-                # 打开并处理图片
                 img = Image.open(file)
                 input_subdir[dir.name].append(
                     {"name": file.name, "image": img, "in_dir": dir.name}
@@ -38,10 +38,7 @@ def get_input_files():
     return input_subdir
 
 
-def set_size_img(size, file_data):
-    name = file_data["name"]
-    img = file_data["image"]
-
+def set_size_img(img, size):
     width, height = img.size
 
     new_width = round(width * size)
@@ -49,32 +46,41 @@ def set_size_img(size, file_data):
 
     new_img = img.resize((new_width, new_height))
 
+    print(
+        f"🔎 缩放图片大小{setting["size"]}倍，从{width}x{height}到{new_width}x{new_height}"
+    )
+
     return new_img
 
 
-def set_sharpen_img(img, sharpness_params):
+def set_sharpen_img(img, percent, radius, threshold):
     """
     锐化
     """
-    # 应用锐化
-    sharpened = img.filter(ImageFilter.UnsharpMask(**sharpness_params))
+    sharpened = img.filter(ImageFilter.UnsharpMask(radius, percent, threshold))
+
+    print(f"🔼 锐化图片，强度{percent}%，半径{radius}，阈值{threshold}")
 
     return sharpened
+
 
 def set_brightness_img(img, brightness_factor):
     """
     亮度
     """
-
-    # 调整亮度补偿
     enhancer = ImageEnhance.Brightness(img)
     compensated = enhancer.enhance(brightness_factor)
 
+    print(f"🔆 修改图片亮度为{brightness_factor}倍")
+
     return compensated
+
 
 def process_img(file_data):
     size = setting["size"]
-    sharpen = setting["sharpen"]
+    sharpen_percent = setting["sharpen_percent"]
+    sharpen_radius = setting["sharpen_radius"]
+    sharpen_threshold = setting["sharpen_threshold"]
     brightness = setting["brightness"]
     img = file_data["image"]
     name = file_data["name"]
@@ -82,11 +88,11 @@ def process_img(file_data):
     output_img = None
 
     if size:
-        img = set_size_img(size, file_data)
-    if sharpen:
-        img = set_sharpen_img()
+        img = set_size_img(img, size)
+    if sharpen_percent:
+        img = set_sharpen_img(img, sharpen_percent, sharpen_radius, sharpen_threshold)
     if brightness:
-        img = set_brightness_img()
+        img = set_brightness_img(img, brightness)
 
     if in_dir:
         output_dir = output_path / in_dir
@@ -99,7 +105,7 @@ def process_img(file_data):
 
     img.save(output_img)
 
-    print(f"🖼️ 保存缩放后图片: {name}")
+    print(f"🖼️ 保存图片: {name}")
 
 
 if __name__ == "__main__":

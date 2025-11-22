@@ -1,7 +1,7 @@
 {
     "padding": 3,
-    "border": 4,
-    "output_format": "png",
+    "border": 5,
+    "output_format": "bc3",
     "trigger_several_efficiency": 0.4,
     "add_white_rect": true,
     "sizes": [

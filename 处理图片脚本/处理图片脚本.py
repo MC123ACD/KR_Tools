@@ -28,17 +28,47 @@ def get_input_files():
 
             for file in dir.iterdir():
                 with Image.open(file) as img:
-                    input_subdir[dir.name].append(
-                        {"name": file.name, "image": img.copy(), "in_dir": dir.name}
+                    new_img = img.copy()
+
+                    if setting["use_trim"]:
+                        # 获取Alpha通道
+                        alpha = img.getchannel("A")
+
+                        # 裁剪图片
+                        new_img = img.crop(alpha.getbbox())
+
+                        print(
+                        f"📖 加载图片  {file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                    )
+                    else:
+                        print(
+                        f"📖 加载图片  {file.name} ({img.width}x{img.height})"
                     )
 
-                    print(f"加载 {file.name}")
+                    input_subdir[dir.name].append(
+                        {"name": file.name, "image": new_img, "in_dir": dir.name}
+                    )
 
         else:
             with Image.open(dir) as img:
-                input_subdir["nil"].append({"name": dir.name, "image": img.copy(), "in_dir": None})
+                new_img = img.copy()
 
-                print(f"加载 {dir.name}")
+                if setting["use_trim"]:
+                    # 获取Alpha通道
+                    alpha = img.getchannel("A")
+
+                    # 裁剪图片
+                    new_img = img.crop(alpha.getbbox())
+
+                    print(
+                        f"📖 加载图片  {dir.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                    )
+                else:
+                    print(
+                        f"📖 加载图片  {file.name} ({img.width}x{img.height})"
+                    )
+
+                input_subdir["nil"].append({"name": dir.name, "image": img.copy(), "in_dir": None})
 
     return input_subdir
 

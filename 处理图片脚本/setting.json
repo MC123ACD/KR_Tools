@@ -1,7 +1,8 @@
 {
     "size": 0,
-    "sharpen_percent": 28,
-    "sharpen_radius": 1.3,
-    "sharpen_threshold": 1,
-    "brightness": 0.95
+    "sharpen_percent": 0,
+    "sharpen_radius": 0,
+    "sharpen_threshold": 0,
+    "brightness": 0,
+    "use_trim": true
 }

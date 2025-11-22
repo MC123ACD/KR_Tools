@@ -115,7 +115,8 @@ class TexturePacker:
         for free_rect in self.free_rectangles:
             # 删除过小的空闲区域
             if (
-                free_rect == "removed" or free_rect.width < min_rectangle[1]
+                free_rect == "removed"
+                or free_rect.width < min_rectangle[1]
                 or free_rect.height < min_rectangle[2]
             ):
                 continue
@@ -401,14 +402,18 @@ class CreateAtlas:
                 rectangles, size
             )
 
-            # 利用率可接受，使用当前尺寸
+            # 利用率较低使用多图集打包
             if 0 < efficiency < trigger_several_efficiency:
-                best_size = last_size
-                self.is_several_atlas = True
+                if size == sizes[0]:
+                    best_size = size
+                else:
+                    best_size = last_size
+                    self.is_several_atlas = True
 
-                # 重新计算较小尺寸的利用率
-                efficiency, remaining_rect = last_efficiency, last_remaining_rect
+                    efficiency, remaining_rect = last_efficiency, last_remaining_rect
+
                 break
+            # 利用率可接受，使用当前尺寸
             elif efficiency > trigger_several_efficiency:
                 best_size = size
                 break
@@ -610,18 +615,17 @@ class CreateAtlas:
 
             f.write("}")
 
+
 def process_img(img):
     """
     处理单张图片：裁剪透明区域并计算裁剪信息
 
     Args:
         img: PIL图片对象
-        last_img_data: 上一张图片的数据（用于对齐优化）
 
     Returns:
         new_img: 裁剪后的图片
         trim_data: 调整后的裁剪信息
-        origin_trim_data: 原始裁剪信息
     """
     origin_width = img.width
     origin_height = img.height

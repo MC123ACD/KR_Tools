@@ -1,31 +1,12 @@
-import sys, traceback, subprocess
+import traceback, subprocess, config
 from pathlib import Path
 from PIL import Image, ImageDraw
 import math, random, hashlib, json
 from collections import namedtuple
+import utils as U
 
-# 添加上级目录到Python路径，以便导入自定义库
-current_dir = Path(__file__).parent
-parent_dir = current_dir.parent
-sys.path.insert(0, str(parent_dir))
-
-import lib
-
-is_simple_key = lib.is_simple_key
-
-# 获取基础目录、输入路径和输出路径
-base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
-
-setting_path = current_dir / "setting.json"
-
-with open(setting_path, "r", encoding="utf-8") as f:
-    setting = json.load(f)
-
-    # 图集打包参数
-    padding = setting["padding"]  # 图片之间的内边距
-    border = setting["border"]  # 图集边界留白
-    output_format = setting["output_format"]  # 输出格式
-    trigger_several_efficiency = setting["trigger_several_efficiency"]  # 多图集打包时机
+setting = config.setting["generate_atlas"]
+trigger_several_efficiency = setting["trigger_several_efficiency"]  # 多图集打包时机
 
 # 定义数据结构：
 # v2: 二维向量，表示位置坐标 (x, y)
@@ -51,6 +32,8 @@ class TexturePacker:
         self.width = width
         self.height = height
         self.used_rectangles = []  # 已使用的矩形区域列表
+
+        border = setting["border"]
         # 初始空闲区域，考虑边界留白
         self.free_rectangles = [
             Rectangle(border, border, width - border, height - border)
@@ -483,15 +466,16 @@ class CreateAtlas:
                 output_format,  # BC格式
                 "-y",  # 覆盖已存在文件
                 "-o",
-                str(output_path),
-                str(output_file),
+                str(config.output_path),
+                str(config.output_file),
             ],
             capture_output=True,
             text=True,
         )
 
         # 删除临时PNG文件
-        Path(output_file).unlink()
+        if setting["delete_temporary_png"]:
+            Path(output_file).unlink()
 
     def write_texture_atlas(self):
         """写入纹理图集文件"""
@@ -512,7 +496,7 @@ class CreateAtlas:
         with Image.new(
             "RGBA", (result["atlas_size"][0], result["atlas_size"][1]), (0, 0, 0, 0)
         ) as atlas:
-            output_file = output_path / f"{filename}.png"
+            output_file = config.output_path / f"{filename}.png"
 
             # 将所有图片粘贴到图集上
             for img_id in result["rectangles_id"]:
@@ -526,22 +510,23 @@ class CreateAtlas:
             # 在左上角添加白色像素（可能用于特殊用途，如血条）
             if setting["add_white_rect"]:
                 draw = ImageDraw.Draw(atlas)
-                draw.rectangle([0, 0, 3, 3], "white", None, 0)
+                w, h = setting["white_rect_size"]
+                draw.rectangle([0, 0, w, h], "white", None, 0)
 
             # 保存PNG文件
             atlas.save(output_file)
 
             # 转换为DDS格式
-            if output_format == "bc7":
+            if setting["output_format"] == "bc7":
                 self.save_to_dds(output_file, 7)
-            elif output_format == "bc3":
+            elif setting["output_format"] == "bc3":
                 self.save_to_dds(output_file, 3)
-            elif output_format == "png":
+            elif setting["output_format"] == "png":
                 print(f"✅ 保存为png: {output_file.name}...")
 
     def write_lua_data(self):
         """生成Lua格式的图集数据文件"""
-        filepath = output_path / f"{self.atlas_name}.lua"
+        filepath = config.output_path / f"{self.atlas_name}.lua"
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("return {\n")
@@ -554,12 +539,12 @@ class CreateAtlas:
                     trim = img["trim"]
 
                     # 写入图片数据
-                    if is_simple_key(img["name"]):
+                    if U.is_simple_key(img["name"]):
                         f.write(f"\t{img["name"]} = {{\n")
                     else:
                         f.write(f'\t["{img["name"]}"] = {{\n')
 
-                    if output_format == "png":
+                    if setting["output_format"] == "png":
                         f.write(f'\t\ta_name = "{result["name"]}.png",\n')
                     else:
                         f.write(f'\t\ta_name = "{result["name"]}.dds",\n')
@@ -661,68 +646,70 @@ def get_input_subdir():
     input_subdir = {}
 
     # 遍历输入目录下的所有子目录
-    for dir in input_path.iterdir():
+    for item in config.input_path.iterdir():
         hash_groups = {}  # 用于检测重复图片
-
-        input_subdir[dir.name] = {"images": [], "rectangles": []}
-        images = input_subdir[dir.name]["images"]
-
         # 遍历子目录中的所有图片文件
-        for image_file in Path(dir).iterdir():
-            image_file_name = image_file.stem
+        if item.is_dir():
+            input_subdir[item.name] = {"images": [], "rectangles": []}
+            images = input_subdir[item.name]["images"]
 
-            with Image.open(image_file) as img:
-                # 计算图片哈希值用于重复检测
-                hash_key = hashlib.md5(img.tobytes()).hexdigest()
+            for image_file in Path(item).iterdir():
+                image_file_name = image_file.stem
 
-                # 跳过重复图片
-                if hash_key in hash_groups:
-                    hash_group = hash_groups[hash_key]
-                    hash_group["similar"].append(image_file_name)
+                with Image.open(image_file) as img:
+                    # 计算图片哈希值用于重复检测
+                    hash_key = hashlib.md5(img.tobytes()).hexdigest()
 
-                    print(f"跳过重复图片 {image_file.name}")
-                    continue
+                    # 跳过重复图片
+                    if hash_key in hash_groups:
+                        hash_group = hash_groups[hash_key]
+                        hash_group["similar"].append(image_file_name)
 
-                # 处理图片：裁剪透明区域
-                new_img, trim = process_img(img)
+                        print(f"跳过重复图片 {image_file.name}")
+                        continue
 
-                # 构建图片数据字典
-                img_data = {
-                    "path": image_file,
-                    "image": new_img,
-                    "width": new_img.width,
-                    "height": new_img.height,
-                    "origin_width": img.width,
-                    "origin_height": img.height,
-                    "name": image_file_name,
-                    "samed_img": [],  # 相同图片列表
-                    "removed": False,
-                    "trim": trim,  # 裁剪信息
-                }
+                    # 处理图片：裁剪透明区域
+                    new_img, trim = process_img(img)
 
-                images.append(img_data)
-
-                # 更新哈希分组
-                if hash_key not in hash_groups:
-                    hash_groups[hash_key] = {
-                        "main": img_data,
-                        "similar": img_data["samed_img"],
+                    # 构建图片数据字典
+                    img_data = {
+                        "path": image_file,
+                        "image": new_img,
+                        "width": new_img.width,
+                        "height": new_img.height,
+                        "origin_width": img.width,
+                        "origin_height": img.height,
+                        "name": image_file_name,
+                        "samed_img": [],  # 相同图片列表
+                        "removed": False,
+                        "trim": trim,  # 裁剪信息
                     }
 
-                print(
-                    f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                    images.append(img_data)
+
+                    # 更新哈希分组
+                    if hash_key not in hash_groups:
+                        hash_groups[hash_key] = {
+                            "main": img_data,
+                            "similar": img_data["samed_img"],
+                        }
+
+                    print(
+                        f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
+                    )
+
+                padding = setting["padding"]
+
+                # 准备矩形数据用于打包 (id, width, height)
+                rectangles = [
+                    (i, img["width"] + padding, img["height"] + padding)
+                    for i, img in enumerate(images)
+                ]
+
+                # 按面积降序排列
+                input_subdir[item.name]["rectangles"] = sorted(
+                    rectangles, key=lambda r: r[1] * r[2], reverse=True
                 )
-
-            # 准备矩形数据用于打包 (id, width, height)
-            rectangles = [
-                (i, img["width"] + padding, img["height"] + padding)
-                for i, img in enumerate(images)
-            ]
-
-            # 按面积降序排列
-            input_subdir[dir.name]["rectangles"] = sorted(
-                rectangles, key=lambda r: r[1] * r[2], reverse=True
-            )
 
     return input_subdir
 
@@ -757,13 +744,4 @@ def main():
             for img_info in images:
                 img_info["image"].close()
 
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"错误: {e}")
-        traceback.print_exc()
-
-    # 等待用户确认退出
-    input("程序执行完毕，按回车键退出...")
+    U.open_output_dir()

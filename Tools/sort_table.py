@@ -1,36 +1,22 @@
-import re, traceback, sys
-from pathlib import Path
-
-
-# 添加上级目录到Python路径，以便导入自定义库
-current_dir = Path(__file__).parent
-parent_dir = current_dir.parent
-sys.path.insert(0, str(parent_dir))
-
-import lib
-
-base_dir, input_path, output_path = lib.find_and_create_directory(__file__)
-lua = lib.init_lua()
-is_simple_key = lib.is_simple_key
+import traceback, config
+import utils as U
 
 
 def sort_lua_table():
     """
     加载Lua模块，并排序返回的表
     """
-    for filename in input_path.iterdir():
+    for filename in config.input_path.iterdir():
         if filename.suffix == ".lua":
             print(f"📖 读取文件: {filename}")
 
             try:
                 # 读取Lua文件内容
                 with open(filename, "r", encoding="utf-8-sig") as f:
-                    lua_module_return = lua.execute(f.read())
-
-                    sorted_dict, sorted_list = process_table(lua_module_return)
+                    sorted_dict, sorted_list = process_table(f)
 
                     write_lua_file(
-                        output_path / filename.name, sorted_dict, sorted_list
+                        config.output_path / filename.name, sorted_dict, sorted_list
                     )
 
             except Exception as e:
@@ -65,7 +51,7 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
         f.write("return {\n")
 
         for k, v in sorted_dict.items():
-            if is_simple_key(k):
+            if U.is_simple_key(k):
                 f.write(f'\t{escape_lua_string(k)} = "{escape_lua_string(v)}",\n')
             else:
                 f.write(f'\t["{escape_lua_string(k)}"] = "{escape_lua_string(v)}",\n')
@@ -78,14 +64,13 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
     print(f"✅ 处理完成！结果已保存到: {lua_file_path}")
 
 
-def process_table(table):
-    """
-    分离和排序键
-    """
+def process_table(f):
+    lua_data = config.lupa.execute(f.read())
+
     string_keys = {}
     numeric_keys = []
 
-    for key, value in table.items():
+    for key, value in lua_data.items():
         if not isinstance(key, int):
             string_keys[key] = value
         elif isinstance(key, int):
@@ -97,10 +82,6 @@ def process_table(table):
     return sorted_dict, numeric_keys
 
 
-if __name__ == "__main__":
-    print("🚀 开始转换流程")
-    print("=" * 50)
-
+def main():
     sort_lua_table()
-
-    input("程序执行完毕，按回车键退出...")
+    U.open_output_dir()

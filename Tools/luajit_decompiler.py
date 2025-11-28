@@ -1,23 +1,28 @@
-import subprocess
+import subprocess, config
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+import utils as U
 
 
 class LuaJITDecompiler:
+
     def __init__(self, root):
-        self.root = root
-        self.root.title("无错误弹窗反编译")
-        self.root.geometry("400x150")
+        root_window = tk.Toplevel(root)
+        root_window.title("反编译")
+        root_window.geometry("400x150")
+        root_window.transient(root)
+        root_window.grab_set()
+        self.root = root_window
 
         # 创建UI
-        ttk.Label(root, text="选择包含LuaJIT字节码的文件夹:").pack(pady=10)
+        ttk.Label(self.root, text="选择包含LuaJIT字节码的文件夹:").pack(pady=10)
 
-        self.folder_entry = ttk.Entry(root, width=40)
+        self.folder_entry = ttk.Entry(self.root, width=40)
         self.folder_entry.pack()
 
-        ttk.Frame(root, height=10).pack()  # 空白间隔
+        ttk.Frame(self.root, height=10).pack()  # 空白间隔
 
-        btn_frame = ttk.Frame(root)
+        btn_frame = ttk.Frame(self.root)
         btn_frame.pack()
 
         ttk.Button(btn_frame, text="浏览...", command=self.browse_folder).pack(
@@ -37,30 +42,15 @@ class LuaJITDecompiler:
         target_folder = self.folder_entry.get()
 
         try:
-            subprocess.run(
-                [
-                    "luajit-decompiler-v2.exe",
-                    target_folder,
-                    "-e",
-                    ".lua",  # 只反编译.lua文件
-                    "-f",  # 始终替换
-                    "-s",  # 禁用错误窗口
-                ],
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                capture_output=True,
-                text=True,
-            )
+            U.run_decompiler(target_folder)
             messagebox.showinfo("完成", "反编译完毕")
         except Exception as e:
             messagebox.showerror("错误", f"无法进行反编译: {str(e)}")
 
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    # 使用ttk样式
+def main(root):
     style = ttk.Style()
     style.configure("TButton", padding=6)
     style.configure("TEntry", padding=5)
 
     app = LuaJITDecompiler(root)
-    root.mainloop()

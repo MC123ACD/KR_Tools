@@ -84,12 +84,12 @@ def extract_objects_from_plist(plist_path):
 			if 'position' in obj and isinstance(obj['position'], dict):
 				x, y = obj['position']['x'], obj['position']['y']
 				lua_entity['pos'] = {'x': x, 'y': y}
-			
+
 			if 'anchor' in obj:
 				x, y = obj['anchor']['x'], obj['anchor']['y']
 				lua_entity['render.sprites[1].anchor.x'] = x
 				lua_entity['render.sprites[1].anchor.y'] = y
-			
+
 			if 'scale' in obj:
 				scale = obj['scale']
 				if 'x' in scale:
@@ -99,17 +99,16 @@ def extract_objects_from_plist(plist_path):
 				else:
 					entity['render.sprites[1].scale.x'] = scale
 					entity['render.sprites[1].scale.y'] = scale
-			
+
 			if 'layer' in obj:
 				layer = obj['layer']
 				if layer == 'decals':
 					lua_entity['render.sprites[1].z'] = 'Z_DECALS'
 				elif layer == 'entities':
 					lua_entity['render.sprites[1].z'] = 'Z_OBJECTS'
-			
+
 			if 'y_position_adjust' in obj:
 				lua_entity['render.sprites[1].sort_y_offset'] = obj['y_position_adjust'] * -1
-
 
 			if 'single_frame' in obj:
 				filename = obj['single_frame'].replace('.png', '')
@@ -259,7 +258,7 @@ def generate_waves(plist_path, points):
 			if spawns:
 				# 只有找到匹配的point时才生成spawn表
 				if obj is not None:
-					spawn_delay = delay + 1.6
+					spawn_delay = delay + 1
 				else:
 					spawn_delay = delay
 

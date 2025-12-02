@@ -52,12 +52,12 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
 
         for k, v in sorted_dict.items():
             if U.is_simple_key(k):
-                f.write(f'\t{escape_lua_string(k)} = "{escape_lua_string(v)}",\n')
+                f.write(f"\t{escape_lua_string(k)} = \"{escape_lua_string(v)}\",\n")
             else:
-                f.write(f'\t["{escape_lua_string(k)}"] = "{escape_lua_string(v)}",\n')
+                f.write(f"\t[\"{escape_lua_string(k)}\"] = \"{escape_lua_string(v)}\",\n")
 
         for v in sorted_list:
-            f.write(f'\t"{escape_lua_string(str(v))}",\n')
+            f.write(f"\t\"{escape_lua_string(str(v))}\",\n")
 
         f.write("}")
 

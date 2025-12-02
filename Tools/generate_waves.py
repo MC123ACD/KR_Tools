@@ -128,33 +128,33 @@ class WaveDataGenerator:
     def create_wave_control(self):
         # 波次控制区域
         control_frame = tk.LabelFrame(
-                self.root,
-                text="波次管理",
-                font=("Arial", 10, "bold"),
-                bg="#f0f0f0",
-                padx=10,
-                pady=10,
-            )
+            self.root,
+            text="波次管理",
+            font=("Arial", 10, "bold"),
+            bg="#f0f0f0",
+            padx=10,
+            pady=10,
+        )
         control_frame.pack(fill="x", padx=10, pady=5)
 
         self.add_wave_btn = tk.Button(
-                control_frame,
-                text="添加新波次",
-                command=self.add_wave,
-                bg="#3498db",
-                fg="white",
-                font=("Arial", 10),
-            )
+            control_frame,
+            text="添加新波次",
+            command=self.add_wave,
+            bg="#3498db",
+            fg="white",
+            font=("Arial", 10),
+        )
         self.add_wave_btn.pack(side="left", padx=5)
 
         self.delete_wave_btn = tk.Button(
-                control_frame,
-                text="删除波次",
-                command=self.delete_wave,
-                bg="#e74c3c",
-                fg="white",
-                font=("Arial", 10),
-            )
+            control_frame,
+            text="删除波次",
+            command=self.delete_wave,
+            bg="#e74c3c",
+            fg="white",
+            font=("Arial", 10),
+        )
         self.delete_wave_btn.pack(side="left", padx=5)
 
     def create_wave_management(self, edit_frame):
@@ -872,12 +872,11 @@ class WaveDataGenerator:
             return
 
         try:
-            with open(file_path, "w", encoding="utf-8") as file:
-                if not setting["Dove_spawn_criket"]:
-                    self.write_common_spawns(file, monsters)
+            if not setting["Dove_spawn_criket"]:
+                self.write_common_spawns(file_path, monsters)
 
-                else:
-                    self.write_Dove_spawns_criket(file, monsters)
+            else:
+                self.write_dove_spawns_criket(file_path, monsters)
 
             self.status_var.set(f"文件已保存: {file_path.name}")
 
@@ -886,142 +885,143 @@ class WaveDataGenerator:
         except Exception as e:
             messagebox.showerror("错误", f"保存文件时出错:\n{str(e)}")
 
-    def write_common_spawns(self, f, monsters):
-        f.write("return {\n")
-        f.write(f"\tcash = {self.wave_data["cash"]},\n")
-        f.write("\tlive = 20,\n")
-        f.write("\tgroups = {\n")
+    def write_common_spawns(self, file_path, monsters):
+        content = [
+            "return {",
+            f"\tcash = {self.wave_data["cash"]},",
+            "\tgroups = {",
+        ]
+
+        def a(str):
+            content.append(str)
 
         for group_idx, group in enumerate(self.wave_data["groups"]):
-            f.write(f"\t\t{{\n")
-            f.write(
-                        f"\t\t\tinterval = {group["wave_arrive_time"] * 30 if setting["time_to_s"] else group["wave_arrive_time"]},\n"
-                    )
-            f.write("\t\t\twaves = {\n")
+            a("\t\t{")
+            a(
+                f"\t\t\tinterval = {group["wave_arrive_time"] * 30 if setting["time_to_s"] else group["wave_arrive_time"]},"
+            )
+            a("\t\t\twaves = {")
 
             for wave_idx, wave in enumerate(group["waves"]):
-                f.write(f"\t\t\t\t{{\n")
+                a("\t\t\t\t{")
 
                 if wave["some_flying"] == True:
-                    f.write("\t\t\t\t\tsome_flying = true,\n")
+                    a("\t\t\t\t\tsome_flying = true,")
 
-                f.write(
-                            f"\t\t\t\t\tdelay = {wave["delay"] * 30 if setting["time_to_s"] else wave["delay"]},\n"
-                        )
-                f.write(f"\t\t\t\t\tpath_index = {wave["path_index"]},\n")
-                f.write("\t\t\t\t\tspawns = {\n")
+                a(
+                    f"\t\t\t\t\tdelay = {wave["delay"] * 30 if setting["time_to_s"] else wave["delay"]},"
+                )
+                a(f"\t\t\t\t\tpath_index = {wave["path_index"]},")
+                a("\t\t\t\t\tspawns = {")
 
                 for spawn_idx, spawn in enumerate(wave["spawns"]):
-                    f.write(f"\t\t\t\t\t\t{{\n")
-                    f.write(
-                                f'\t\t\t\t\t\t\tcreep = "{monsters[spawn["creep"]]}",\n'
-                            )
-                    if spawn["creep_aux"]:
-                        f.write(
-                                    f'\t\t\t\t\t\t\tcreep_aux = "{monsters[spawn["creep_aux"]]}",\n'
-                                )
-                    f.write(
-                                f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},\n"
-                            )
-                    f.write(f"\t\t\t\t\t\t\tmax = {spawn["max"]},\n")
-                    f.write(
-                                f"\t\t\t\t\t\t\tinterval = {spawn["interval"] * 30 if setting["time_to_s"] else spawn["interval"]},\n"
-                            )
-                    f.write(
-                                f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"] * 30 if setting["time_to_s"] else spawn["fixed_sub_path"]},\n"
-                            )
-                    f.write(
-                                f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"] * 30 if setting["time_to_s"] else spawn["interval_next"]}\n"
-                            )
-                    f.write(
-                                "\t\t\t\t\t\t},\n"
-                                if spawn_idx < len(wave["spawns"]) - 1
-                                else "\t\t\t\t\t\t}\n"
-                            )
-
-                f.write("\t\t\t\t\t}\n")
-                f.write(
-                            "\t\t\t\t},\n"
-                            if wave_idx < len(group["waves"]) - 1
-                            else "\t\t\t\t}\n"
-                        )
-
-            f.write("\t\t\t}\n")
-            f.write(
-                        "\t\t},\n"
-                        if group_idx < len(self.wave_data["groups"]) - 1
-                        else "\t\t}\n"
+                    a("\t\t\t\t\t\t{")
+                    a(
+                        f'\t\t\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",'
                     )
+                    if spawn["creep_aux"]:
+                        a(
+                            f'\t\t\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",'
+                        )
+                    a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},")
+                    a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},")
+                    a(
+                        f"\t\t\t\t\t\t\tinterval = {spawn["interval"] * 30 if setting["time_to_s"] else spawn["interval"]},"
+                    )
+                    a(f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},")
+                    a(
+                        f"\t\t\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},"
+                    )
+                    a(
+                        f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"] * 30 if setting["time_to_s"] else spawn["interval_next"]}"
+                    )
+                    a(
+                        "\t\t\t\t\t\t},"
+                        if spawn_idx < len(wave["spawns"]) - 1
+                        else "\t\t\t\t\t\t}"
+                    )
+                a("\t\t\t\t\t}")
+                a("\t\t\t\t}," if wave_idx < len(group["waves"]) - 1 else "\t\t\t\t}")
+            a("\t\t\t}")
+            a("\t\t}," if group_idx < len(self.wave_data["groups"]) - 1 else "\t\t}")
 
-        f.write("\t}\n")
-        f.write("}\n")
+        a("\t}")
+        a("}")
 
-    def write_Dove_spawns_criket(self, f, monsters):
+        lua_content = "\n".join(content)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(lua_content)
+
+    def write_dove_spawns_criket(self, file_path, monsters):
         groups = self.wave_data["groups"][0]["waves"]
 
-        f.write("return {\n")
-        f.write("\ton = true,\n")
-        f.write(f"\tcash = {self.wave_data["cash"]},\n")
-        f.write("\tgroups = {\n")
+        content = [
+            "return {",
+            "\ton = true,",
+            f"\tcash = {self.wave_data["cash"]},",
+            "\tgroups = {",
+        ]
+
+        def a(str):
+            content.append(str)
 
         for group_idx, group in enumerate(groups):
-            f.write(f"\t\t{{\n")
+            a("\t\t{")
 
             if group["some_flying"] == True:
-                f.write("\t\t\tsome_flying = true,\n")
+                a("\t\t\tsome_flying = true,")
 
-            f.write(f"\t\t\tdelay = {group["delay"]},\n")
-            f.write(f"\t\t\tpath_index = {group["path_index"]},\n")
-            f.write("\t\t\tspawns = {\n")
+            a(f"\t\t\tdelay = {group["delay"]},")
+            a(f"\t\t\tpath_index = {group["path_index"]},")
+            a("\t\t\tspawns = {")
 
             for spawn_idx, spawn in enumerate(group["spawns"]):
-                f.write(f"\t\t\t\t{{\t\n")
-                f.write(
-                    f'\t\t\t\t\tcreep = "{monsters[spawn["creep"]]}",\n'
+                a("\t\t\t\t{\t")
+                a(
+                    f'\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",'
                 )
                 if spawn["creep_aux"]:
-                    f.write(
-                        f'\t\t\t\t\tcreep_aux = "{monsters[spawn["creep_aux"]]}",\n'
+                    a(
+                        f'\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",'
                     )
-                f.write(f"\t\t\t\t\tmax_same = {spawn["max_same"]},\n")
-                f.write(f"\t\t\t\t\tmax = {spawn["max"]},\n")
-                f.write(f"\t\t\t\t\tinterval = {spawn["interval"]},\n")
-                f.write(
-                    f"\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},\n"
+                a(f"\t\t\t\t\tmax_same = {spawn["max_same"]},")
+                a(f"\t\t\t\t\tmax = {spawn["max"]},")
+                a(f"\t\t\t\t\tinterval = {spawn["interval"]},")
+                a(f"\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},")
+                a(
+                    f"\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},"
                 )
-                f.write(
-                    f"\t\t\t\t\tinterval_next = {spawn["interval_next"]}\n"
-                )
-                f.write(
-                    "\t\t\t\t},\n"
-                    if spawn_idx < len(group["spawns"]) - 1
-                    else "\t\t\t\t}\n"
-                )
-            f.write("\t\t\t}\n")
-            f.write(
-                "\t\t},\n" if group_idx != len(groups) - 1 else "\t\t}\n"
-            )
-        f.write("\t},\n")
-        f.write("\trequired_textures = {\n")
+                a(f"\t\t\t\t\tinterval_next = {spawn["interval_next"]}")
+                a("\t\t\t\t}," if spawn_idx < len(group["spawns"]) - 1 else "\t\t\t\t}")
+            a("\t\t\t}")
+            a("\t\t}," if group_idx < len(groups) - 1 else "\t\t}")
+        a("\t},")
+        a("\trequired_textures = {")
 
         for i, v in enumerate(default_criket["required_textures"]):
-            f.write(
-                f'\t\t"{v}",\n'
-                if i != len(default_criket["required_textures"]) - 1
-                else f'\t\t"{v}"\n'
+            a(
+                f'\t\t"{v}",'
+                if i < len(default_criket["required_textures"]) - 1
+                else f'\t\t"{v}"'
             )
 
-        f.write("\t},\n")
-        f.write("\trequired_sounds = {\n")
+        a("\t},")
+        a("\trequired_sounds = {")
         for i, v in enumerate(default_criket["required_sounds"]):
-            f.write(
-                f'\t\t"{v}",\n'
-                if i != len(default_criket["required_sounds"]) - 1
-                else f'\t\t"{v}"\n'
+            a(
+                f'\t\t"{v}",'
+                if i < len(default_criket["required_sounds"]) - 1
+                else f'\t\t"{v}"'
             )
 
-        f.write("\t}\n")
-        f.write("}")
+        a("\t}")
+        a("}")
+
+        lua_content = "\n".join(content)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(lua_content)
 
     def load_from_lua(self):
         file_path = Path(
@@ -1043,7 +1043,7 @@ class WaveDataGenerator:
             if not setting["Dove_spawn_criket"]:
                 self.load_common_spawns(data, monsters)
             else:
-                self.Dove_spawns_criket(data, monsters)
+                self.dove_spawns_criket(data, monsters)
 
             self.current_wave_index = 0
             self.cash_var.set(data["cash"])
@@ -1091,8 +1091,7 @@ class WaveDataGenerator:
                 new_group_data = {
                     "some_flying": (
                         True
-                        if "some_flying" in d_group
-                        and d_group["some_flying"] == True
+                        if "some_flying" in d_group and d_group["some_flying"] == True
                         else False
                     ),
                     "delay": d_group["delay"],
@@ -1101,9 +1100,7 @@ class WaveDataGenerator:
                 }
 
                 if setting["time_to_s"]:
-                    new_group_data["delay"] = round(
-                        new_group_data["delay"] / 30, 2
-                    )
+                    new_group_data["delay"] = round(new_group_data["delay"] / 30, 2)
 
                 d_spawns = d_group["spawns"]
                 for spawn in range(1, len(d_spawns) + 1):
@@ -1120,9 +1117,7 @@ class WaveDataGenerator:
                             if d_spawn["creep_aux"]
                             else ""
                         ),
-                        "max_same": (
-                            d_spawn["max_same"] if d_spawn["max_same"] else 0
-                        ),
+                        "max_same": (d_spawn["max_same"] if d_spawn["max_same"] else 0),
                         "max": d_spawn["max"],
                         "interval": d_spawn["interval"],
                         "fixed_sub_path": d_spawn["fixed_sub_path"],
@@ -1143,7 +1138,7 @@ class WaveDataGenerator:
 
             wave_data["groups"].append(new_wave_data)
 
-    def Dove_spawns_criket(self, data, monsters):
+    def dove_spawns_criket(self, data, monsters):
         wave_data = self.wave_data
         wave_data["cash"] = data["cash"]
 
@@ -1156,8 +1151,7 @@ class WaveDataGenerator:
             new_group_data = {
                 "some_flying": (
                     True
-                    if "some_flying" in d_group
-                    and d_group["some_flying"] == True
+                    if "some_flying" in d_group and d_group["some_flying"] == True
                     else False
                 ),
                 "delay": d_group["delay"],
@@ -1176,9 +1170,7 @@ class WaveDataGenerator:
                         if d_spawn["creep_aux"]
                         else ""
                     ),
-                    "max_same": (
-                        d_spawn["max_same"] if d_spawn["max_same"] else 0
-                    ),
+                    "max_same": (d_spawn["max_same"] if d_spawn["max_same"] else 0),
                     "max": d_spawn["max"],
                     "interval": d_spawn["interval"],
                     "fixed_sub_path": d_spawn["fixed_sub_path"],

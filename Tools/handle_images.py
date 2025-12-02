@@ -115,8 +115,45 @@ def process_img(file_data):
         output_img = config.output_path / name
 
     img.save(output_img)
+    if setting["output_format"] == "bc3":
+        save_to_dds(output_img, 3)
+    elif setting["output_format"] == "bc7":
+        save_to_dds(output_img, 7)
+    elif setting["output_format"] == "png":
+        print(f"✅ 保存为png: {output_img.name}...")
 
     print(f"🖼️ 保存图片: {name}")
+
+def save_to_dds(output_file, bc):
+    """
+    将PNG图片转换为DDS格式
+
+    Args:
+        output_file: 输出文件路径
+        bc: BC压缩格式 (1-7)
+    """
+    print(f"✅ 保存为DDS BC{bc}格式: {output_file}...")
+
+    output_format = f"BC{bc}_UNORM"
+
+    # 使用texconv工具进行格式转换
+    subprocess.run(
+        [
+            "texconv.exe",
+            "-f",
+            output_format,  # BC格式
+            "-y",  # 覆盖已存在文件
+            "-o",
+            str(config.output_path),
+            str(output_file),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # 删除临时PNG文件
+    if setting["delete_temporary_png"]:
+        Path(output_file).unlink()
 
 def main():
     input_subdir = load_input_files()

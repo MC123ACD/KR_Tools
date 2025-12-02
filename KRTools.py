@@ -38,8 +38,8 @@ setting = config.setting["main"]
 class MainApplication:
     def __init__(self, root):
         self.root = root
-        self.root.title("main")
-        self.root.geometry("700x130")
+        self.root.title("KRTools")
+        self.root.geometry("1000x130")
 
         # 创建界面
         self.create_widgets()
@@ -87,6 +87,11 @@ class MainApplication:
 
     def run_module(self, module, has_gui):
         self.root.update()
+
+        # if not any(input_path.iterdir()):
+        #     messagebox.showerror("错误", "输入目录为空，请将文件放入 input 目录后重试")
+        #     return
+
         if has_gui:
             module.main(self.root)
         else:

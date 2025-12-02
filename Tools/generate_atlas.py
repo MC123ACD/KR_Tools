@@ -6,7 +6,6 @@ from collections import namedtuple
 import utils as U
 
 setting = config.setting["generate_atlas"]
-trigger_several_efficiency = setting["trigger_several_efficiency"]  # 多图集打包时机
 
 # 定义数据结构：
 # v2: 二维向量，表示位置坐标 (x, y)
@@ -386,7 +385,7 @@ class CreateAtlas:
             )
 
             # 利用率较低使用多图集打包
-            if 0 < efficiency < trigger_several_efficiency:
+            if 0 < efficiency < setting["trigger_several_efficiency"]:
                 if size == sizes[0]:
                     best_size = size
                 else:
@@ -397,7 +396,7 @@ class CreateAtlas:
 
                 break
             # 利用率可接受，使用当前尺寸
-            elif efficiency > trigger_several_efficiency:
+            elif efficiency > setting["trigger_several_efficiency"]:
                 best_size = size
                 break
             elif efficiency == 0 and size == sizes[-1]:
@@ -467,7 +466,7 @@ class CreateAtlas:
                 "-y",  # 覆盖已存在文件
                 "-o",
                 str(config.output_path),
-                str(config.output_file),
+                str(output_file),
             ],
             capture_output=True,
             text=True,
@@ -526,79 +525,88 @@ class CreateAtlas:
 
     def write_lua_data(self):
         """生成Lua格式的图集数据文件"""
+        content = [
+            "return {",
+        ]
+
+        def a(str):
+            content.append(str)
+
+        # 遍历所有打包结果
+        for idx_1, result in enumerate(self.results):
+            for idx_2, img_id in enumerate(result["rectangles_id"]):
+                img = self.images[img_id]
+                pos = img["pos"]
+                trim = img["trim"]
+
+                # 写入图片数据
+                if U.is_simple_key(img["name"]):
+                    a(f"\t{img["name"]} = {{")
+                else:
+                    a(f'\t["{img["name"]}"] = {{')
+
+                if setting["output_format"] == "png":
+                    a(f'\t\ta_name = "{result["name"]}.png",')
+                else:
+                    a(f'\t\ta_name = "{result["name"]}.dds",')
+
+                # 原始尺寸
+                a(f"\t\tsize = {{")
+                a(f"\t\t\t{img["origin_width"]},")
+                a(f"\t\t\t{img["origin_height"]}")
+                a("\t\t},")
+
+                # 裁剪信息
+                a("\t\ttrim = {")
+                a(f"\t\t\t{trim.left},")
+                a(f"\t\t\t{trim.top},")
+                a(f"\t\t\t{trim.right},")
+                a(f"\t\t\t{trim.bottom}")
+                a("\t\t},")
+
+                # 图集尺寸
+                a("\t\ta_size = {")
+                a(f"\t\t\t{result["atlas_size"][0]},")
+                a(f"\t\t\t{result["atlas_size"][1]}")
+                a("\t\t},")
+
+                # 在图集中的位置和尺寸
+                a("\t\tf_quad = {")
+                a(f"\t\t\t{pos.x},")
+                a(f"\t\t\t{pos.y},")
+                a(f"\t\t\t{img["width"]},")
+                a(f"\t\t\t{img["height"]}")
+                a("\t\t},")
+
+                # 相同图片别名
+                if len(img["samed_img"]) > 0:
+                    a("\t\talias = {")
+                    for i, name in enumerate(img["samed_img"]):
+                        if i < len(img["samed_img"]) - 1:
+                            a(f'\t\t\t"{name}",')
+                        else:
+                            a(f'\t\t\t"{name}"')
+                    a("\t\t}")
+                else:
+                    a("\t\talias = {}")
+
+                # 结束当前图片数据
+                if (
+                    idx_1 < len(self.results) - 1
+                    and idx_2 < len(result["rectangles_id"]) - 1
+                ):
+                    a("\t},")
+                else:
+                    a("\t}")
+
+        a("}")
+
         filepath = config.output_path / f"{self.atlas_name}.lua"
 
+        lua_content = "\n".join(content)
+
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write("return {\n")
-
-            # 遍历所有打包结果
-            for idx_1, result in enumerate(self.results):
-                for idx_2, img_id in enumerate(result["rectangles_id"]):
-                    img = self.images[img_id]
-                    pos = img["pos"]
-                    trim = img["trim"]
-
-                    # 写入图片数据
-                    if U.is_simple_key(img["name"]):
-                        f.write(f"\t{img["name"]} = {{\n")
-                    else:
-                        f.write(f'\t["{img["name"]}"] = {{\n')
-
-                    if setting["output_format"] == "png":
-                        f.write(f'\t\ta_name = "{result["name"]}.png",\n')
-                    else:
-                        f.write(f'\t\ta_name = "{result["name"]}.dds",\n')
-
-                    # 原始尺寸
-                    f.write(f"\t\tsize = {{\n")
-                    f.write(f"\t\t\t{img["origin_width"]},\n")
-                    f.write(f"\t\t\t{img["origin_height"]}\n")
-                    f.write(f"\t\t}},\n")
-
-                    # 裁剪信息
-                    f.write(f"\t\ttrim = {{\n")
-                    f.write(f"\t\t\t{trim.left},\n")
-                    f.write(f"\t\t\t{trim.top},\n")
-                    f.write(f"\t\t\t{trim.right},\n")
-                    f.write(f"\t\t\t{trim.bottom}\n")
-                    f.write(f"\t\t}},\n")
-
-                    # 图集尺寸
-                    f.write(f"\t\ta_size = {{\n")
-                    f.write(f"\t\t\t{result["atlas_size"][0]},\n")
-                    f.write(f"\t\t\t{result["atlas_size"][1]}\n")
-                    f.write(f"\t\t}},\n")
-
-                    # 在图集中的位置和尺寸
-                    f.write(f"\t\tf_quad = {{\n")
-                    f.write(f"\t\t\t{pos.x},\n")
-                    f.write(f"\t\t\t{pos.y},\n")
-                    f.write(f"\t\t\t{img["width"]},\n")
-                    f.write(f"\t\t\t{img["height"]}\n")
-                    f.write(f"\t\t}},\n")
-
-                    # 相同图片别名
-                    if len(img["samed_img"]) > 0:
-                        f.write(f"\t\talias = {{\n")
-                        for i, name in enumerate(img["samed_img"]):
-                            if i == len(img["samed_img"]) - 1:
-                                f.write(f'\t\t\t"{name}"\n')
-                            else:
-                                f.write(f'\t\t\t"{name}",\n')
-                        f.write(f"\t\t}}\n")
-                    else:
-                        f.write(f"\t\talias = {{}}\n")
-
-                    # 结束当前图片数据
-                    if (
-                        idx_1 == len(self.results) - 1
-                        and idx_2 == len(result["rectangles_id"]) - 1
-                    ):
-                        f.write(f"\t}}\n")
-                    else:
-                        f.write(f"\t}},\n")
-
-            f.write("}")
+            f.write(lua_content)
 
 
 def process_img(img):
@@ -618,6 +626,9 @@ def process_img(img):
     left = top = right = bottom = 0
 
     # 获取Alpha通道
+    if img.mode == "RGB":
+        img = img.convert("RGBA")
+
     alpha = img.getchannel("A")
 
     # 获取非透明区域的边界框

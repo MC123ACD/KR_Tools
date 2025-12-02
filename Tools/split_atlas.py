@@ -1,6 +1,9 @@
 import re, traceback, plistlib, subprocess, math, config
 from PIL import Image
 import utils as U
+from pathlib import Path
+
+setting = config.setting["split_atlas"]
 
 
 def read_atlases_data(f):
@@ -106,7 +109,7 @@ def to_plist(t, a_name, size):
             o += f"{indent(level)}</array>\n"
         elif isinstance(t, bool):
             # 处理布尔类型
-            o += f"{indent(level)}<{'true' if t else 'false'}/>\n"
+            o += f"{indent(level)}<{"true" if t else "false"}/>\n"
         elif isinstance(t, int) or isinstance(t, float):
             # 处理数值类型
             o += f"{indent(level)}<real>{str(t)}</real>\n"
@@ -267,6 +270,9 @@ def process_plist_conversion():
                         else:
                             print(f"⚠️ 图集不存在: {a_name}")
 
+                        if setting["delete_temporary_plist"]:
+                            Path(plist_path).unlink()
+
             elif filename.suffix == ".plist":
                 # 处理现有的Plist文件
                 print(f"📖 读取文件: {filename}")
@@ -293,5 +299,3 @@ def main():
     print("所有图集拆分完毕")
 
     U.open_output_dir()
-
-    print("所有图集拆分完毕")

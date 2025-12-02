@@ -1003,7 +1003,7 @@ class CconvertPlistToLua:
                         a("\t\t\t\t\t\t{")
                         a(f"\t\t\t\t\t\t\tinterval = {spawn["interval"]},")
                         a(f'\t\t\t\t\t\t\tcreep = "{spawn["creep"]}",')
-                        a(f"\t\t\t\t\t\t\tmax = {spawn["max"]}",)
+                        a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},")
                         a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},")
                         a(f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},")
                         a(f"\t\t\t\t\t\t\tpath = {spawn["path"]},")

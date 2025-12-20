@@ -68,7 +68,14 @@ class CconvertPlistToLua:
     def get_level_data_entities(self, terrain_type):
         plist_data = self.plist_data
 
-        entities_list = [self.get_decal_background()]
+        entities_list = [
+            {
+                "template": "decal_background",
+                "render.sprites[1].z": 1000,
+                "render.sprites[1].name": f"Stage_{setting["level_name_prefix"]}{self.level_num}",
+                "pos": {"x": 512, "y": 384},
+            }
+        ]
 
         for i, tower in enumerate(plist_data["towers"], 1):
             holder_entity = self.get_obj_holder(i, tower, terrain_type)
@@ -91,14 +98,6 @@ class CconvertPlistToLua:
                     entities_list += entities
 
         return entities_list
-
-    def get_decal_background(self):
-        return {
-            "template": "decal_background",
-            "render.sprites[1].z": 1000,
-            "render.sprites[1].name": f"Stage_4{self.level_num}",
-            "pos": {"x": 512, "y": 384},
-        }
 
     def get_obj_holder(self, i, tower, terrain_type):
         tower_type = tower["type"]
@@ -595,7 +594,7 @@ class CconvertPlistToLua:
                 interval_spawns = config["interval_spawns"]
 
                 # 如果有object，先添加object表
-                if obj:
+                if obj != None:
                     wave_entries.append(
                         [
                             delay,
@@ -613,7 +612,7 @@ class CconvertPlistToLua:
                     )
 
                 # 只有找到匹配的point时才生成spawn表
-                spawn_delay = delay + setting["custom_spawners_delay"] if obj else delay
+                spawn_delay = delay + setting["custom_spawners_delay"] if obj != None else delay
 
                 for i in range(len(spawns)):
                     # 找出point索引
@@ -630,27 +629,26 @@ class CconvertPlistToLua:
                             point_index = i
                             break
 
-                    if point_index:
-                        cant = spawn["cant"]
-                        interval = spawn["interval"]
-                        wave_entries.append(
-                            [
-                                spawn_delay,
-                                0,
-                                point_index,
-                                spawn["subpath"] + 1,
-                                cant,
-                                False,
-                                True,
-                                interval,
-                                interval,
-                                "enemy_" + spawn["type"],
-                            ]
-                        )
-                        duration = (cant - 1) * interval
-                        if duration < 0:
-                            duration = 0
-                        spawn_delay += duration + interval_spawns
+                    cant = spawn["cant"]
+                    interval = spawn["interval"]
+                    wave_entries.append(
+                        [
+                            spawn_delay,
+                            0,
+                            point_index,
+                            spawn["subpath"] + 1,
+                            cant,
+                            False,
+                            True,
+                            interval,
+                            interval,
+                            "enemy_" + spawn["type"],
+                        ]
+                    )
+                    duration = (cant - 1) * interval
+                    if duration < 0:
+                        duration = 0
+                    spawn_delay += duration + interval_spawns
 
             wave_table[wave_num] = wave_entries
 
@@ -714,7 +712,7 @@ class CconvertPlistToLua:
     def get_mega_spawner(self, spawner_data_name, num_level_mode):
         return {
             "template": "mega_spawner",
-            "load_file": spawner_data_name,
+            "load_file": spawner_data_name.split(".")[0],
             "editor.game_mode": num_level_mode,
         }
 
@@ -845,6 +843,7 @@ class CconvertPlistToLua:
         else:
             a("\tinvalid_path_ranges = {},")
 
+        a("\trequired_exoskeletons = {},")
         a("\trequired_sounds = {},")
         a("\trequired_textures = {")
         a(
@@ -1166,23 +1165,22 @@ def get_input_files():
     waves_data_files = []
 
     for file in config.input_path.iterdir():
-        with open(file, "rb") as f:
-            plist_data = plistlib.load(f)
-
         match = re.match(r"level(\d+)_(campaign|heroic|iron|data)", file.stem)
         if match:
-            level_num, level_mode = match.group(1), match.group(2)
+            with open(file, "rb") as f:
+                plist_data = plistlib.load(f)
+                level_num, level_mode = match.group(1), match.group(2)
 
-            print(f"📖 读取文件: {file.name}")
-            if level_mode == "data":
-                file_data = (file, level_num, level_mode, plist_data)
+                print(f"📖 读取文件: {file.name}")
+                if level_mode == "data":
+                    file_data = (file, level_num, level_mode, plist_data)
 
-                level_data_files.append(file_data)
+                    level_data_files.append(file_data)
 
-            elif level_mode:
-                file_data = (file, level_num, level_mode, plist_data)
+                elif level_mode:
+                    file_data = (file, level_num, level_mode, plist_data)
 
-                waves_data_files.append(file_data)
+                    waves_data_files.append(file_data)
 
     files = level_data_files + waves_data_files
 

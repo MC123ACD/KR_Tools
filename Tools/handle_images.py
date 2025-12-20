@@ -5,7 +5,7 @@ import utils as U
 
 setting = config.setting["handle_images"]
 
-def load_input_files():
+def get_input_files():
     input_subdir = {"imgs": []}
 
     for item in config.input_path.iterdir():
@@ -18,14 +18,14 @@ def load_input_files():
                 new_img = load_image(file)
 
                 input_subdir[item.name].append(
-                    {"name": file.name, "image": new_img, "in_dir": item.name}
+                    (file.name, new_img, item.name)
                 )
 
         elif item.suffix == ".png":
             new_img = load_image(item)
 
             input_subdir["imgs"].append(
-                {"name": item.name, "image": new_img, "in_dir": False}
+                (item.name, new_img, None)
             )
 
     return input_subdir
@@ -49,11 +49,16 @@ def load_image(file):
 
     return new_img
 
-def set_size_img(img, size):
+def set_size_img(img, tw, th):
     width, height = img.size
+    new_width = new_height = 1
 
-    new_width = round(width * size)
-    new_height = round(height * size)
+    if type(tw) == int and type(th) == int:
+        new_width = tw
+        new_height = th
+    else:
+        new_width = round(width * tw)
+        new_height = round(height * th)
 
     new_img = img.resize((new_width, new_height))
 
@@ -87,19 +92,16 @@ def set_brightness_img(img, brightness_factor):
     return compensated
 
 
-def process_img(file_data):
+def process_img(name, img, in_dir):
     size = setting["size"]
     sharpen_percent = setting["sharpen_percent"]
     sharpen_radius = setting["sharpen_radius"]
     sharpen_threshold = setting["sharpen_threshold"]
     brightness = setting["brightness"]
-    img = file_data["image"]
-    name = file_data["name"]
-    in_dir = file_data["in_dir"]
     output_img = None
 
     if size:
-        img = set_size_img(img, size)
+        img = set_size_img(img, size[0], size[1])
     if sharpen_percent:
         img = set_sharpen_img(img, sharpen_percent, sharpen_radius, sharpen_threshold)
     if brightness:
@@ -123,6 +125,7 @@ def process_img(file_data):
         print(f"✅ 保存为png: {output_img.name}...")
 
     print(f"🖼️ 保存图片: {name}")
+
 
 def save_to_dds(output_file, bc):
     """
@@ -156,10 +159,10 @@ def save_to_dds(output_file, bc):
         Path(output_file).unlink()
 
 def main():
-    input_subdir = load_input_files()
+    input_subdir = get_input_files()
 
     for dir in input_subdir.values():
-        for file_data in dir:
-            process_img(file_data)
+        for img, name, in_dir in dir:
+            process_img(img, name, in_dir)
 
     U.open_output_dir()

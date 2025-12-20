@@ -533,8 +533,8 @@ class CreateAtlas:
             content.append(str)
 
         # 遍历所有打包结果
-        for idx_1, result in enumerate(self.results):
-            for idx_2, img_id in enumerate(result["rectangles_id"]):
+        for result in self.results:
+            for i, img_id in enumerate(result["rectangles_id"]):
                 img = self.images[img_id]
                 pos = img["pos"]
                 trim = img["trim"]
@@ -592,8 +592,7 @@ class CreateAtlas:
 
                 # 结束当前图片数据
                 if (
-                    idx_1 < len(self.results) - 1
-                    and idx_2 < len(result["rectangles_id"]) - 1
+                    i < len(result["rectangles_id"]) - 1
                 ):
                     a("\t},")
                 else:
@@ -754,5 +753,7 @@ def main():
             # 释放图片资源
             for img_info in images:
                 img_info["image"].close()
+
+        print("所有图集生成完毕")
 
     U.open_output_dir()

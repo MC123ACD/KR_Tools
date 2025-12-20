@@ -3,13 +3,16 @@
         "open_output_dir": true
     },
     "handle_images": {
-        "size": 0,
-        "sharpen_percent": 0,
+        "size": [
+            100,
+            100
+        ],
+        "sharpen_percent": 15,
         "sharpen_radius": 1,
         "sharpen_threshold": 1,
-        "brightness": 1,
+        "brightness": 0.98,
         "use_trim": false,
-        "output_format": "bc7",
+        "output_format": "bc3",
         "delete_temporary_png": true
     },
     "generate_waves": {
@@ -401,8 +404,8 @@
     "generate_atlas": {
         "padding": 3,
         "border": 5,
-        "output_format": "bc7",
-        "delete_temporary_png": false,
+        "output_format": "bc3",
+        "delete_temporary_png": true,
         "trigger_several_efficiency": 0.4,
         "add_white_rect": true,
         "white_rect_size": [
@@ -430,7 +433,7 @@
     },
     "plist_level_to_lua": {
         "is_kr5": true,
-        "custom_spawners_delay": 1.6,
+        "custom_spawners_delay": 1.4,
         "level_name_prefix": "4",
         "level_name_leading_zero": 2
     }

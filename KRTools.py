@@ -39,7 +39,7 @@ class MainApplication:
     def __init__(self, root):
         self.root = root
         self.root.title("KRTools")
-        self.root.geometry("1000x130")
+        self.root.geometry("1300x130")
 
         # 创建界面
         self.create_widgets()

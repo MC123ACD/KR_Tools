@@ -5,6 +5,10 @@ import traceback
 from pathlib import Path
 import utils as U
 
+CTRL_MASK = 0x0004
+SHIFT_MASK = 0x0001
+DRAG = "drag"
+
 
 class MeasureAnchor:
     def __init__(self, root):
@@ -36,6 +40,78 @@ class MeasureAnchor:
         self.grid_size = tk.IntVar(value=32)
 
         self.setup_ui()
+
+    def clamp_to_edge(self, x, y):
+        clamp_x = U.clamp(
+            x,
+            0,
+            self.image.width,
+        )
+        clamp_y = U.clamp(
+            y,
+            0,
+            self.image.height,
+        )
+
+        return clamp_x, clamp_y
+
+    def get_percent_anchor(self):
+        percent_anchor_x = U.clamp(
+            round(float(self.percent_anchor_x_var.get()), 4), 0, 1
+        )
+        percent_anchor_y = U.clamp(
+            round(float(self.percent_anchor_y_var.get()), ndigits), 0, 1
+        )
+
+        return percent_anchor_x, percent_anchor_y
+
+    def set_percent_anchor(self, px=None, py=None):
+        self.percent_anchor_x = px
+        self.percent_anchor_y = py
+        self.percent_anchor_x_var.set(px)
+        self.percent_anchor_y_var.set(py)
+
+    def calculate_apply_percent_anchor(self, px=None, py=None):
+        anchor_x = round(self.image.width * px)
+        anchor_y = round(self.image.height * py)
+
+        return anchor_x, anchor_y
+
+    def calculate_percent_anchor(self, ax=None, ay=None):
+        px = round(ax / self.image.width, 4)
+        py = round(1 - ay / self.image.height, 4)
+
+        return px, py
+
+    def set_relative_offset(self, ox, oy):
+        self.relative_offset_x = ox
+        self.relative_offset_y = oy
+
+    def get_anchor(self):
+        anchor_x, anchor_y = self.clamp_to_edge(
+            int(self.anchor_x_var.get()), int(self.anchor_y_var.get())
+        )
+
+        return anchor_x, anchor_y
+
+    def set_anchor(self, ax, ay):
+        self.anchor_x = ax
+        self.anchor_x_var.set(ax)
+        self.anchor_y = ay
+        self.anchor_y_var.set(ay)
+
+    def set_ref(self, x, y):
+        self.ref_x = x
+        self.ref_x_var.set(x)
+        self.ref_y = y
+        self.ref_y_var.set(y)
+
+    def get_ref(self):
+        rx, ry = self.clamp_to_edge(
+            int(self.ref_x_var.get()), int(self.ref_y_var.get())
+        )
+
+        return rx, ry
 
     def setup_ui(self):
         # 创建主框架
@@ -272,27 +348,18 @@ class MeasureAnchor:
                 self.scale_label.config(text="100%")
 
                 # 初始化锚点到图像中心
-                self.anchor_x = self.image.width // 2
-                self.anchor_y = self.image.height // 2
-                self.anchor_x_var.set(str(self.anchor_x))
-                self.anchor_y_var.set(str(self.anchor_y))
+                self.set_anchor(self.image.width // 2, self.image.height // 2)
                 self.anchor_x_spinbox.config(to=self.image.width)
                 self.anchor_y_spinbox.config(to=self.image.height)
-                self.percent_anchor_x = 0.5
-                self.percent_anchor_y = 0.5
-                self.percent_anchor_x_var.set(self.percent_anchor_x)
-                self.percent_anchor_y_var.set(self.percent_anchor_y)
+                self.set_percent_anchor(0.5, 0.5)
 
                 # 重置参考点
-                self.ref_x = self.anchor_x
-                self.ref_y = self.anchor_y
-                self.ref_x_var.set(str(self.ref_x))
-                self.ref_y_var.set(str(self.ref_y))
+                self.set_ref(self.anchor_x, self.anchor_y)
                 self.ref_x_spinbox.config(to=self.image.width)
                 self.ref_y_spinbox.config(to=self.image.height)
-
-                self.relative_offset_x = self.ref_x - self.anchor_x
-                self.relative_offset_y = self.ref_y - self.anchor_y
+                self.set_relative_offset(
+                    self.ref_x - self.anchor_x, self.ref_y - self.anchor_y
+                )
 
                 self.update_info()
                 self.redraw()
@@ -400,7 +467,7 @@ class MeasureAnchor:
             y_offset + scaled_height,
             outline="#FFFFFF",
             width=2,
-            tags="grid",
+            tags="border",
         )
 
         # 绘制锚点十字
@@ -518,7 +585,7 @@ class MeasureAnchor:
             tags="text",
         )
 
-    def on_canvas_click(self, event):
+    def on_canvas_click(self, event, state=None):
         """处理画布点击"""
         if not self.image:
             return
@@ -537,31 +604,21 @@ class MeasureAnchor:
         img_y = int((event.y - y_offset) / self.scale)
 
         if 0 <= img_x < self.image.width and 0 <= img_y < self.image.height:
-            if event.state & 0x0004:  # Ctrl键
-                self.ref_x = img_x
-                self.ref_y = img_y
-                self.ref_x_var.set(img_x)
-                self.ref_y_var.set(img_y)
-                self.relative_offset_x = img_x - self.anchor_x
-                self.relative_offset_y = img_y - self.anchor_y
+            if event.state & CTRL_MASK:
+                self.set_ref(img_x, img_y)
+                self.set_relative_offset(img_x - self.anchor_x, img_y - self.anchor_y)
             else:
-                self.anchor_x = img_x
-                self.anchor_y = img_y
-                self.anchor_x_var.set(img_x)
-                self.anchor_y_var.set(img_y)
-                self.percent_anchor_x = round(img_x / self.image.width, 4)
-                self.percent_anchor_y = round(1 - img_y / self.image.height, 4)
-                self.percent_anchor_x_var.set(self.percent_anchor_x)
-                self.percent_anchor_y_var.set(self.percent_anchor_y)
-                self.relative_offset_x = self.ref_x - img_x
-                self.relative_offset_y = self.ref_y - img_y
+                self.set_anchor(img_x, img_y)
+                px, py = self.calculate_percent_anchor(img_x, img_y)
+                self.set_percent_anchor(px, py)
+                self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
 
             self.update_info()
             self.redraw()
 
     def on_canvas_drag(self, event):
         """处理画布拖动"""
-        self.on_canvas_click(event)
+        self.on_canvas_click(event, DRAG)
 
     def on_right_click(self, event):
         """右键菜单"""
@@ -625,18 +682,11 @@ class MeasureAnchor:
         """从输入框更新锚点"""
 
         try:
-            clamp_x = U.clamp(int(self.anchor_x_var.get()), 0, self.image.width)
-            clamp_y = U.clamp(int(self.anchor_y_var.get()), 0, self.image.height)
-            self.anchor_x_var.set(clamp_x)
-            self.anchor_y_var.set(clamp_y)
-            self.anchor_x = clamp_x
-            self.anchor_y = clamp_y
-            self.percent_anchor_x = round(clamp_x / self.image.width, 4)
-            self.percent_anchor_y = round(1 - clamp_y / self.image.height, 4)
-            self.percent_anchor_x_var.set(self.percent_anchor_x)
-            self.percent_anchor_y_var.set(self.percent_anchor_y)
-            self.relative_offset_x = self.ref_x - clamp_x
-            self.relative_offset_y = self.ref_y - clamp_y
+            ax, ay = self.get_anchor()
+            self.set_anchor(ax, ay)
+            px, py = self.calculate_percent_anchor(ax, ay)
+            self.set_percent_anchor(px, py)
+            self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
             self.update_info()
             self.redraw()
         except ValueError:
@@ -645,26 +695,12 @@ class MeasureAnchor:
     def update_percent_anchor_from_spinbox(self):
         """从输入框更新锚点"""
         try:
-            clamp_x = U.clamp(
-                round(float(self.percent_anchor_x_var.get()), 4),
-                0,
-                1,
-            )
-            clamp_y = U.clamp(
-                round(float(self.percent_anchor_y_var.get()), 4),
-                0,
-                1,
-            )
-            self.percent_anchor_x_var.set(clamp_x)
-            self.percent_anchor_y_var.set(clamp_y)
-            x = round(self.image.width * clamp_x)
-            y = round(self.image.height * clamp_y)
-            self.anchor_x = x
-            self.anchor_y = y
-            self.anchor_x_var.set(x)
-            self.anchor_y_var.set(y)
-            self.relative_offset_x = self.ref_x - x
-            self.relative_offset_y = self.ref_y - y
+            px, py = self.get_percent_anchor()
+            self.set_percent_anchor(px, py)
+            ax, ay = self.calculate_apply_percent_anchor(px, py)
+            self.set_anchor(ax, ay)
+            self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
+
             self.update_info()
             self.redraw()
         except ValueError:
@@ -673,22 +709,9 @@ class MeasureAnchor:
     def update_ref_from_spinbox(self):
         """从输入框更新参考点"""
         try:
-            clamp_x = U.clamp(
-                int(self.ref_x_var.get()),
-                0,
-                self.image.width,
-            )
-            clamp_y = U.clamp(
-                int(self.ref_y_var.get()),
-                0,
-                self.image.height,
-            )
-            self.ref_x = clamp_x
-            self.ref_y = clamp_y
-            self.ref_x_var = clamp_x
-            self.ref_y_var = clamp_y
-            self.relative_offset_x = clamp_x - self.anchor_x
-            self.relative_offset_y = clamp_y - self.anchor_y
+            rx, ry = self.get_ref()
+            self.set_ref(rx, ry)
+            self.set_relative_offset(rx - self.anchor_x, ry - self.anchor_y)
             self.update_info()
             self.redraw()
         except ValueError:
@@ -716,16 +739,10 @@ class MeasureAnchor:
         else:
             y = int(y_preset)
 
-        self.anchor_x = x
-        self.anchor_y = y
-        self.anchor_x_var.set(x)
-        self.anchor_y_var.set(y)
-        self.percent_anchor_x = round(x / self.image.width, 4)
-        self.percent_anchor_y = round(1 - y / self.image.height, 4)
-        self.percent_anchor_x_var.set(self.percent_anchor_x)
-        self.percent_anchor_y_var.set(self.percent_anchor_y)
-        self.relative_offset_x = self.ref_x - x
-        self.relative_offset_y = self.ref_y - y
+        self.set_anchor(x, y)
+        px, py = self.calculate_percent_anchor(x, y)
+        self.set_percent_anchor(px, py)
+        self.set_relative_offset(self.ref_x - x, self.ref_y - y)
 
         self.update_info()
         self.redraw()

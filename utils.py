@@ -9,7 +9,7 @@ import Tools.split_atlas as split_atlas
 import Tools.generate_atlas as generate_atlas
 import Tools.plist_level_to_lua as plist_level_to_lua
 import Tools.plist_animation_to_lua as plist_animation_to_lua
-import Tools.measure_offset_and_anchor as measure_offset_and_anchor
+import Tools.measure_anchor as measure_anchor
 
 input_path = config.input_path
 output_path = config.output_path
@@ -74,10 +74,10 @@ def get_tools_data():
             "has_setting": False,
             "has_gui": False,
         },
-        "measure_offset_and_anchor": {
+        "measure_anchor": {
             "name": "测量锚点",
-            "module": measure_offset_and_anchor,
-            "has_setting": False,
+            "module": measure_anchor,
+            "has_setting": True,
             "has_gui": True,
         },
     }

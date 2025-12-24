@@ -1,9 +1,12 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
-import traceback
+import traceback, config
 from pathlib import Path
 import utils as U
+
+setting = config.setting["measure_anchor"]
+
 
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
@@ -33,6 +36,10 @@ class MeasureAnchor:
         # 相对偏移
         self.relative_offset_x = 0
         self.relative_offset_y = 0
+        self.relative_rect_offset_sx = 0
+        self.relative_rect_offset_sy = 0
+        self.relative_rect_offset_fx = 0
+        self.relative_rect_offset_fy = 0
 
         # 网格设置
         self.show_grid = tk.BooleanVar(value=True)
@@ -103,7 +110,7 @@ class MeasureAnchor:
 
     def calculate_apply_percent_anchor(self, px=None, py=None):
         anchor_x = round(self.image.width * px)
-        anchor_y = round(self.image.height * py)
+        anchor_y = round(self.image.height * (1 - py))
 
         return anchor_x, anchor_y
 
@@ -143,9 +150,6 @@ class MeasureAnchor:
 
         return rx, ry
 
-    def get_rect_pos(self):
-        pass
-
     def set_rect_start_pos(self, x, y):
         self.rect_start_x = x
         self.rect_start_y = y
@@ -153,6 +157,30 @@ class MeasureAnchor:
     def set_rect_finish_pos(self, x, y):
         self.rect_finish_x = x
         self.rect_finish_y = y
+
+    def get_rect_pos(self):
+        sx = self.rect_start_x
+        sy = self.rect_start_y
+        fx = self.rect_finish_x
+        fy = self.rect_finish_y
+
+        return sx, sy, fx, fy
+
+    def set_relative_rect_start_offset(self, ox, oy):
+        self.relative_rect_offset_sx = ox
+        self.relative_rect_offset_sy = oy
+
+    def set_relative_rect_finish_offset(self, ox, oy):
+        self.relative_rect_offset_fx = ox
+        self.relative_rect_offset_fy = oy
+
+    def get_relative_rect_offset(self):
+        rsx = self.relative_rect_offset_sx
+        rsy = self.relative_rect_offset_sy
+        rfx = self.relative_rect_offset_fx
+        rfy = self.relative_rect_offset_fy
+
+        return rsx, rsy, rfx, rfy
 
     def setup_ui(self):
         # 创建主框架
@@ -261,19 +289,7 @@ class MeasureAnchor:
         preset_frame = ttk.Frame(anchor_frame)
         preset_frame.grid(row=5, column=0, columnspan=2, sticky=tk.W)
 
-        presets = [
-            ("左上", 0, 0),
-            ("中上", "w/2", 0),
-            ("右上", "w", 0),
-            ("左中", 0, "h/2"),
-            ("中心", "w/2", "h/2"),
-            ("右中", "w", "h/2"),
-            ("左下", 0, "h"),
-            ("中下", "w/2", "h"),
-            ("右下", "w", "h"),
-        ]
-
-        for i, (name, x, y) in enumerate(presets):
+        for i, (name, x, y) in enumerate(setting["presets"]):
             btn = ttk.Button(
                 preset_frame,
                 text=name,
@@ -327,10 +343,7 @@ class MeasureAnchor:
 
         # 第0行：显示网格
         ttk.Checkbutton(
-            display_frame, 
-            text="显示网格", 
-            variable=self.show_grid, 
-            command=self.redraw
+            display_frame, text="显示网格", variable=self.show_grid, command=self.redraw
         ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         # 第0行第1列：网格大小标签
@@ -363,15 +376,22 @@ class MeasureAnchor:
             to=5.0,
             value=1.0,
             command=self.on_scale_change,
-            orient="horizontal"
+            orient="horizontal",
         )
-        self.scale_slider.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.scale_slider.grid(
+            row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5
+        )
 
         # 第4行：缩放百分比标签
         self.scale_label = ttk.Label(display_frame, text="100%")
-        self.scale_label.grid(
-            row=4, column=0, columnspan=2, padx=5, pady=(0, 5)
-        )
+        self.scale_label.grid(row=4, column=0, columnspan=2, padx=5, pady=(0, 5))
+
+        rect_frame = ttk.LabelFrame(control_frame, text="矩形选项", padding=10)
+        rect_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Button(
+            rect_frame, text="矩形对齐边缘", command=self.rect_alignment
+        ).pack(fill=tk.X, pady=2)
 
         # 状态栏
         self.status_var = tk.StringVar(value="就绪")
@@ -414,10 +434,7 @@ class MeasureAnchor:
                 if bbox:
                     left, top, right, bottom = bbox
 
-                right = origin_width - right
-                bottom = origin_height - bottom
-
-                self.trim = (left, top, right, bottom)
+                    self.trim = (left, top, right, bottom)
 
                 self.original_image = self.image.copy()
                 self.scale = 1.0
@@ -438,6 +455,12 @@ class MeasureAnchor:
                     self.ref_x - self.anchor_x, self.ref_y - self.anchor_y
                 )
 
+                # 重置矩形
+                self.set_rect_start_pos(0, 0)
+                self.set_rect_finish_pos(0, 0)
+                self.set_relative_rect_start_offset(-self.anchor_x, -self.anchor_y)
+                self.set_relative_rect_finish_offset(-self.anchor_x, -self.anchor_y)
+
                 self.redraw()
                 self.status_var.set(f"已加载: {file_path}")
 
@@ -445,31 +468,6 @@ class MeasureAnchor:
                 messagebox.showerror(
                     "错误", f"无法打开图像: {traceback.print_exc()}{e}"
                 )
-
-    def get_anchor_preset(self):
-        """获取锚点预设描述"""
-        w, h = self.image.width, self.image.height
-
-        if self.anchor_x == 0 and self.anchor_y == 0:
-            return "左上角"
-        elif self.anchor_x == w // 2 and self.anchor_y == 0:
-            return "中上"
-        elif self.anchor_x == w and self.anchor_y == 0:
-            return "右上角"
-        elif self.anchor_x == 0 and self.anchor_y == h // 2:
-            return "左中"
-        elif self.anchor_x == w // 2 and self.anchor_y == h // 2:
-            return "中心"
-        elif self.anchor_x == w and self.anchor_y == h // 2:
-            return "右中"
-        elif self.anchor_x == 0 and self.anchor_y == h:
-            return "左下角"
-        elif self.anchor_x == w // 2 and self.anchor_y == h:
-            return "中下"
-        elif self.anchor_x == w and self.anchor_y == h:
-            return "右下角"
-        else:
-            return "自定义"
 
     def redraw(self):
         """重新绘制画布"""
@@ -525,6 +523,22 @@ class MeasureAnchor:
             outline="#FFFFFF",
             width=2,
             tags="border",
+        )
+
+        screen_rect_start_x = self.img_offset_x + self.rect_start_x * self.scale
+        screen_rect_start_y = self.img_offset_y + self.rect_start_y * self.scale
+        screen_rect_finish_x = self.img_offset_x + self.rect_finish_x * self.scale
+        screen_rect_finish_y = self.img_offset_y + self.rect_finish_y * self.scale
+
+        # 矩形
+        self.canvas.create_rectangle(
+            screen_rect_start_x,
+            screen_rect_start_y,
+            screen_rect_finish_x,
+            screen_rect_finish_y,
+            outline="blue",
+            width=2,
+            tags="rect",
         )
 
         # 绘制锚点十字
@@ -612,51 +626,26 @@ class MeasureAnchor:
         )
 
         # 显示坐标文本
-        self.canvas.create_text(
-            10,
-            10,
-            anchor=tk.NW,
-            text=f"锚点: ({self.anchor_x}, {self.anchor_y})",
-            fill="#ffffff",
-            font=("Arial", 10, "bold"),
-            tags="text",
-        )
-
-        self.canvas.create_text(
-            10,
-            30,
-            anchor=tk.NW,
-            text=f"锚点(%): ({self.percent_anchor_x}, {self.percent_anchor_y})",
-            fill="#ffffff",
-            font=("Arial", 10, "bold"),
-            tags="text",
-        )
-
-        self.canvas.create_text(
-            10,
-            50,
-            anchor=tk.NW,
-            text=f"偏移: ({self.relative_offset_x}, {self.relative_offset_y})",
-            fill="#ffff00",
-            font=("Arial", 10, "bold"),
-            tags="text",
-        )
-
-        screen_rect_start_x = self.img_offset_x + self.rect_start_x * self.scale
-        screen_rect_start_y = self.img_offset_y + self.rect_start_y * self.scale
-        screen_rect_finish_x = self.img_offset_x + self.rect_finish_x * self.scale
-        screen_rect_finish_y = self.img_offset_y + self.rect_finish_y * self.scale
-
-        # 矩形
-        self.canvas.create_rectangle(
-            screen_rect_start_x,
-            screen_rect_start_y,
-            screen_rect_finish_x,
-            screen_rect_finish_y,
-            outline="blue",
-            width=2,
-            tags="rect",
-        )
+        texts = [
+            (f"图像大小: ({self.image.width}, {self.image.height})", "#ffffff"),
+            (f"锚点: ({self.anchor_x}, {self.anchor_y})", "#ffffff"),
+            (f"锚点(%): ({self.percent_anchor_x}, {self.percent_anchor_y})", "#ffffff"),
+            (f"偏移: ({self.relative_offset_x}, {self.relative_offset_y})", "#ffff00"),
+            (
+                f"矩形偏移: ({self.relative_rect_offset_sx}, {self.relative_rect_offset_sy}, {self.relative_rect_offset_fx}, {self.relative_rect_offset_fy})",
+                "#ffff00",
+            ),
+        ]
+        for i, (t, c) in enumerate(texts):
+            self.canvas.create_text(
+                10,
+                10 + 20 * i,
+                anchor=tk.NW,
+                text=t,
+                fill=c,
+                font=("Arial", 10, "bold"),
+                tags="text",
+            )
 
     def on_canvas_click(self, event):
         """处理画布点击"""
@@ -677,6 +666,14 @@ class MeasureAnchor:
             px, py = self.calculate_percent_anchor(img_x, img_y)
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
+            self.set_relative_rect_start_offset(
+                self.rect_start_x - img_x,
+                self.rect_start_y - img_y,
+            )
+            self.set_relative_rect_finish_offset(
+                self.rect_finish_x - img_x,
+                self.rect_finish_y - img_y,
+            )
 
         self.redraw()
 
@@ -688,6 +685,7 @@ class MeasureAnchor:
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_finish_pos(x, y)
+            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
@@ -695,6 +693,8 @@ class MeasureAnchor:
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_start_pos(x, y)
+            self.set_relative_rect_start_offset(x - self.anchor_x, y - self.anchor_y)
+            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
@@ -702,6 +702,7 @@ class MeasureAnchor:
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_finish_pos(x, y)
+            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
@@ -712,6 +713,12 @@ class MeasureAnchor:
 
         # 创建右键菜单
         menu = tk.Menu(self.root_window, tearoff=0)
+        menu.add_command(
+            label="复制图像大小",
+            command=lambda: self.copy_to_clipboard(
+                f"{self.image.width}, {self.image.height}"
+            ),
+        )
         menu.add_command(
             label="复制锚点坐标",
             command=lambda: self.copy_to_clipboard(f"{self.anchor_x}, {self.anchor_y}"),
@@ -728,6 +735,12 @@ class MeasureAnchor:
                 f"{self.relative_offset_x}, {self.relative_offset_y}"
             ),
         )
+        menu.add_command(
+            label="复制矩形偏移坐标",
+            command=lambda: self.copy_to_clipboard(
+                f"{self.relative_rect_offset_sx}, {self.relative_rect_offset_sy}, {self.relative_rect_offset_fx}, {self.relative_rect_offset_fy}"
+            ),
+        )
 
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -739,6 +752,16 @@ class MeasureAnchor:
         self.root_window.clipboard_clear()
         self.root_window.clipboard_append(text)
         self.status_var.set("已复制到剪贴板")
+
+    def rect_alignment(self):
+        if self.image:
+            l, t, r, b = self.trim
+            self.set_rect_start_pos(l, t)
+            self.set_rect_finish_pos(r, b)
+            self.set_relative_rect_start_offset(l - self.anchor_x, t - self.anchor_y)
+            self.set_relative_rect_finish_offset(r - self.anchor_x, b - self.anchor_y)
+
+            self.redraw()
 
     def on_mousewheel(self, event):
         """鼠标滚轮缩放"""
@@ -771,6 +794,16 @@ class MeasureAnchor:
             px, py = self.calculate_percent_anchor(ax, ay)
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
+            self.set_relative_rect_start_offset(
+                self.relative_rect_offset_sx - ax,
+                self.relative_rect_offset_sy - ay,
+            )
+            self.set_relative_rect_finish_offset(
+                self.relative_rect_offset_fx - ax,
+                self.relative_rect_offset_fy - ay,
+            )
+            self.set_relative_rect_start_offset(self.rect_start_x - ax, self.rect_start_y - ay)
+            self.set_relative_rect_finish_offset(self.rect_finish_x - ax, self.rect_finish_y - ay)
 
             self.redraw()
 
@@ -782,6 +815,8 @@ class MeasureAnchor:
             ax, ay = self.calculate_apply_percent_anchor(px, py)
             self.set_anchor(ax, ay)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
+            self.set_relative_rect_start_offset(self.rect_start_x - ax, self.rect_start_y - ay)
+            self.set_relative_rect_finish_offset(self.rect_finish_x - ax, self.rect_finish_y - ay)
 
             self.redraw()
 
@@ -820,6 +855,13 @@ class MeasureAnchor:
         px, py = self.calculate_percent_anchor(x, y)
         self.set_percent_anchor(px, py)
         self.set_relative_offset(self.ref_x - x, self.ref_y - y)
+        self.set_relative_rect_start_offset(
+            self.rect_start_x - x,
+            self.rect_start_y - y,
+        )
+        self.set_relative_rect_finish_offset(
+            self.rect_finish_x - x, self.rect_finish_y - y
+        )
 
         self.redraw()
 

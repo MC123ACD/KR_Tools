@@ -182,10 +182,7 @@ class MeasureAnchor:
         self.canvas.bind("<Shift-ButtonRelease-1>", self.on_shift_release)
 
         # 文件操作区
-        file_frame = ttk.LabelFrame(control_frame, text="文件操作", padding=10)
-        file_frame.pack(fill=tk.X, pady=(0, 10))
-
-        ttk.Button(file_frame, text="打开图像", command=self.open_image).pack(
+        ttk.Button(control_frame, text="打开图像", command=self.open_image).pack(
             fill=tk.X, pady=2
         )
 
@@ -322,15 +319,26 @@ class MeasureAnchor:
 
         # 显示控制区
         display_frame = ttk.LabelFrame(control_frame, text="显示选项", padding=10)
-        display_frame.pack(fill=tk.X)
+        display_frame.pack(fill=tk.X, pady=(0, 10))
 
+        # 使用 grid 布局管理器
+        display_frame.grid_columnconfigure(0, weight=1)
+        display_frame.grid_columnconfigure(1, weight=1)
+
+        # 第0行：显示网格
         ttk.Checkbutton(
-            display_frame, text="显示网格", variable=self.show_grid, command=self.redraw
-        ).pack(anchor=tk.W)
+            display_frame, 
+            text="显示网格", 
+            variable=self.show_grid, 
+            command=self.redraw
+        ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
-        ttk.Label(display_frame, text="网格大小:").pack(anchor=tk.W, pady=(5, 0))
+        # 第0行第1列：网格大小标签
+        ttk.Label(display_frame, text="网格大小:").grid(row=0, column=1, padx=5, pady=5)
+
+        # 第1行第1列：网格大小输入框
         grid_size_frame = ttk.Frame(display_frame)
-        grid_size_frame.pack(fill=tk.X, pady=2)
+        grid_size_frame.grid(row=1, column=1, sticky="w", padx=5, pady=5)
 
         ttk.Spinbox(
             grid_size_frame,
@@ -343,22 +351,27 @@ class MeasureAnchor:
 
         ttk.Label(grid_size_frame, text="像素").pack(side=tk.LEFT, padx=5)
 
-        # 缩放控制
-        ttk.Label(display_frame, text="缩放:").pack(anchor=tk.W, pady=(5, 0))
-        self.scale_slider = ttk.Scale(
-            display_frame, from_=0.1, to=5.0, value=1.0, command=self.on_scale_change
+        # 第2行：缩放标签（跨两列）
+        ttk.Label(display_frame, text="缩放:").grid(
+            row=2, column=0, columnspan=2, padx=5, pady=(10, 0)
         )
-        self.scale_slider.pack(fill=tk.X, pady=2)
 
+        # 第3行：缩放滑块（跨两列并填充宽度）
+        self.scale_slider = ttk.Scale(
+            display_frame,
+            from_=0.05,
+            to=5.0,
+            value=1.0,
+            command=self.on_scale_change,
+            orient="horizontal"
+        )
+        self.scale_slider.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
+        # 第4行：缩放百分比标签
         self.scale_label = ttk.Label(display_frame, text="100%")
-        self.scale_label.pack()
-
-        # 信息显示区
-        info_frame = ttk.LabelFrame(control_frame, text="图像信息", padding=10)
-        info_frame.pack(fill=tk.X, pady=(10, 0))
-
-        self.info_text = tk.Text(info_frame, height=8, width=30, font=("Consolas", 9))
-        self.info_text.pack(fill=tk.BOTH, expand=True)
+        self.scale_label.grid(
+            row=4, column=0, columnspan=2, padx=5, pady=(0, 5)
+        )
 
         # 状态栏
         self.status_var = tk.StringVar(value="就绪")
@@ -373,7 +386,7 @@ class MeasureAnchor:
         """打开图像文件"""
         file_path = Path(
             filedialog.askopenfilename(
-                title="选择贴图文件",
+                title="选择图像文件",
                 filetypes=[
                     ("图像文件", "*.png *.jpg *.jpeg *.bmp *.gif"),
                     ("PNG文件", "*.png"),
@@ -386,6 +399,26 @@ class MeasureAnchor:
             try:
                 self.image_path = file_path
                 self.image = Image.open(file_path)
+
+                img = self.image.copy()
+                if self.image.mode == "RGB":
+                    img = img.convert("RGBA")
+
+                origin_width = img.width
+                origin_height = img.height
+
+                alpha = img.getchannel("A")
+
+                # 获取非透明区域的边界框
+                bbox = alpha.getbbox()
+                if bbox:
+                    left, top, right, bottom = bbox
+
+                right = origin_width - right
+                bottom = origin_height - bottom
+
+                self.trim = (left, top, right, bottom)
+
                 self.original_image = self.image.copy()
                 self.scale = 1.0
                 self.scale_slider.set(1.0)
@@ -405,7 +438,6 @@ class MeasureAnchor:
                     self.ref_x - self.anchor_x, self.ref_y - self.anchor_y
                 )
 
-                self.update_info()
                 self.redraw()
                 self.status_var.set(f"已加载: {file_path}")
 
@@ -413,16 +445,6 @@ class MeasureAnchor:
                 messagebox.showerror(
                     "错误", f"无法打开图像: {traceback.print_exc()}{e}"
                 )
-
-    def update_info(self):
-        """更新图像信息"""
-        if self.image:
-            info = f"""图像尺寸: {self.image.width} x {self.image.height}
-文件路径: {self.image_path}
-"""
-
-            self.info_text.delete(1.0, tk.END)
-            self.info_text.insert(1.0, info)
 
     def get_anchor_preset(self):
         """获取锚点预设描述"""
@@ -558,9 +580,9 @@ class MeasureAnchor:
             central_y - 4,
             central_x + 4,
             central_y + 4,
-            fill="#1100FF",
+            outline="#1100FF",
             width=2,
-            tags="ref",
+            tags="central",
         )
 
         ref_screen_x = self.img_offset_x + self.ref_x * self.scale
@@ -656,7 +678,6 @@ class MeasureAnchor:
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
 
-        self.update_info()
         self.redraw()
 
     def on_canvas_drag(self, event):
@@ -750,7 +771,7 @@ class MeasureAnchor:
             px, py = self.calculate_percent_anchor(ax, ay)
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
-            self.update_info()
+
             self.redraw()
 
     def update_percent_anchor_from_spinbox(self):
@@ -762,7 +783,6 @@ class MeasureAnchor:
             self.set_anchor(ax, ay)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
 
-            self.update_info()
             self.redraw()
 
     def update_ref_from_spinbox(self):
@@ -771,7 +791,7 @@ class MeasureAnchor:
             rx, ry = self.get_ref()
             self.set_ref(rx, ry)
             self.set_relative_offset(rx - self.anchor_x, ry - self.anchor_y)
-            self.update_info()
+
             self.redraw()
 
     def apply_preset(self, x_preset, y_preset):
@@ -801,7 +821,6 @@ class MeasureAnchor:
         self.set_percent_anchor(px, py)
         self.set_relative_offset(self.ref_x - x, self.ref_y - y)
 
-        self.update_info()
         self.redraw()
 
 

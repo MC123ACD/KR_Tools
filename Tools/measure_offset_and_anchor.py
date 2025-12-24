@@ -7,8 +7,8 @@ import utils as U
 
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
-DRAG = "drag"
 
+# 待实现将选择的矩形限制在图片内
 
 class MeasureAnchor:
     def __init__(self, root):
@@ -39,6 +39,12 @@ class MeasureAnchor:
         self.show_grid = tk.BooleanVar(value=True)
         self.grid_size = tk.IntVar(value=32)
 
+        # 矩形
+        self.rect_start_x = 0
+        self.rect_start_y = 0
+        self.rect_finish_x = 0
+        self.rect_finish_y = 0
+
         self.setup_ui()
 
     def clamp_to_edge(self, x, y):
@@ -54,13 +60,39 @@ class MeasureAnchor:
         )
 
         return clamp_x, clamp_y
+    
+    def calculate_scaled(self):
+        scaled_width = int(self.image.width * self.scale)
+        scaled_height = int(self.image.height * self.scale)
+
+        return scaled_width, scaled_height
+
+    def calculate_central_pos(self, scaled_width, scaled_height):
+        # 计算居中位置
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            canvas_width = 800
+            canvas_height = 600
+
+        x_offset = (canvas_width - scaled_width) // 2
+        y_offset = (canvas_height - scaled_height) // 2
+
+        return x_offset, y_offset
+
+    def calculate_img_pos(self, x_offset, y_offset):
+        img_x = int(x_offset / self.scale)
+        img_y = int(y_offset / self.scale)
+
+        return img_x, img_y
 
     def get_percent_anchor(self):
         percent_anchor_x = U.clamp(
             round(float(self.percent_anchor_x_var.get()), 4), 0, 1
         )
         percent_anchor_y = U.clamp(
-            round(float(self.percent_anchor_y_var.get()), ndigits), 0, 1
+            round(float(self.percent_anchor_y_var.get()), 4), 0, 1
         )
 
         return percent_anchor_x, percent_anchor_y
@@ -113,6 +145,22 @@ class MeasureAnchor:
 
         return rx, ry
 
+    def get_rect_pos(self):
+        pass
+
+    def set_rect_start_pos(self, x, y):
+        self.calculate_img_pos
+        cx, cy = self.clamp_to_edge(x, y)
+
+        self.rect_start_x = cx
+        self.rect_start_y = cy
+
+    def set_rect_finish_pos(self, x, y):
+        cx, cy = self.clamp_to_edge(x, y)
+
+        self.rect_finish_x = cx
+        self.rect_finish_y = cy
+
     def setup_ui(self):
         # 创建主框架
         main_frame = ttk.Frame(self.root_window)
@@ -136,6 +184,9 @@ class MeasureAnchor:
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
         self.canvas.bind("<Button-3>", self.on_right_click)
+        self.canvas.bind("<Shift-Button-1>", self.on_shift_press)
+        self.canvas.bind("<Shift-B1-Motion>", self.on_shift_drag)
+        self.canvas.bind("<Shift-ButtonRelease-1>", self.on_shift_release)
 
         # 文件操作区
         file_frame = ttk.LabelFrame(control_frame, text="文件操作", padding=10)
@@ -338,7 +389,7 @@ class MeasureAnchor:
             )
         )
 
-        if file_path:
+        if file_path.stem:
             try:
                 self.image_path = file_path
                 self.image = Image.open(file_path)
@@ -413,19 +464,8 @@ class MeasureAnchor:
         self.canvas.delete("all")
 
         # 计算缩放后的尺寸
-        scaled_width = int(self.image.width * self.scale)
-        scaled_height = int(self.image.height * self.scale)
-
-        # 计算居中位置
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            canvas_width = 800
-            canvas_height = 600
-
-        x_offset = (canvas_width - scaled_width) // 2
-        y_offset = (canvas_height - scaled_height) // 2
+        scaled_width, scaled_height = self.calculate_scaled()
+        x_offset, y_offset = self.calculate_central_pos(scaled_width, scaled_height)
 
         # 显示缩放后的图像
         scaled_image = self.image.resize(
@@ -519,10 +559,10 @@ class MeasureAnchor:
         central_y = y_offset + scaled_height // 2
 
         self.canvas.create_oval(
-            central_x - 6,
-            central_y - 6,
-            central_x + 6,
-            central_y + 6,
+            central_x - 4,
+            central_y - 4,
+            central_x + 4,
+            central_y + 4,
             fill="#1100FF",
             width=2,
             tags="ref",
@@ -585,23 +625,27 @@ class MeasureAnchor:
             tags="text",
         )
 
-    def on_canvas_click(self, event, state=None):
+        # 矩形
+        self.canvas.create_rectangle(
+            self.rect_start_x,
+            self.rect_start_y,
+            self.rect_finish_x,
+            self.rect_finish_y,
+            outline="blue",
+            width=2,
+            tags="rect",
+        )
+
+    def on_canvas_click(self, event):
         """处理画布点击"""
-        if not self.image:
+        if not self.image or event.state & SHIFT_MASK:
             return
 
-        # 计算图像在画布中的位置
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        scaled_width = int(self.image.width * self.scale)
-        scaled_height = int(self.image.height * self.scale)
-
-        x_offset = (canvas_width - scaled_width) // 2
-        y_offset = (canvas_height - scaled_height) // 2
+        scaled_width, scaled_height = self.calculate_scaled()
+        x_offset, y_offset = self.calculate_central_pos(scaled_width, scaled_height)
 
         # 转换到图像坐标
-        img_x = int((event.x - x_offset) / self.scale)
-        img_y = int((event.y - y_offset) / self.scale)
+        img_x, img_y = self.calculate_img_pos(event.x - x_offset, event.y - y_offset)
 
         if 0 <= img_x < self.image.width and 0 <= img_y < self.image.height:
             if event.state & CTRL_MASK:
@@ -618,7 +662,23 @@ class MeasureAnchor:
 
     def on_canvas_drag(self, event):
         """处理画布拖动"""
-        self.on_canvas_click(event, DRAG)
+        self.on_canvas_click(event)
+
+    def on_shift_drag(self, event):
+        self.set_rect_finish_pos(event.x, event.y)
+
+        self.redraw()
+
+    def on_shift_press(self, event):
+        # 记录起始位置
+        self.set_rect_start_pos(event.x, event.y)
+
+        self.redraw()
+
+    def on_shift_release(self, event):
+        self.set_rect_finish_pos(event.x, event.y)
+
+        self.redraw()
 
     def on_right_click(self, event):
         """右键菜单"""

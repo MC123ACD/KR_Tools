@@ -8,7 +8,6 @@ import utils as U
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
 
-# 待实现将选择的矩形限制在图片内
 
 class MeasureAnchor:
     def __init__(self, root):
@@ -60,15 +59,12 @@ class MeasureAnchor:
         )
 
         return clamp_x, clamp_y
-    
-    def calculate_scaled(self):
-        scaled_width = int(self.image.width * self.scale)
-        scaled_height = int(self.image.height * self.scale)
 
-        return scaled_width, scaled_height
+    def set_img_scaled(self):
+        self.scaled_width = int(self.image.width * self.scale)
+        self.scaled_height = int(self.image.height * self.scale)
 
-    def calculate_central_pos(self, scaled_width, scaled_height):
-        # 计算居中位置
+    def set_img_central_pos(self):
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
 
@@ -76,14 +72,16 @@ class MeasureAnchor:
             canvas_width = 800
             canvas_height = 600
 
-        x_offset = (canvas_width - scaled_width) // 2
-        y_offset = (canvas_height - scaled_height) // 2
+        self.img_offset_x = (canvas_width - self.scaled_width) // 2
+        self.img_offset_y = (canvas_height - self.scaled_height) // 2
 
-        return x_offset, y_offset
+    def calculate_img_pos(self, x, y):
+        x_offset = x - self.img_offset_x
+        y_offset = y - self.img_offset_y
 
-    def calculate_img_pos(self, x_offset, y_offset):
-        img_x = int(x_offset / self.scale)
-        img_y = int(y_offset / self.scale)
+        img_x, img_y = self.clamp_to_edge(
+            int(x_offset / self.scale), int(y_offset / self.scale)
+        )
 
         return img_x, img_y
 
@@ -149,17 +147,12 @@ class MeasureAnchor:
         pass
 
     def set_rect_start_pos(self, x, y):
-        self.calculate_img_pos
-        cx, cy = self.clamp_to_edge(x, y)
-
-        self.rect_start_x = cx
-        self.rect_start_y = cy
+        self.rect_start_x = x
+        self.rect_start_y = y
 
     def set_rect_finish_pos(self, x, y):
-        cx, cy = self.clamp_to_edge(x, y)
-
-        self.rect_finish_x = cx
-        self.rect_finish_y = cy
+        self.rect_finish_x = x
+        self.rect_finish_y = y
 
     def setup_ui(self):
         # 创建主框架
@@ -464,36 +457,38 @@ class MeasureAnchor:
         self.canvas.delete("all")
 
         # 计算缩放后的尺寸
-        scaled_width, scaled_height = self.calculate_scaled()
-        x_offset, y_offset = self.calculate_central_pos(scaled_width, scaled_height)
+        self.set_img_scaled()
+        self.set_img_central_pos()
 
         # 显示缩放后的图像
         scaled_image = self.image.resize(
-            (scaled_width, scaled_height), Image.Resampling.NEAREST
+            (self.scaled_width, self.scaled_height), Image.Resampling.NEAREST
         )
         self.photo = ImageTk.PhotoImage(scaled_image)
-        self.canvas.create_image(x_offset, y_offset, anchor=tk.NW, image=self.photo)
+        self.canvas.create_image(
+            self.img_offset_x, self.img_offset_y, anchor=tk.NW, image=self.photo
+        )
 
         # 绘制网格
         if self.show_grid.get():
             grid_size = self.grid_size.get() * self.scale
-            for x in range(0, scaled_width, int(grid_size)):
+            for x in range(0, self.scaled_width, int(grid_size)):
                 self.canvas.create_line(
-                    x_offset + x,
-                    y_offset,
-                    x_offset + x,
-                    y_offset + scaled_height,
+                    self.img_offset_x + x,
+                    self.img_offset_y,
+                    self.img_offset_x + x,
+                    self.img_offset_y + self.scaled_height,
                     fill="#444444",
                     width=1,
                     tags="grid",
                 )
 
-            for y in range(0, scaled_height, int(grid_size)):
+            for y in range(0, self.scaled_height, int(grid_size)):
                 self.canvas.create_line(
-                    x_offset,
-                    y_offset + y,
-                    x_offset + scaled_width,
-                    y_offset + y,
+                    self.img_offset_x,
+                    self.img_offset_y + y,
+                    self.img_offset_x + self.scaled_width,
+                    self.img_offset_y + y,
                     fill="#444444",
                     width=1,
                     tags="grid",
@@ -501,18 +496,18 @@ class MeasureAnchor:
 
         # 边框
         self.canvas.create_rectangle(
-            x_offset,
-            y_offset,
-            x_offset + scaled_width,
-            y_offset + scaled_height,
+            self.img_offset_x,
+            self.img_offset_y,
+            self.img_offset_x + self.scaled_width,
+            self.img_offset_y + self.scaled_height,
             outline="#FFFFFF",
             width=2,
             tags="border",
         )
 
         # 绘制锚点十字
-        anchor_screen_x = x_offset + self.anchor_x * self.scale
-        anchor_screen_y = y_offset + self.anchor_y * self.scale
+        anchor_screen_x = self.img_offset_x + self.anchor_x * self.scale
+        anchor_screen_y = self.img_offset_y + self.anchor_y * self.scale
 
         # 大十字
         self.canvas.create_line(
@@ -555,8 +550,8 @@ class MeasureAnchor:
         )
 
         # 中心点
-        central_x = x_offset + scaled_width // 2
-        central_y = y_offset + scaled_height // 2
+        central_x = self.img_offset_x + self.scaled_width // 2
+        central_y = self.img_offset_y + self.scaled_height // 2
 
         self.canvas.create_oval(
             central_x - 4,
@@ -568,8 +563,8 @@ class MeasureAnchor:
             tags="ref",
         )
 
-        ref_screen_x = x_offset + self.ref_x * self.scale
-        ref_screen_y = y_offset + self.ref_y * self.scale
+        ref_screen_x = self.img_offset_x + self.ref_x * self.scale
+        ref_screen_y = self.img_offset_y + self.ref_y * self.scale
 
         # 绘制参考点
         self.canvas.create_oval(
@@ -625,12 +620,17 @@ class MeasureAnchor:
             tags="text",
         )
 
+        screen_rect_start_x = self.img_offset_x + self.rect_start_x * self.scale
+        screen_rect_start_y = self.img_offset_y + self.rect_start_y * self.scale
+        screen_rect_finish_x = self.img_offset_x + self.rect_finish_x * self.scale
+        screen_rect_finish_y = self.img_offset_y + self.rect_finish_y * self.scale
+
         # 矩形
         self.canvas.create_rectangle(
-            self.rect_start_x,
-            self.rect_start_y,
-            self.rect_finish_x,
-            self.rect_finish_y,
+            screen_rect_start_x,
+            screen_rect_start_y,
+            screen_rect_finish_x,
+            screen_rect_finish_y,
             outline="blue",
             width=2,
             tags="rect",
@@ -641,44 +641,48 @@ class MeasureAnchor:
         if not self.image or event.state & SHIFT_MASK:
             return
 
-        scaled_width, scaled_height = self.calculate_scaled()
-        x_offset, y_offset = self.calculate_central_pos(scaled_width, scaled_height)
+        self.set_img_scaled()
+        self.set_img_central_pos()
 
         # 转换到图像坐标
-        img_x, img_y = self.calculate_img_pos(event.x - x_offset, event.y - y_offset)
+        img_x, img_y = self.calculate_img_pos(event.x, event.y)
 
-        if 0 <= img_x < self.image.width and 0 <= img_y < self.image.height:
-            if event.state & CTRL_MASK:
-                self.set_ref(img_x, img_y)
-                self.set_relative_offset(img_x - self.anchor_x, img_y - self.anchor_y)
-            else:
-                self.set_anchor(img_x, img_y)
-                px, py = self.calculate_percent_anchor(img_x, img_y)
-                self.set_percent_anchor(px, py)
-                self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
+        if event.state & CTRL_MASK:
+            self.set_ref(img_x, img_y)
+            self.set_relative_offset(img_x - self.anchor_x, img_y - self.anchor_y)
+        else:
+            self.set_anchor(img_x, img_y)
+            px, py = self.calculate_percent_anchor(img_x, img_y)
+            self.set_percent_anchor(px, py)
+            self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
 
-            self.update_info()
-            self.redraw()
+        self.update_info()
+        self.redraw()
 
     def on_canvas_drag(self, event):
         """处理画布拖动"""
         self.on_canvas_click(event)
 
     def on_shift_drag(self, event):
-        self.set_rect_finish_pos(event.x, event.y)
+        if self.image:
+            x, y = self.calculate_img_pos(event.x, event.y)
+            self.set_rect_finish_pos(x, y)
 
-        self.redraw()
+            self.redraw()
 
     def on_shift_press(self, event):
-        # 记录起始位置
-        self.set_rect_start_pos(event.x, event.y)
+        if self.image:
+            x, y = self.calculate_img_pos(event.x, event.y)
+            self.set_rect_start_pos(x, y)
 
-        self.redraw()
+            self.redraw()
 
     def on_shift_release(self, event):
-        self.set_rect_finish_pos(event.x, event.y)
+        if self.image:
+            x, y = self.calculate_img_pos(event.x, event.y)
+            self.set_rect_finish_pos(x, y)
 
-        self.redraw()
+            self.redraw()
 
     def on_right_click(self, event):
         """右键菜单"""
@@ -740,8 +744,7 @@ class MeasureAnchor:
 
     def update_anchor_from_spinbox(self):
         """从输入框更新锚点"""
-
-        try:
+        if self.image:
             ax, ay = self.get_anchor()
             self.set_anchor(ax, ay)
             px, py = self.calculate_percent_anchor(ax, ay)
@@ -749,12 +752,10 @@ class MeasureAnchor:
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
             self.update_info()
             self.redraw()
-        except ValueError:
-            traceback.print_exc()
 
     def update_percent_anchor_from_spinbox(self):
         """从输入框更新锚点"""
-        try:
+        if self.image:
             px, py = self.get_percent_anchor()
             self.set_percent_anchor(px, py)
             ax, ay = self.calculate_apply_percent_anchor(px, py)
@@ -763,19 +764,15 @@ class MeasureAnchor:
 
             self.update_info()
             self.redraw()
-        except ValueError:
-            traceback.print_exc()
 
     def update_ref_from_spinbox(self):
         """从输入框更新参考点"""
-        try:
+        if self.image:
             rx, ry = self.get_ref()
             self.set_ref(rx, ry)
             self.set_relative_offset(rx - self.anchor_x, ry - self.anchor_y)
             self.update_info()
             self.redraw()
-        except ValueError:
-            traceback.print_exc()
 
     def apply_preset(self, x_preset, y_preset):
         """应用预设"""

@@ -36,20 +36,20 @@ class MeasureAnchor:
         # 相对偏移
         self.relative_offset_x = 0
         self.relative_offset_y = 0
-        self.relative_rect_offset_sx = 0
-        self.relative_rect_offset_sy = 0
-        self.relative_rect_offset_fx = 0
-        self.relative_rect_offset_fy = 0
+        self.relative_rect_offset_x = 0
+        self.relative_rect_offset_y = 0
+        self.relative_rect_offset_w = 0
+        self.relative_rect_offset_h = 0
 
         # 网格设置
         self.show_grid = tk.BooleanVar(value=True)
         self.grid_size = tk.IntVar(value=32)
 
         # 矩形
-        self.rect_start_x = 0
-        self.rect_start_y = 0
-        self.rect_finish_x = 0
-        self.rect_finish_y = 0
+        self.rect_x = 0
+        self.rect_y = 0
+        self.rect_width = 0
+        self.rect_height = 0
 
         self.setup_ui()
 
@@ -151,34 +151,34 @@ class MeasureAnchor:
         return rx, ry
 
     def set_rect_start_pos(self, x, y):
-        self.rect_start_x = x
-        self.rect_start_y = y
+        self.rect_x = x
+        self.rect_y = y
 
-    def set_rect_finish_pos(self, x, y):
-        self.rect_finish_x = x
-        self.rect_finish_y = y
+    def set_rect_size_pos(self, x, y):
+        self.rect_width = x
+        self.rect_height = y
 
     def get_rect_pos(self):
-        sx = self.rect_start_x
-        sy = self.rect_start_y
-        fx = self.rect_finish_x
-        fy = self.rect_finish_y
+        sx = self.rect_x
+        sy = self.rect_y
+        fx = self.rect_width
+        fy = self.rect_height
 
         return sx, sy, fx, fy
 
-    def set_relative_rect_start_offset(self, ox, oy):
-        self.relative_rect_offset_sx = ox
-        self.relative_rect_offset_sy = oy
+    def set_relative_rect_pos(self, ox, oy):
+        self.relative_rect_offset_x = ox
+        self.relative_rect_offset_y = oy
 
-    def set_relative_rect_finish_offset(self, ox, oy):
-        self.relative_rect_offset_fx = ox
-        self.relative_rect_offset_fy = oy
+    def set_relative_rect_size(self, w, h):
+        self.relative_rect_offset_w = w
+        self.relative_rect_offset_h = h
 
     def get_relative_rect_offset(self):
-        rsx = self.relative_rect_offset_sx
-        rsy = self.relative_rect_offset_sy
-        rfx = self.relative_rect_offset_fx
-        rfy = self.relative_rect_offset_fy
+        rsx = self.relative_rect_offset_x
+        rsy = self.relative_rect_offset_y
+        rfx = self.relative_rect_offset_w
+        rfy = self.relative_rect_offset_h
 
         return rsx, rsy, rfx, rfy
 
@@ -333,6 +333,76 @@ class MeasureAnchor:
             "<KeyRelease>", lambda e: self.update_ref_from_spinbox()
         )
 
+        # 矩形控制区
+        rect_frame = ttk.LabelFrame(control_frame, text="矩形选项", padding=10)
+        rect_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Button(rect_frame, text="矩形对齐边缘", command=self.rect_alignment).pack(
+            fill=tk.X, pady=2
+        )
+        # ttk.Label(rect_frame, text="矩形位置 X:").grid(row=0, column=0, sticky=tk.W)
+        # self.rect = tk.StringVar(value="0")
+        # self.anchor_x_spinbox = ttk.Spinbox(
+        #     rect_frame,
+        #     from_=0,
+        #     to=9999,
+        #     textvariable=self.anchor_x_var,
+        #     command=self.update_anchor_from_spinbox,
+        #     width=10,
+        # )
+        # self.anchor_x_spinbox.grid(row=0, column=1, padx=5)
+
+        # ttk.Label(rect_frame, text="矩形位置 Y:").grid(row=1, column=0, sticky=tk.W)
+        # self.anchor_y_var = tk.StringVar(value="0")
+        # self.anchor_y_spinbox = ttk.Spinbox(
+        #     rect_frame,
+        #     from_=0,
+        #     to=9999,
+        #     textvariable=self.anchor_y_var,
+        #     command=self.update_anchor_from_spinbox,
+        #     width=10,
+        # )
+        # self.anchor_y_spinbox.grid(row=1, column=1, padx=5)
+
+        # ttk.Label(rect_frame, text="矩形长:").grid(row=2, column=0, sticky=tk.W)
+        # self.percent_anchor_x_var = tk.StringVar(value="0")
+        # self.percent_anchor_x_spinbox = ttk.Spinbox(
+        #     rect_frame,
+        #     increment=0.01,
+        #     from_=0,
+        #     to=1,
+        #     textvariable=self.percent_anchor_x_var,
+        #     command=self.update_percent_anchor_from_spinbox,
+        #     width=10,
+        # )
+        # self.percent_anchor_x_spinbox.grid(row=2, column=1, padx=5)
+
+        # ttk.Label(rect_frame, text="矩形高:").grid(row=3, column=0, sticky=tk.W)
+        # self.percent_anchor_y_var = tk.StringVar(value="0")
+        # self.percent_anchor_y_spinbox = ttk.Spinbox(
+        #     rect_frame,
+        #     increment=0.01,
+        #     from_=0,
+        #     to=1,
+        #     textvariable=self.percent_anchor_y_var,
+        #     command=self.update_percent_anchor_from_spinbox,
+        #     width=10,
+        # )
+        # self.percent_anchor_y_spinbox.grid(row=3, column=1, padx=5)
+
+        # self.anchor_x_spinbox.bind(
+        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
+        # )
+        # self.anchor_y_spinbox.bind(
+        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
+        # )
+        # self.anchor_x_spinbox.bind(
+        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
+        # )
+        # self.anchor_y_spinbox.bind(
+        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
+        # )
+
         # 显示控制区
         display_frame = ttk.LabelFrame(control_frame, text="显示选项", padding=10)
         display_frame.pack(fill=tk.X, pady=(0, 10))
@@ -385,13 +455,6 @@ class MeasureAnchor:
         # 第4行：缩放百分比标签
         self.scale_label = ttk.Label(display_frame, text="100%")
         self.scale_label.grid(row=4, column=0, columnspan=2, padx=5, pady=(0, 5))
-
-        rect_frame = ttk.LabelFrame(control_frame, text="矩形选项", padding=10)
-        rect_frame.pack(fill=tk.X, pady=(0, 10))
-
-        ttk.Button(
-            rect_frame, text="矩形对齐边缘", command=self.rect_alignment
-        ).pack(fill=tk.X, pady=2)
 
         # 状态栏
         self.status_var = tk.StringVar(value="就绪")
@@ -457,9 +520,9 @@ class MeasureAnchor:
 
                 # 重置矩形
                 self.set_rect_start_pos(0, 0)
-                self.set_rect_finish_pos(0, 0)
-                self.set_relative_rect_start_offset(-self.anchor_x, -self.anchor_y)
-                self.set_relative_rect_finish_offset(-self.anchor_x, -self.anchor_y)
+                self.set_rect_size_pos(0, 0)
+                self.set_relative_rect_pos(0 - self.anchor_x, 0 - self.anchor_y)
+                self.set_relative_rect_size(0 - self.anchor_x, 0 - self.anchor_y)
 
                 self.redraw()
                 self.status_var.set(f"已加载: {file_path}")
@@ -525,17 +588,17 @@ class MeasureAnchor:
             tags="border",
         )
 
-        screen_rect_start_x = self.img_offset_x + self.rect_start_x * self.scale
-        screen_rect_start_y = self.img_offset_y + self.rect_start_y * self.scale
-        screen_rect_finish_x = self.img_offset_x + self.rect_finish_x * self.scale
-        screen_rect_finish_y = self.img_offset_y + self.rect_finish_y * self.scale
+        screen_rect_x = self.img_offset_x + self.rect_x * self.scale
+        screen_rect_y = self.img_offset_y + self.rect_y * self.scale
+        screen_rect_width = self.img_offset_x + self.rect_width * self.scale
+        screen_rect_height = self.img_offset_y + self.rect_height * self.scale
 
         # 矩形
         self.canvas.create_rectangle(
-            screen_rect_start_x,
-            screen_rect_start_y,
-            screen_rect_finish_x,
-            screen_rect_finish_y,
+            screen_rect_x,
+            screen_rect_y,
+            screen_rect_width,
+            screen_rect_height,
             outline="blue",
             width=2,
             tags="rect",
@@ -632,7 +695,7 @@ class MeasureAnchor:
             (f"锚点(%): ({self.percent_anchor_x}, {self.percent_anchor_y})", "#ffffff"),
             (f"偏移: ({self.relative_offset_x}, {self.relative_offset_y})", "#ffff00"),
             (
-                f"矩形偏移: ({self.relative_rect_offset_sx}, {self.relative_rect_offset_sy}, {self.relative_rect_offset_fx}, {self.relative_rect_offset_fy})",
+                f"矩形偏移: ({self.relative_rect_offset_x}, {self.relative_rect_offset_y}, {self.relative_rect_offset_w}, {self.relative_rect_offset_h})",
                 "#ffff00",
             ),
         ]
@@ -666,13 +729,13 @@ class MeasureAnchor:
             px, py = self.calculate_percent_anchor(img_x, img_y)
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - img_x, self.ref_y - img_y)
-            self.set_relative_rect_start_offset(
-                self.rect_start_x - img_x,
-                self.rect_start_y - img_y,
+            self.set_relative_rect_pos(
+                self.rect_x - img_x,
+                self.rect_y - img_y,
             )
-            self.set_relative_rect_finish_offset(
-                self.rect_finish_x - img_x,
-                self.rect_finish_y - img_y,
+            self.set_relative_rect_size(
+                self.rect_width - img_x,
+                self.rect_height - img_y,
             )
 
         self.redraw()
@@ -684,8 +747,8 @@ class MeasureAnchor:
     def on_shift_drag(self, event):
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
-            self.set_rect_finish_pos(x, y)
-            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
+            self.set_rect_size_pos(x, y)
+            self.set_relative_rect_size(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
@@ -693,16 +756,16 @@ class MeasureAnchor:
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_start_pos(x, y)
-            self.set_relative_rect_start_offset(x - self.anchor_x, y - self.anchor_y)
-            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
+            self.set_relative_rect_pos(x - self.anchor_x, y - self.anchor_y)
+            self.set_relative_rect_size(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
     def on_shift_release(self, event):
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
-            self.set_rect_finish_pos(x, y)
-            self.set_relative_rect_finish_offset(x - self.anchor_x, y - self.anchor_y)
+            self.set_rect_size_pos(x, y)
+            self.set_relative_rect_size(x - self.anchor_x, y - self.anchor_y)
 
             self.redraw()
 
@@ -738,7 +801,7 @@ class MeasureAnchor:
         menu.add_command(
             label="复制矩形偏移坐标",
             command=lambda: self.copy_to_clipboard(
-                f"{self.relative_rect_offset_sx}, {self.relative_rect_offset_sy}, {self.relative_rect_offset_fx}, {self.relative_rect_offset_fy}"
+                f"{self.relative_rect_offset_x}, {self.relative_rect_offset_y}, {self.relative_rect_offset_w}, {self.relative_rect_offset_h}"
             ),
         )
 
@@ -757,9 +820,9 @@ class MeasureAnchor:
         if self.image:
             l, t, r, b = self.trim
             self.set_rect_start_pos(l, t)
-            self.set_rect_finish_pos(r, b)
-            self.set_relative_rect_start_offset(l - self.anchor_x, t - self.anchor_y)
-            self.set_relative_rect_finish_offset(r - self.anchor_x, b - self.anchor_y)
+            self.set_rect_size_pos(r, b)
+            self.set_relative_rect_pos(l - self.anchor_x, t - self.anchor_y)
+            self.set_relative_rect_size(r - self.anchor_x, b - self.anchor_y)
 
             self.redraw()
 
@@ -794,16 +857,16 @@ class MeasureAnchor:
             px, py = self.calculate_percent_anchor(ax, ay)
             self.set_percent_anchor(px, py)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
-            self.set_relative_rect_start_offset(
-                self.relative_rect_offset_sx - ax,
-                self.relative_rect_offset_sy - ay,
+            self.set_relative_rect_pos(
+                self.relative_rect_offset_x - ax,
+                self.relative_rect_offset_y - ay,
             )
-            self.set_relative_rect_finish_offset(
-                self.relative_rect_offset_fx - ax,
-                self.relative_rect_offset_fy - ay,
+            self.set_relative_rect_size(
+                self.relative_rect_offset_w - ax,
+                self.relative_rect_offset_h - ay,
             )
-            self.set_relative_rect_start_offset(self.rect_start_x - ax, self.rect_start_y - ay)
-            self.set_relative_rect_finish_offset(self.rect_finish_x - ax, self.rect_finish_y - ay)
+            self.set_relative_rect_pos(self.rect_x - ax, self.rect_y - ay)
+            self.set_relative_rect_size(self.rect_width - ax, self.rect_height - ay)
 
             self.redraw()
 
@@ -815,8 +878,8 @@ class MeasureAnchor:
             ax, ay = self.calculate_apply_percent_anchor(px, py)
             self.set_anchor(ax, ay)
             self.set_relative_offset(self.ref_x - ax, self.ref_y - ay)
-            self.set_relative_rect_start_offset(self.rect_start_x - ax, self.rect_start_y - ay)
-            self.set_relative_rect_finish_offset(self.rect_finish_x - ax, self.rect_finish_y - ay)
+            self.set_relative_rect_pos(self.rect_x - ax, self.rect_y - ay)
+            self.set_relative_rect_size(self.rect_width - ax, self.rect_height - ay)
 
             self.redraw()
 
@@ -855,13 +918,11 @@ class MeasureAnchor:
         px, py = self.calculate_percent_anchor(x, y)
         self.set_percent_anchor(px, py)
         self.set_relative_offset(self.ref_x - x, self.ref_y - y)
-        self.set_relative_rect_start_offset(
-            self.rect_start_x - x,
-            self.rect_start_y - y,
+        self.set_relative_rect_pos(
+            self.rect_x - x,
+            self.rect_y - y,
         )
-        self.set_relative_rect_finish_offset(
-            self.rect_finish_x - x, self.rect_finish_y - y
-        )
+        self.set_relative_rect_size(self.rect_width - x, self.rect_height - y)
 
         self.redraw()
 

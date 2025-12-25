@@ -1,5 +1,5 @@
 import traceback, config
-import utils as U
+from utils import is_simple_key
 
 
 def sort_lua_table():
@@ -51,13 +51,13 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
         f.write("return {\n")
 
         for k, v in sorted_dict.items():
-            if U.is_simple_key(k):
-                f.write(f"\t{escape_lua_string(k)} = \"{escape_lua_string(v)}\",\n")
+            if is_simple_key(k):
+                f.write(f'\t{escape_lua_string(k)} = "{escape_lua_string(v)}",\n')
             else:
-                f.write(f"\t[\"{escape_lua_string(k)}\"] = \"{escape_lua_string(v)}\",\n")
+                f.write(f'\t["{escape_lua_string(k)}"] = "{escape_lua_string(v)}",\n')
 
         for v in sorted_list:
-            f.write(f"\t\"{escape_lua_string(str(v))}\",\n")
+            f.write(f'\t"{escape_lua_string(str(v))}",\n')
 
         f.write("}")
 
@@ -84,4 +84,3 @@ def process_table(f):
 
 def main():
     sort_lua_table()
-    U.open_output_dir()

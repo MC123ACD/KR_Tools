@@ -5,11 +5,11 @@ import traceback, config
 from pathlib import Path
 from utils import clamp, Vector, Rectangle
 
-setting = config.setting["measure_anchor"]
-
 
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
+
+setting = config.setting["measure_anchor"]
 
 
 class MeasureAnchor:
@@ -482,7 +482,7 @@ class MeasureAnchor:
                 # 重置矩形
                 self.rect = Rectangle(0, 0, 0, 0)
                 self.relative_rect_offset = Rectangle(
-                    -self.anchor_x, -self.anchor_y, -self.anchor_x, -self.anchor_y
+                    -self.anchor.x, -self.anchor.y, -self.anchor.x, -self.anchor.y
                 )
 
                 self.redraw()

@@ -1,5 +1,5 @@
 import re, traceback, config, math, plistlib
-import utils as U
+from utils import is_simple_key
 
 
 def get_animations_data(plist_data):
@@ -50,7 +50,10 @@ def write_animations_data(data, name):
 
     i = 0
     for anim_name, anim_data in data.items():
-        a(f"\t{anim_name} = {{")
+        if is_simple_key(anim_name):
+            a(f"\t{anim_name} = {{")
+        else:
+            a(f'\t["{anim_name}"] = {{')
 
         if anim_data["is_layer"]:
             a(f'\t\tlayer_prefix = "{anim_data["layer_prefix"]}",')
@@ -112,7 +115,5 @@ def main():
             write_animations_data(ani_data, name)
 
         print("所有文件转化完毕")
-
-        U.open_output_dir()
     except Exception as e:
         traceback.print_exc()

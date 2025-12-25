@@ -1,6 +1,6 @@
 import re, traceback, plistlib, subprocess, math, config
 from PIL import Image
-import utils as U
+from utils import run_decompiler
 from pathlib import Path
 
 setting = config.setting["split_atlas"]
@@ -235,7 +235,7 @@ def process_plist_conversion():
         for filename in config.input_path.iterdir():
             if filename.suffix == ".lua":
                 # 处理Lua文件
-                U.run_decompiler(filename, config.input_path)
+                run_decompiler(filename, config.input_path)
 
                 with open(filename, "r", encoding="utf-8-sig") as f:
                     print(f"📖 读取文件: {filename}")
@@ -297,5 +297,3 @@ def main():
     process_plist_conversion()
 
     print("所有图集拆分完毕")
-
-    U.open_output_dir()

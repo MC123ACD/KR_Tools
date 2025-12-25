@@ -1,9 +1,9 @@
 import traceback, config, subprocess
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
-import utils as U
 
 setting = config.setting["handle_images"]
+
 
 def get_input_files():
     input_subdir = {"imgs": []}
@@ -17,18 +17,15 @@ def get_input_files():
             for file in item.iterdir():
                 new_img = load_image(file)
 
-                input_subdir[item.name].append(
-                    (file.name, new_img, item.name)
-                )
+                input_subdir[item.name].append((file.name, new_img, item.name))
 
         elif item.suffix == ".png":
             new_img = load_image(item)
 
-            input_subdir["imgs"].append(
-                (item.name, new_img, None)
-            )
+            input_subdir["imgs"].append((item.name, new_img, None))
 
     return input_subdir
+
 
 def load_image(file):
     with Image.open(file) as img:
@@ -48,6 +45,7 @@ def load_image(file):
             print(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
 
     return new_img
+
 
 def set_size_img(img, tw, th):
     width, height = img.size
@@ -158,11 +156,10 @@ def save_to_dds(output_file, bc):
     if setting["delete_temporary_png"]:
         Path(output_file).unlink()
 
+
 def main():
     input_subdir = get_input_files()
 
     for dir in input_subdir.values():
         for img, name, in_dir in dir:
             process_img(img, name, in_dir)
-
-    U.open_output_dir()

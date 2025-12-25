@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 import math, random, hashlib, json
 from collections import namedtuple
-import utils as U
+from utils import is_simple_key
 
 setting = config.setting["generate_atlas"]
 
@@ -540,7 +540,7 @@ class CreateAtlas:
                 trim = img["trim"]
 
                 # 写入图片数据
-                if U.is_simple_key(img["name"]):
+                if is_simple_key(img["name"]):
                     a(f"\t{img["name"]} = {{")
                 else:
                     a(f'\t["{img["name"]}"] = {{')
@@ -755,5 +755,3 @@ def main():
                 img_info["image"].close()
 
         print("所有图集生成完毕")
-
-    U.open_output_dir()

@@ -1,9 +1,9 @@
 import traceback, config, subprocess
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
-import utils as U
 
 # setting = config.setting["merge_images"]
+
 
 def get_input_files_groups():
     groups = {}
@@ -39,6 +39,7 @@ def process_img(name, img, main_name, main_img):
 
     return new_img
 
+
 def main():
     input_groups = get_input_files_groups()
 
@@ -53,5 +54,3 @@ def main():
             main_group[idx][1] = process_img(
                 name, img, main_group[idx][0], main_group[idx][1]
             )
-
-    U.open_output_dir()

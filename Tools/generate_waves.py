@@ -2,11 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import config
 from pathlib import Path
-import utils as U
 
 setting = config.setting["generate_waves"]
-default_wave_data = setting["default_wave_data"]
-default_criket = setting["default_criket"]
 
 
 class WaveDataGenerator:
@@ -18,7 +15,7 @@ class WaveDataGenerator:
         root_window.grab_set()
         self.root = root_window
 
-        self.wave_data = {"cash": default_wave_data["cash"], "groups": []}
+        self.wave_data = {"cash": setting["default_wave_data"]["cash"], "groups": []}
 
         self.current_wave_index = 0
         self.last_listbox_selected = ""
@@ -70,9 +67,9 @@ class WaveDataGenerator:
         )
         self.cash_var = tk.StringVar(
             value=(
-                default_criket["cash"]
+                setting["default_criket"]["cash"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["cash"]
+                else setting["default_wave_data"]["cash"]
             )
         )
         self.cash_entry = ttk.Entry(
@@ -102,7 +99,7 @@ class WaveDataGenerator:
                 bg="#f0f0f0",
             ).pack(side="left", padx=(20, 5))
             self.wave_arrive_time_var = tk.StringVar(
-                value=default_wave_data["groups"]["wave_arrive_time"]
+                value=setting["default_wave_data"]["groups"]["wave_arrive_time"]
             )
             self.wave_arrive_time_entry = ttk.Entry(
                 wave_param_frame, textvariable=self.wave_arrive_time_var, width=10
@@ -412,7 +409,7 @@ class WaveDataGenerator:
             self.save_wave(set_origin=False)
 
         new_wave = {
-            "wave_arrive_time": default_wave_data["groups"]["wave_arrive_time"],
+            "wave_arrive_time": setting["default_wave_data"]["groups"]["wave_arrive_time"],
             "waves": [],
         }
         self.wave_data["groups"].append(new_wave)
@@ -497,16 +494,16 @@ class WaveDataGenerator:
             return
 
         new_group = {
-            "some_flying": default_wave_data["waves"]["some_flying"],
+            "some_flying": setting["default_wave_data"]["waves"]["some_flying"],
             "delay": (
-                default_criket["waves"]["delay"]
+                setting["default_criket"]["waves"]["delay"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["waves"]["delay"]
+                else setting["default_wave_data"]["waves"]["delay"]
             ),
             "path_index": (
-                default_criket["waves"]["path_index"]
+                setting["default_criket"]["waves"]["path_index"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["waves"]["path_index"]
+                else setting["default_wave_data"]["waves"]["path_index"]
             ),
             "spawns": [],
         }
@@ -536,8 +533,8 @@ class WaveDataGenerator:
         self.clear_monster_tree()
         self.renumber_all_groups()
         self.status_var.set(f"已移除出怪组 {index+1}")
-        self.delay_var.set(default_wave_data["waves"]["delay"])
-        self.path_index_var.set(default_wave_data["waves"]["path_index"])
+        self.delay_var.set(setting["default_wave_data"]["waves"]["delay"])
+        self.path_index_var.set(setting["default_wave_data"]["waves"]["path_index"])
         self.group_listbox.selection_clear(0, tk.END)
         self.group_listbox.selection_set(selected[0] - 1)
         self.on_group_select()
@@ -662,9 +659,9 @@ class WaveDataGenerator:
         )
         self.max_same_var = tk.StringVar(
             value=(
-                default_criket["spawns"]["max_same"]
+                setting["default_criket"]["spawns"]["max_same"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["spawns"]["max_same"]
+                else setting["default_wave_data"]["spawns"]["max_same"]
             )
         )
         self.max_same_entry = ttk.Entry(form_frame, textvariable=self.max_same_var)
@@ -678,9 +675,9 @@ class WaveDataGenerator:
         )
         self.max_var = tk.StringVar(
             value=(
-                default_criket["spawns"]["max"]
+                setting["default_criket"]["spawns"]["max"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["spawns"]["max"]
+                else setting["default_wave_data"]["spawns"]["max"]
             )
         )
         self.max_entry = ttk.Entry(form_frame, textvariable=self.max_var)
@@ -699,9 +696,9 @@ class WaveDataGenerator:
         ).grid(row=4, column=0, sticky="e", padx=5, pady=5)
         self.interval_var = tk.StringVar(
             value=(
-                default_criket["spawns"]["interval"]
+                setting["default_criket"]["spawns"]["interval"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["spawns"]["interval"]
+                else setting["default_wave_data"]["spawns"]["interval"]
             )
         )
         self.interval_entry = ttk.Entry(form_frame, textvariable=self.interval_var)
@@ -715,9 +712,9 @@ class WaveDataGenerator:
         )
         self.fixed_sub_path_var = tk.StringVar(
             value=(
-                default_criket["spawns"]["fixed_sub_path"]
+                setting["default_criket"]["spawns"]["fixed_sub_path"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["spawns"]["fixed_sub_path"]
+                else setting["default_wave_data"]["spawns"]["fixed_sub_path"]
             )
         )
         self.fixed_sub_path_entry = ttk.Entry(
@@ -738,9 +735,9 @@ class WaveDataGenerator:
         ).grid(row=6, column=0, sticky="e", padx=5, pady=5)
         self.interval_next_var = tk.StringVar(
             value=(
-                default_criket["spawns"]["interval_next"]
+                setting["default_criket"]["spawns"]["interval_next"]
                 if setting["Dove_spawn_criket"]
-                else default_wave_data["spawns"]["interval_next"]
+                else setting["default_wave_data"]["spawns"]["interval_next"]
             )
         )
         self.interval_next_entry = ttk.Entry(
@@ -880,8 +877,6 @@ class WaveDataGenerator:
 
             self.status_var.set(f"文件已保存: {file_path.name}")
 
-            U.open_output_dir()
-
         except Exception as e:
             messagebox.showerror("错误", f"保存文件时出错:\n{str(e)}")
 
@@ -999,19 +994,19 @@ class WaveDataGenerator:
         a("\t},")
         a("\trequired_textures = {")
 
-        for i, v in enumerate(default_criket["required_textures"]):
+        for i, v in enumerate(setting["default_criket"]["required_textures"]):
             a(
                 f'\t\t"{v}",'
-                if i < len(default_criket["required_textures"]) - 1
+                if i < len(setting["default_criket"]["required_textures"]) - 1
                 else f'\t\t"{v}"'
             )
 
         a("\t},")
         a("\trequired_sounds = {")
-        for i, v in enumerate(default_criket["required_sounds"]):
+        for i, v in enumerate(setting["default_criket"]["required_sounds"]):
             a(
                 f'\t\t"{v}",'
-                if i < len(default_criket["required_sounds"]) - 1
+                if i < len(setting["default_criket"]["required_sounds"]) - 1
                 else f'\t\t"{v}"'
             )
 

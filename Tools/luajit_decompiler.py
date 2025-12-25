@@ -1,7 +1,7 @@
 import subprocess, config
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-import utils as U
+from utils import run_decompiler
 
 
 class LuaJITDecompiler:
@@ -42,7 +42,7 @@ class LuaJITDecompiler:
         target_folder = self.folder_entry.get()
 
         try:
-            U.run_decompiler(target_folder)
+            run_decompiler(target_folder)
             messagebox.showinfo("完成", "反编译完毕")
         except Exception as e:
             messagebox.showerror("错误", f"无法进行反编译: {str(e)}")

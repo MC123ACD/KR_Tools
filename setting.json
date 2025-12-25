@@ -1,7 +1,4 @@
 {
-    "main": {
-        "open_output_dir": true
-    },
     "handle_images": {
         "size": [
             100,

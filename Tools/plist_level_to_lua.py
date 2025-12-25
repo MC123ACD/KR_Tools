@@ -1,5 +1,5 @@
 import re, traceback, config, math, plistlib
-import utils as U
+from utils import is_simple_key
 
 setting = config.setting["plist_level_to_lua"]
 
@@ -772,7 +772,7 @@ class CconvertPlistToLua:
             a("\t\t{")
             j = 0
             for key, value in entity.items():
-                formatted_key = f'["{key}"]' if not U.is_simple_key(key) else key
+                formatted_key = f'["{key}"]' if not is_simple_key(key) else key
 
                 if isinstance(value, dict):
                     a(f"\t\t\t{formatted_key} = {{")
@@ -1195,7 +1195,5 @@ def main():
         app.main(files)
 
         print("所有文件转化完毕")
-
-        U.open_output_dir()
     except Exception as e:
         traceback.print_exc()

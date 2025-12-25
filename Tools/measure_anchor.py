@@ -23,23 +23,25 @@ class MeasureAnchor:
         self.photo = None
         self.scale = 1.0
 
+        self.img_offset = Vector(0, 0, type=int)
+
         # 锚点坐标（相对于图像左上角）
-        self.anchor = Vector(0, 0)
-        self.percent_anchor = Vector(0.5, 0.5)
+        self.anchor = Vector(0, 0, type=int)
+        self.percent_anchor = Vector(0.5, 0.5, type=int)
 
         # 参考点坐标
-        self.ref_pos = Vector(0, 0)
+        self.ref_pos = Vector(0, 0, type=int)
 
         # 相对偏移
-        self.relative_offset = Vector(0, 0)
-        self.relative_rect_offset = Rectangle(0, 0, 0, 0)
+        self.relative_offset = Vector(0, 0, type=int)
+        self.relative_rect_offset = Rectangle(0, 0, 0, 0, type=int)
 
         # 网格设置
         self.show_grid = tk.BooleanVar(value=True)
         self.grid_size = tk.IntVar(value=32)
 
         # 矩形
-        self.rect = Rectangle(0, 0, 0, 0)
+        self.rect = Rectangle(0, 0, 0, 0, type=int)
 
         self.setup_ui()
 
@@ -60,10 +62,8 @@ class MeasureAnchor:
             canvas_width = 800
             canvas_height = 600
 
-        self.img_offset = Vector(
-            (canvas_width - self.scaled_width) // 2,
-            (canvas_height - self.scaled_height) // 2,
-        )
+        self.img_offset.x = (canvas_width - self.scaled_width) // 2
+        self.img_offset.y = (canvas_height - self.scaled_height) // 2
 
     def calculate_img_pos(self, x, y):
         x_offset = x - self.img_offset.x
@@ -81,25 +81,27 @@ class MeasureAnchor:
 
         return percent_anchor_x, percent_anchor_y
 
-    def set_percent_anchor(self, px=None, py=None):
-        self.percent_anchor = Vector(px, py)
-        self.percent_anchor_x_var.set(px)
-        self.percent_anchor_y_var.set(py)
+    def set_percent_anchor(self, x, y):
+        self.percent_anchor.x = x
+        self.percent_anchor.y = y
+        self.percent_anchor_x_var.set(x)
+        self.percent_anchor_y_var.set(y)
 
-    def calculate_apply_percent_anchor(self, px=None, py=None):
+    def calculate_apply_percent_anchor(self, px, py):
         anchor_x = round(self.image.width * px)
         anchor_y = round(self.image.height * (1 - py))
 
         return anchor_x, anchor_y
 
-    def calculate_percent_anchor(self, ax=None, ay=None):
+    def calculate_percent_anchor(self, ax, ay):
         px = round(ax / self.image.width, 4)
         py = round(1 - ay / self.image.height, 4)
 
         return px, py
 
-    def set_relative_offset(self, ox, oy):
-        self.relative_offset = Vector(ox, oy)
+    def set_relative_offset(self, x, y):
+        self.relative_offset.x = x
+        self.relative_offset.y = y
 
     def get_anchor_var(self):
         anchor_x, anchor_y = self.clamp_to_edge(
@@ -127,13 +129,31 @@ class MeasureAnchor:
 
         return rx, ry
 
+    def get_rect_pos_var(self):
+        x, y = self.clamp_to_edge(
+            int(self.rect_pos_x_var.get()), int(self.rect_pos_y_var.get())
+        )
+
+        return x, y
+
+    def get_rect_size_var(self):
+        w, h = self.clamp_to_edge(
+            int(self.rect_size_w_var.get()), int(self.rect_size_h_var.get())
+        )
+
+        return w, h
+
     def set_rect_pos(self, x, y):
         self.rect.x = x
         self.rect.y = y
+        self.rect_pos_x_var.set(x)
+        self.rect_pos_y_var.set(y)
 
     def set_rect_size(self, w, h):
         self.rect.w = w
         self.rect.h = h
+        self.rect_size_w_var.set(w)
+        self.rect_size_h_var.set(h)
 
     def set_relative_rect_pos(self, x, y):
         self.relative_rect_offset.x = x
@@ -298,72 +318,73 @@ class MeasureAnchor:
         rect_frame = ttk.LabelFrame(control_frame, text="矩形选项", padding=10)
         rect_frame.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Button(rect_frame, text="矩形对齐边缘", command=self.rect_alignment).pack(
-            fill=tk.X, pady=2
+        rect_frame.grid_columnconfigure(0, weight=1)
+        rect_frame.grid_columnconfigure(1, weight=1)
+
+        ttk.Button(rect_frame, text="矩形对齐边缘", command=self.rect_alignment).grid(
+            row=0, column=0, columnspan=2, pady=(0, 10)
         )
 
-        # ttk.Label(rect_frame, text="矩形位置 X:").grid(row=0, column=0, sticky=tk.W)
-        # self.rect = tk.StringVar(value="0")
-        # self.anchor_x_spinbox = ttk.Spinbox(
-        #     rect_frame,
-        #     from_=0,
-        #     to=9999,
-        #     textvariable=self.anchor_x_var,
-        #     command=self.update_anchor_from_spinbox,
-        #     width=10,
-        # )
-        # self.anchor_x_spinbox.grid(row=0, column=1, padx=5)
+        ttk.Label(rect_frame, text="矩形位置 X:").grid(row=1, column=0, sticky=tk.W)
+        self.rect_pos_x_var = tk.StringVar(value="0")
+        self.rect_pos_x_spinbox = ttk.Spinbox(
+            rect_frame,
+            from_=0,
+            to=9999,
+            textvariable=self.rect_pos_x_var,
+            command=self.update_rect_pos_from_spinbox,
+            width=10,
+        )
+        self.rect_pos_x_spinbox.grid(row=1, column=1, padx=5)
 
-        # ttk.Label(rect_frame, text="矩形位置 Y:").grid(row=1, column=0, sticky=tk.W)
-        # self.anchor_y_var = tk.StringVar(value="0")
-        # self.anchor_y_spinbox = ttk.Spinbox(
-        #     rect_frame,
-        #     from_=0,
-        #     to=9999,
-        #     textvariable=self.anchor_y_var,
-        #     command=self.update_anchor_from_spinbox,
-        #     width=10,
-        # )
-        # self.anchor_y_spinbox.grid(row=1, column=1, padx=5)
+        ttk.Label(rect_frame, text="矩形位置 Y:").grid(row=2, column=0, sticky=tk.W)
+        self.rect_pos_y_var = tk.StringVar(value="0")
+        self.rect_pos_y_spinbox = ttk.Spinbox(
+            rect_frame,
+            from_=0,
+            to=9999,
+            textvariable=self.rect_pos_y_var,
+            command=self.update_rect_pos_from_spinbox,
+            width=10,
+        )
+        self.rect_pos_y_spinbox.grid(row=2, column=1, padx=5)
 
-        # ttk.Label(rect_frame, text="矩形长:").grid(row=2, column=0, sticky=tk.W)
-        # self.percent_anchor_x_var = tk.StringVar(value="0")
-        # self.percent_anchor_x_spinbox = ttk.Spinbox(
-        #     rect_frame,
-        #     increment=0.01,
-        #     from_=0,
-        #     to=1,
-        #     textvariable=self.percent_anchor_x_var,
-        #     command=self.update_percent_anchor_from_spinbox,
-        #     width=10,
-        # )
-        # self.percent_anchor_x_spinbox.grid(row=2, column=1, padx=5)
+        ttk.Label(rect_frame, text="矩形长 W:").grid(row=3, column=0, sticky=tk.W)
+        self.rect_size_w_var = tk.StringVar(value="0")
+        self.rect_size_w_spinbox = ttk.Spinbox(
+            rect_frame,
+            from_=0,
+            to=9999,
+            textvariable=self.rect_size_w_var,
+            command=self.update_rect_size_from_spinbox,
+            width=10,
+        )
+        self.rect_size_w_spinbox.grid(row=3, column=1, padx=5)
 
-        # ttk.Label(rect_frame, text="矩形高:").grid(row=3, column=0, sticky=tk.W)
-        # self.percent_anchor_y_var = tk.StringVar(value="0")
-        # self.percent_anchor_y_spinbox = ttk.Spinbox(
-        #     rect_frame,
-        #     increment=0.01,
-        #     from_=0,
-        #     to=1,
-        #     textvariable=self.percent_anchor_y_var,
-        #     command=self.update_percent_anchor_from_spinbox,
-        #     width=10,
-        # )
-        # self.percent_anchor_y_spinbox.grid(row=3, column=1, padx=5)
+        ttk.Label(rect_frame, text="矩形高 H:").grid(row=4, column=0, sticky=tk.W)
+        self.rect_size_h_var = tk.StringVar(value="0")
+        self.rect_size_h_spinbox = ttk.Spinbox(
+            rect_frame,
+            from_=0,
+            to=9999,
+            textvariable=self.rect_size_h_var,
+            command=self.update_rect_size_from_spinbox,
+            width=10,
+        )
+        self.rect_size_h_spinbox.grid(row=4, column=1, padx=5)
 
-        # self.anchor_x_spinbox.bind(
-        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
-        # )
-        # self.anchor_y_spinbox.bind(
-        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
-        # )
-        # self.anchor_x_spinbox.bind(
-        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
-        # )
-        # self.anchor_y_spinbox.bind(
-        #     "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
-        # )
+        self.rect_pos_x_spinbox.bind(
+            "<KeyRelease>", lambda e: self.update_rect_pos_from_spinbox()
+        )
+        self.rect_pos_y_spinbox.bind(
+            "<KeyRelease>", lambda e: self.update_rect_pos_from_spinbox()
+        )
+        self.rect_size_w_spinbox.bind(
+            "<KeyRelease>", lambda e: self.update_rect_size_from_spinbox()
+        )
+        self.rect_size_h_spinbox.bind(
+            "<KeyRelease>", lambda e: self.update_rect_size_from_spinbox()
+        )
 
         # 显示控制区
         display_frame = ttk.LabelFrame(control_frame, text="显示选项", padding=10)
@@ -449,9 +470,6 @@ class MeasureAnchor:
                 if self.image.mode == "RGB":
                     img = img.convert("RGBA")
 
-                origin_width = img.width
-                origin_height = img.height
-
                 alpha = img.getchannel("A")
 
                 # 获取非透明区域的边界框
@@ -480,9 +498,13 @@ class MeasureAnchor:
                 )
 
                 # 重置矩形
-                self.rect = Rectangle(0, 0, 0, 0)
+                self.rect = Rectangle(0, 0, 0, 0, type=int)
                 self.relative_rect_offset = Rectangle(
-                    -self.anchor.x, -self.anchor.y, -self.anchor.x, -self.anchor.y
+                    -self.anchor.x,
+                    -self.anchor.y,
+                    -self.anchor.x,
+                    -self.anchor.y,
+                    type=int,
                 )
 
                 self.redraw()
@@ -554,6 +576,7 @@ class MeasureAnchor:
             self.img_offset.y + self.rect.y * self.scale,
             self.img_offset.x + self.rect.w * self.scale,
             self.img_offset.y + self.rect.h * self.scale,
+            type=int,
         )
 
         # 矩形
@@ -779,7 +802,8 @@ class MeasureAnchor:
     def rect_alignment(self):
         if self.image:
             l, t, r, b = self.trim
-            self.rect = Rectangle(l, t, r, b)
+            self.set_rect_pos(l, t)
+            self.set_rect_size(r, b)
             self.set_relative_rect_pos(l - self.anchor.x, t - self.anchor.y)
             self.set_relative_rect_size(r - self.anchor.x, b - self.anchor.y)
             self.redraw()
@@ -844,6 +868,18 @@ class MeasureAnchor:
             self.set_ref(rx, ry)
             self.set_relative_offset(rx - self.anchor.x, ry - self.anchor.y)
             self.redraw()
+
+    def update_rect_pos_from_spinbox(self):
+        x, y = self.get_rect_pos_var()
+        self.set_rect_pos(x, y)
+        self.set_relative_rect_pos(x - self.anchor.x, y - self.anchor.y)
+        self.redraw()
+
+    def update_rect_size_from_spinbox(self):
+        w, h = self.get_rect_size_var()
+        self.set_rect_size(w, h)
+        self.set_relative_rect_pos(w - self.anchor.x, h - self.anchor.y)
+        self.redraw()
 
     def apply_preset(self, x_preset, y_preset):
         """应用预设"""

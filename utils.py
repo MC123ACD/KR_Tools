@@ -41,8 +41,28 @@ from typing import Union, List
 class Vector:
     """向量类"""
 
-    def __init__(self, x: float = 0.0, y: float = 0.0):
-        self._data = np.array([x, y], dtype=np.float64)
+    def __init__(self, x, y, type=float, rounding="trunc"):
+        """
+        Args:
+            rounding: 'trunc' - 截断, 'round' - 四舍五入, 'floor' - 向下取整, 'ceil' - 向上取整
+        """
+        self.rounding = rounding
+
+        if type is int:
+            if rounding == "round":
+                # 四舍五入
+                x, y = [round(v) for v in (x, y)]
+            elif rounding == "floor":
+                # 向下取整
+                x, y = [np.floor(v) for v in (x, y)]
+            elif rounding == "ceil":
+                # 向上取整
+                x, y = [np.ceil(v) for v in (x, y)]
+            # 'trunc' 或默认：直接转换，NumPy会截断
+
+            self._data = np.array([x, y], dtype=np.int64)
+        elif type is float:
+            self._data = np.array([x, y], dtype=np.float64)
 
     @property
     def x(self) -> float:
@@ -97,8 +117,25 @@ class Vector:
 class Rectangle:
     """向量类"""
 
-    def __init__(self, x: float = 0.0, y: float = 0.0, w: float = 0.0, h: float = 0.0):
-        self._data = np.array([x, y, w, h], dtype=np.float64)
+    def __init__(self, x, y, w, h, type=float, rounding="floor"):
+        """
+        Args:
+            rounding: 'trunc' - 截断, 'round' - 四舍五入, 'floor' - 向下取整, 'ceil' - 向上取整
+        """
+        if type is int:
+            if rounding == "round":
+                # 四舍五入
+                x, y, w, h = [round(v) for v in (x, y, w, h)]
+            elif rounding == "floor":
+                # 向下取整
+                x, y, w, h = [np.floor(v) for v in (x, y, w, h)]
+            elif rounding == "ceil":
+                # 向上取整
+                x, y, w, h = [np.ceil(v) for v in (x, y, w, h)]
+
+            self._data = np.array([x, y, w, h], dtype=np.int64)
+        elif type is float:
+            self._data = np.array([x, y, w, h], dtype=np.float64)
 
     @property
     def x(self) -> float:
@@ -142,3 +179,22 @@ class Rectangle:
     def copy(self) -> "Rectangle":
         """返回副本"""
         return Rectangle(*self._data.copy())
+
+    def get_other_pos(self, other: "Rectangle") -> list[str]:
+        """返回另一个矩形相当于当前矩形的位置"""
+        pos = []
+
+        if self.x + self.w < other.x:
+            pos.append("right")
+        elif self.x > other.x:
+            pos.append("left")
+
+        if self.y + self.h < other.y:
+            pos.append("top")
+        elif self.y > other.y:
+            pos.append("bottom")
+
+        if not pos:
+            pos.append("in")
+
+        return pos

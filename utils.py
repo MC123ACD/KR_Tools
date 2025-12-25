@@ -1,5 +1,6 @@
 import traceback, subprocess, time, config
 from pathlib import Path
+import numpy as np
 import Tools.generate_waves as generate_waves
 import Tools.handle_images as handle_images
 import Tools.merge_images as merge_images
@@ -14,9 +15,11 @@ import Tools.measure_anchor as measure_anchor
 input_path = config.input_path
 output_path = config.output_path
 
+
 def clamp(value, min_value, max_value):
     """将值限制在[min_value, max_value]范围内"""
     return max(min_value, min(value, max_value))
+
 
 def get_tools_data():
     return {
@@ -110,3 +113,113 @@ def is_simple_key(key: str):
     if not key or key[0].isdigit():
         return False
     return all(c.isalnum() or c == "_" for c in key)
+
+
+import numpy as np
+from typing import Union, List
+
+
+class Vector:
+    """向量类"""
+
+    def __init__(self, x: float = 0.0, y: float = 0.0):
+        self._data = np.array([x, y], dtype=np.float64)
+
+    @property
+    def x(self) -> float:
+        return self._data[0]
+
+    @x.setter
+    def x(self, value: float):
+        self._data[0] = value
+
+    @property
+    def y(self) -> float:
+        return self._data[1]
+
+    @y.setter
+    def y(self, value: float):
+        self._data[1] = value
+
+    def __add__(self, other: "Vector") -> "Vector":
+        return Vector(*(self._data + other._data))
+
+    def __sub__(self, other: "Vector") -> "Vector":
+        return Vector(*(self._data - other._data))
+
+    def __mul__(self, scalar: float) -> "Vector":
+        return Vector(*(self._data * scalar))
+
+    def dot(self, other: "Vector") -> float:
+        return np.dot(self._data, other._data)
+
+    def cross(self, other: "Vector") -> "Vector":
+        return Vector(*np.cross(self._data, other._data))
+
+    def norm(self) -> float:
+        return np.linalg.norm(self._data)
+
+    def normalize(self) -> "Vector":
+        norm = self.norm()
+        return Vector(*(self._data / norm)) if norm > 0 else Vector()
+
+    def __repr__(self) -> str:
+        return f"Vector({self.x:.2f}, {self.y:.2f})"
+
+    def as_array(self) -> np.ndarray:
+        """返回底层的NumPy数组（只读视图）"""
+        return self._data.view()
+
+    def copy(self) -> "Vector":
+        """返回副本"""
+        return Vector(*self._data.copy())
+
+
+class Rectangle:
+    """向量类"""
+
+    def __init__(self, x: float = 0.0, y: float = 0.0, w: float = 0.0, h: float = 0.0):
+        self._data = np.array([x, y, w, h], dtype=np.float64)
+
+    @property
+    def x(self) -> float:
+        return self._data[0]
+
+    @x.setter
+    def x(self, value: float):
+        self._data[0] = value
+
+    @property
+    def y(self) -> float:
+        return self._data[1]
+
+    @y.setter
+    def y(self, value: float):
+        self._data[1] = value
+
+    @property
+    def w(self) -> float:
+        return self._data[2]
+
+    @w.setter
+    def w(self, value: float):
+        self._data[2] = value
+
+    @property
+    def h(self) -> float:
+        return self._data[3]
+
+    @h.setter
+    def h(self, value: float):
+        self._data[3] = value
+
+    def __repr__(self) -> str:
+        return f"Rectangle({self.x:.2f}, {self.y:.2f}, {self.w:.2f}, {self.h:.2f})"
+
+    def as_array(self) -> np.ndarray:
+        """返回底层的NumPy数组（只读视图）"""
+        return self._data.view()
+
+    def copy(self) -> "Rectangle":
+        """返回副本"""
+        return Rectangle(*self._data.copy())

@@ -17,13 +17,14 @@ input_path.mkdir(exist_ok=True)
 output_path.mkdir(exist_ok=True)
 
 setting_file = "setting.json"
+setting = {}
 
 try:
     with open(setting_file, "r", encoding="utf-8") as f:
         data = json.load(f)
 
         for key, value in data.items():
-            config.setting[key] = value
+            setting[key] = value
 
 except Exception as e:
     messagebox.showerror("错误", f"加载配置文件失败: {traceback.print_exc()}")
@@ -32,7 +33,7 @@ import utils as U
 
 Tools = U.get_tools_data()
 
-setting = config.setting["main"]
+setting = setting["main"]
 
 
 class MainApplication:
@@ -65,11 +66,10 @@ class MainApplication:
             name = value["name"]
             module = value["module"]
             has_setting = value["has_setting"]
-            has_gui = value["has_gui"]
             btn = ttk.Button(
                 parent,
                 text=name,
-                command=lambda m=module, g=has_gui: self.run_module(m, g),
+                command=lambda m=module, n=name: self.run_module(m, n),
             )
             btn.grid(row=0, column=i, pady=5, padx=5, sticky=(tk.W, tk.E))
 
@@ -85,17 +85,14 @@ class MainApplication:
         # 配置按钮框架的网格
         parent.columnconfigure(0, weight=1)
 
-    def run_module(self, module, has_gui):
+    def run_module(self, module, n):
         self.root.update()
 
         # if not any(input_path.iterdir()):
         #     messagebox.showerror("错误", "输入目录为空，请将文件放入 input 目录后重试")
         #     return
 
-        if has_gui:
-            module.main(self.root)
-        else:
-            module.main()
+        module.main(self.root, setting[n])
 
     def open_setting(self, setting_key):
         """打开设置窗口"""
@@ -124,7 +121,7 @@ class MainApplication:
         # 插入当前配置
         try:
             formatted_json = json.dumps(
-                config.setting[setting_key], indent=4, ensure_ascii=False
+                setting[setting_key], indent=4, ensure_ascii=False
             )
             text_widget.insert("1.0", formatted_json)
         except Exception as e:
@@ -158,12 +155,15 @@ class MainApplication:
             new_config = json.loads(json_text)
 
             # 更新配置
-            config.setting[setting_key] = new_config
+            setting[setting_key] = new_config
 
             # 保存到文件
             with open(setting_file, "w", encoding="utf-8") as f:
-                json.dump(config.setting, f, indent=4, ensure_ascii=False)
+                json.dump(setting, f, indent=4, ensure_ascii=False)
                 parent_window.destroy()
+
+            for key, value in new_config.items():
+                setting[key] = value
 
         except json.JSONDecodeError as e:
             messagebox.showerror("错误", f"JSON格式错误: {traceback.print_exc()}")

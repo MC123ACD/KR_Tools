@@ -27,7 +27,7 @@ class MeasureAnchor:
 
         # 锚点坐标（相对于图像左上角）
         self.anchor = Vector(0, 0, type=int)
-        self.percent_anchor = Vector(0.5, 0.5, type=int)
+        self.percent_anchor = Vector(0.5, 0.5)
 
         # 参考点坐标
         self.ref_pos = Vector(0, 0, type=int)

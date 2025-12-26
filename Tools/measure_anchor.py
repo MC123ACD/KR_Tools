@@ -50,7 +50,7 @@ class MeasureAnchor:
         clamp_y = clamp(y, 0, self.image.height)
         return clamp_x, clamp_y
 
-    def get_img_scaled(self):
+    def set_img_scaled(self):
         self.scaled_width = int(self.image.width * self.scale)
         self.scaled_height = int(self.image.height * self.scale)
 
@@ -454,7 +454,7 @@ class MeasureAnchor:
             self.display_frame,
             text="显示网格",
             variable=self.show_grid,
-            command=self.redraw,
+            command=self.redraw_all,
         ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         # 网格大小标签
@@ -498,7 +498,7 @@ class MeasureAnchor:
             to=128,
             textvariable=self.grid_size,
             width=8,
-            command=self.redraw,
+            command=self.redraw_all,
         ).pack(side=tk.LEFT)
 
         ttk.Label(self.grid_size_frame, text="像素").pack(side=tk.LEFT, padx=5)
@@ -572,7 +572,7 @@ class MeasureAnchor:
                     type=int,
                 )
 
-                self.redraw()
+                self.redraw_all()
                 self.status_var.set(f"已加载: {file_path}")
 
             except Exception as e:
@@ -776,41 +776,36 @@ class MeasureAnchor:
                 tags="text",
             )
 
-    def redraw(self):
+    def change_anchor_draw(self):
+        """锚点变化时绘制"""
+        self.draw_anchor()
+        self.draw_ref()
+        self.draw_line()
+        self.draw_texts()
+
+    def change_rect_draw(self):
+        """矩形变化时绘制"""
+        self.draw_rect()
+        self.draw_texts()
+
+    def redraw_all(self):
         """重新绘制画布"""
         if not self.image:
             return
 
         # 计算缩放后的尺寸
-        self.get_img_scaled()
+        self.set_img_scaled()
         self.set_img_central_pos()
 
-        # 显示缩放后的图像
         self.draw_image()
-
-        # 绘制网格
         if self.show_grid.get():
             self.draw_grid()
-
-        # 绘制边框
         self.draw_border()
-
-        # 绘制矩形
         self.draw_rect()
-
-        # 绘制锚点
         self.draw_anchor()
-
-        # 绘制中心点
         self.draw_central()
-
-        # 绘制参考点
         self.draw_ref()
-
-        # 绘制连接线
         self.draw_line()
-
-        # 绘制文本
         self.draw_texts()
 
     def on_canvas_click(self, event):
@@ -818,7 +813,7 @@ class MeasureAnchor:
         if not self.image or event.state & SHIFT_MASK:
             return
 
-        self.get_img_scaled()
+        self.set_img_scaled()
         self.set_img_central_pos()
 
         # 转换到图像坐标
@@ -841,7 +836,7 @@ class MeasureAnchor:
                 self.rect.h - img_y,
             )
 
-        self.redraw()
+        self.change_anchor_draw()
 
     def on_canvas_drag(self, event):
         """处理画布拖动"""
@@ -852,7 +847,7 @@ class MeasureAnchor:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_size(x, y)
             self.set_relative_rect_size(x - self.anchor.x, y - self.anchor.y)
-            self.redraw()
+            self.change_rect_draw()
 
     def on_shift_press(self, event):
         if self.image:
@@ -860,14 +855,14 @@ class MeasureAnchor:
             self.set_rect_pos(x, y)
             self.set_relative_rect_pos(x - self.anchor.x, y - self.anchor.y)
             self.set_relative_rect_size(x - self.anchor.x, y - self.anchor.y)
-            self.redraw()
+            self.change_rect_draw()
 
     def on_shift_release(self, event):
         if self.image:
             x, y = self.calculate_img_pos(event.x, event.y)
             self.set_rect_size(x, y)
             self.set_relative_rect_size(x - self.anchor.x, y - self.anchor.y)
-            self.redraw()
+            self.change_rect_draw()
 
     def on_right_click(self, event):
         """右键菜单"""
@@ -923,7 +918,7 @@ class MeasureAnchor:
             self.set_rect_size(r, b)
             self.set_relative_rect_pos(l - self.anchor.x, t - self.anchor.y)
             self.set_relative_rect_size(r - self.anchor.x, b - self.anchor.y)
-            self.redraw()
+            self.change_rect_draw()
 
     def on_mousewheel(self, event):
         """鼠标滚轮缩放"""
@@ -940,13 +935,13 @@ class MeasureAnchor:
         self.scale = max(0.1, min(5.0, self.scale))
         self.scale_slider.set(self.scale)
         self.scale_label.config(text=f"{int(self.scale * 100)}%")
-        self.redraw()
+        self.redraw_all()
 
     def on_scale_change(self, value):
         """滑块缩放改变"""
         self.scale = float(value)
         self.scale_label.config(text=f"{int(self.scale * 100)}%")
-        self.redraw()
+        self.redraw_all()
 
     def update_anchor_from_spinbox(self):
         """从输入框更新锚点"""
@@ -964,10 +959,10 @@ class MeasureAnchor:
                 self.rect.w - ax,
                 self.rect.h - ay,
             )
-            self.redraw()
+            self.change_anchor_draw()
 
     def update_percent_anchor_from_spinbox(self):
-        """从输入框更新锚点"""
+        """从输入框更新锚点百分比"""
         if self.image:
             px, py = self.get_percent_anchor_var()
             self.set_percent_anchor(px, py)
@@ -976,7 +971,7 @@ class MeasureAnchor:
             self.set_relative_offset(self.ref_pos.x - ax, self.ref_pos.y - ay)
             self.set_relative_rect_pos(self.rect.x - ax, self.rect.y - ay)
             self.set_relative_rect_size(self.rect.w - ax, self.rect.h - ay)
-            self.redraw()
+            self.change_anchor_draw()
 
     def update_ref_from_spinbox(self):
         """从输入框更新参考点"""
@@ -984,19 +979,19 @@ class MeasureAnchor:
             rx, ry = self.get_ref_var()
             self.set_ref(rx, ry)
             self.set_relative_offset(rx - self.anchor.x, ry - self.anchor.y)
-            self.redraw()
+            self.change_anchor_draw()
 
     def update_rect_pos_from_spinbox(self):
         x, y = self.get_rect_pos_var()
         self.set_rect_pos(x, y)
         self.set_relative_rect_pos(x - self.anchor.x, y - self.anchor.y)
-        self.redraw()
+        self.change_rect_draw()
 
     def update_rect_size_from_spinbox(self):
         w, h = self.get_rect_size_var()
         self.set_rect_size(w, h)
         self.set_relative_rect_pos(w - self.anchor.x, h - self.anchor.y)
-        self.redraw()
+        self.change_rect_draw()
 
     def apply_preset(self, x_preset, y_preset):
         """应用预设"""
@@ -1032,7 +1027,7 @@ class MeasureAnchor:
             self.rect.w - x,
             self.rect.h - y,
         )
-        self.redraw()
+        self.change_anchor_draw()
 
 
 def main(root):

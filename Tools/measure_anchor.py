@@ -164,24 +164,39 @@ class MeasureAnchor:
         self.relative_rect_offset.h = h
 
     def setup_ui(self):
+        """设置用户界面"""
+        self.create_main_frames()
+        self.setup_canvas()
+        self.bind_canvas_events()
+        self.setup_file_control()
+        self.setup_anchor_control()
+        self.setup_ref_control()
+        self.setup_rect_control()
+        self.setup_display_control()
+        self.setup_status_bar()
+
+    def create_main_frames(self):
+        """创建主框架"""
         # 创建主框架
-        main_frame = ttk.Frame(self.root_window)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.main_frame = ttk.Frame(self.root_window)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 左侧控制面板
-        control_frame = ttk.Frame(main_frame, width=250)
-        control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
-        control_frame.pack_propagate(False)
+        self.control_frame = ttk.Frame(self.main_frame, width=250)
+        self.control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        self.control_frame.pack_propagate(False)
 
         # 右侧图像显示区域
-        self.image_frame = ttk.Frame(main_frame)
+        self.image_frame = ttk.Frame(self.main_frame)
         self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        # 创建画布用于显示图像
+    def setup_canvas(self):
+        """设置画布"""
         self.canvas = tk.Canvas(self.image_frame, bg="#2d2d2d")
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
-        # 绑定事件
+    def bind_canvas_events(self):
+        """绑定画布事件"""
         self.canvas.bind("<Button-1>", self.on_canvas_click)
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
@@ -190,19 +205,24 @@ class MeasureAnchor:
         self.canvas.bind("<Shift-B1-Motion>", self.on_shift_drag)
         self.canvas.bind("<Shift-ButtonRelease-1>", self.on_shift_release)
 
-        # 文件操作区
-        ttk.Button(control_frame, text="打开图像", command=self.open_image).pack(
+    def setup_file_control(self):
+        """设置文件操作区"""
+        ttk.Button(self.control_frame, text="打开图像", command=self.open_image).pack(
             fill=tk.X, pady=2
         )
 
-        # 锚点控制区
-        anchor_frame = ttk.LabelFrame(control_frame, text="锚点控制", padding=10)
-        anchor_frame.pack(fill=tk.X, pady=(0, 10))
+    def setup_anchor_control(self):
+        """设置锚点控制区"""
+        self.anchor_frame = ttk.LabelFrame(
+            self.control_frame, text="锚点控制", padding=10
+        )
+        self.anchor_frame.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(anchor_frame, text="锚点 X:").grid(row=0, column=0, sticky=tk.W)
+        # 锚点X坐标
+        ttk.Label(self.anchor_frame, text="锚点 X:").grid(row=0, column=0, sticky=tk.W)
         self.anchor_x_var = tk.StringVar(value="0")
         self.anchor_x_spinbox = ttk.Spinbox(
-            anchor_frame,
+            self.anchor_frame,
             from_=0,
             to=9999,
             textvariable=self.anchor_x_var,
@@ -211,10 +231,11 @@ class MeasureAnchor:
         )
         self.anchor_x_spinbox.grid(row=0, column=1, padx=5)
 
-        ttk.Label(anchor_frame, text="锚点 Y:").grid(row=1, column=0, sticky=tk.W)
+        # 锚点Y坐标
+        ttk.Label(self.anchor_frame, text="锚点 Y:").grid(row=1, column=0, sticky=tk.W)
         self.anchor_y_var = tk.StringVar(value="0")
         self.anchor_y_spinbox = ttk.Spinbox(
-            anchor_frame,
+            self.anchor_frame,
             from_=0,
             to=9999,
             textvariable=self.anchor_y_var,
@@ -223,6 +244,7 @@ class MeasureAnchor:
         )
         self.anchor_y_spinbox.grid(row=1, column=1, padx=5)
 
+        # 绑定事件
         self.anchor_x_spinbox.bind(
             "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
         )
@@ -230,10 +252,13 @@ class MeasureAnchor:
             "<KeyRelease>", lambda e: self.update_anchor_from_spinbox()
         )
 
-        ttk.Label(anchor_frame, text="锚点 X(%):").grid(row=2, column=0, sticky=tk.W)
+        # 锚点百分比X
+        ttk.Label(self.anchor_frame, text="锚点 X(%):").grid(
+            row=2, column=0, sticky=tk.W
+        )
         self.percent_anchor_x_var = tk.StringVar(value="0")
         self.percent_anchor_x_spinbox = ttk.Spinbox(
-            anchor_frame,
+            self.anchor_frame,
             increment=0.01,
             from_=0,
             to=1,
@@ -243,10 +268,13 @@ class MeasureAnchor:
         )
         self.percent_anchor_x_spinbox.grid(row=2, column=1, padx=5)
 
-        ttk.Label(anchor_frame, text="锚点 Y(%):").grid(row=3, column=0, sticky=tk.W)
+        # 锚点百分比Y
+        ttk.Label(self.anchor_frame, text="锚点 Y(%):").grid(
+            row=3, column=0, sticky=tk.W
+        )
         self.percent_anchor_y_var = tk.StringVar(value="0")
         self.percent_anchor_y_spinbox = ttk.Spinbox(
-            anchor_frame,
+            self.anchor_frame,
             increment=0.01,
             from_=0,
             to=1,
@@ -256,6 +284,7 @@ class MeasureAnchor:
         )
         self.percent_anchor_y_spinbox.grid(row=3, column=1, padx=5)
 
+        # 绑定事件
         self.percent_anchor_x_spinbox.bind(
             "<KeyRelease>", lambda e: self.update_percent_anchor_from_spinbox()
         )
@@ -264,29 +293,37 @@ class MeasureAnchor:
         )
 
         # 快速预设
-        ttk.Label(anchor_frame, text="快速预设:").grid(
+        self.setup_preset_buttons()
+
+    def setup_preset_buttons(self):
+        """设置快速预设按钮"""
+        ttk.Label(self.anchor_frame, text="快速预设:").grid(
             row=4, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
         )
-        preset_frame = ttk.Frame(anchor_frame)
-        preset_frame.grid(row=5, column=0, columnspan=2, sticky=tk.W)
+        self.preset_frame = ttk.Frame(self.anchor_frame)
+        self.preset_frame.grid(row=5, column=0, columnspan=2, sticky=tk.W)
 
         for i, (name, x, y) in enumerate(setting["presets"]):
             btn = ttk.Button(
-                preset_frame,
+                self.preset_frame,
                 text=name,
                 width=6,
                 command=lambda x=x, y=y: self.apply_preset(x, y),
             )
             btn.grid(row=i // 3, column=i % 3, padx=2, pady=2)
 
-        # 参考点控制区
-        ref_frame = ttk.LabelFrame(control_frame, text="参考点控制", padding=10)
-        ref_frame.pack(fill=tk.X, pady=(0, 10))
+    def setup_ref_control(self):
+        """设置参考点控制区"""
+        self.ref_frame = ttk.LabelFrame(
+            self.control_frame, text="参考点控制", padding=10
+        )
+        self.ref_frame.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(ref_frame, text="参考点 X:").grid(row=0, column=0, sticky=tk.W)
+        # 参考点X坐标
+        ttk.Label(self.ref_frame, text="参考点 X:").grid(row=0, column=0, sticky=tk.W)
         self.ref_x_var = tk.StringVar(value="0")
         self.ref_x_spinbox = ttk.Spinbox(
-            ref_frame,
+            self.ref_frame,
             from_=0,
             to=9999,
             textvariable=self.ref_x_var,
@@ -295,10 +332,11 @@ class MeasureAnchor:
         )
         self.ref_x_spinbox.grid(row=0, column=1, padx=5)
 
-        ttk.Label(ref_frame, text="参考点 Y:").grid(row=1, column=0, sticky=tk.W)
+        # 参考点Y坐标
+        ttk.Label(self.ref_frame, text="参考点 Y:").grid(row=1, column=0, sticky=tk.W)
         self.ref_y_var = tk.StringVar(value="0")
         self.ref_y_spinbox = ttk.Spinbox(
-            ref_frame,
+            self.ref_frame,
             from_=0,
             to=9999,
             textvariable=self.ref_y_var,
@@ -307,6 +345,7 @@ class MeasureAnchor:
         )
         self.ref_y_spinbox.grid(row=1, column=1, padx=5)
 
+        # 绑定事件
         self.ref_x_spinbox.bind(
             "<KeyRelease>", lambda e: self.update_ref_from_spinbox()
         )
@@ -314,21 +353,28 @@ class MeasureAnchor:
             "<KeyRelease>", lambda e: self.update_ref_from_spinbox()
         )
 
-        # 矩形控制区
-        rect_frame = ttk.LabelFrame(control_frame, text="矩形选项", padding=10)
-        rect_frame.pack(fill=tk.X, pady=(0, 10))
-
-        rect_frame.grid_columnconfigure(0, weight=1)
-        rect_frame.grid_columnconfigure(1, weight=1)
-
-        ttk.Button(rect_frame, text="矩形对齐边缘", command=self.rect_alignment).grid(
-            row=0, column=0, columnspan=2, pady=(0, 10)
+    def setup_rect_control(self):
+        """设置矩形控制区"""
+        self.rect_frame = ttk.LabelFrame(
+            self.control_frame, text="矩形选项", padding=10
         )
+        self.rect_frame.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(rect_frame, text="矩形位置 X:").grid(row=1, column=0, sticky=tk.W)
+        self.rect_frame.grid_columnconfigure(0, weight=1)
+        self.rect_frame.grid_columnconfigure(1, weight=1)
+
+        # 矩形对齐按钮
+        ttk.Button(
+            self.rect_frame, text="矩形对齐边缘", command=self.rect_alignment
+        ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
+
+        # 矩形位置X
+        ttk.Label(self.rect_frame, text="矩形位置 X:").grid(
+            row=1, column=0, sticky=tk.W
+        )
         self.rect_pos_x_var = tk.StringVar(value="0")
         self.rect_pos_x_spinbox = ttk.Spinbox(
-            rect_frame,
+            self.rect_frame,
             from_=0,
             to=9999,
             textvariable=self.rect_pos_x_var,
@@ -337,10 +383,13 @@ class MeasureAnchor:
         )
         self.rect_pos_x_spinbox.grid(row=1, column=1, padx=5)
 
-        ttk.Label(rect_frame, text="矩形位置 Y:").grid(row=2, column=0, sticky=tk.W)
+        # 矩形位置Y
+        ttk.Label(self.rect_frame, text="矩形位置 Y:").grid(
+            row=2, column=0, sticky=tk.W
+        )
         self.rect_pos_y_var = tk.StringVar(value="0")
         self.rect_pos_y_spinbox = ttk.Spinbox(
-            rect_frame,
+            self.rect_frame,
             from_=0,
             to=9999,
             textvariable=self.rect_pos_y_var,
@@ -349,10 +398,11 @@ class MeasureAnchor:
         )
         self.rect_pos_y_spinbox.grid(row=2, column=1, padx=5)
 
-        ttk.Label(rect_frame, text="矩形长 W:").grid(row=3, column=0, sticky=tk.W)
+        # 矩形宽度
+        ttk.Label(self.rect_frame, text="矩形长 W:").grid(row=3, column=0, sticky=tk.W)
         self.rect_size_w_var = tk.StringVar(value="0")
         self.rect_size_w_spinbox = ttk.Spinbox(
-            rect_frame,
+            self.rect_frame,
             from_=0,
             to=9999,
             textvariable=self.rect_size_w_var,
@@ -361,10 +411,11 @@ class MeasureAnchor:
         )
         self.rect_size_w_spinbox.grid(row=3, column=1, padx=5)
 
-        ttk.Label(rect_frame, text="矩形高 H:").grid(row=4, column=0, sticky=tk.W)
+        # 矩形高度
+        ttk.Label(self.rect_frame, text="矩形高 H:").grid(row=4, column=0, sticky=tk.W)
         self.rect_size_h_var = tk.StringVar(value="0")
         self.rect_size_h_spinbox = ttk.Spinbox(
-            rect_frame,
+            self.rect_frame,
             from_=0,
             to=9999,
             textvariable=self.rect_size_h_var,
@@ -373,6 +424,7 @@ class MeasureAnchor:
         )
         self.rect_size_h_spinbox.grid(row=4, column=1, padx=5)
 
+        # 绑定事件
         self.rect_pos_x_spinbox.bind(
             "<KeyRelease>", lambda e: self.update_rect_pos_from_spinbox()
         )
@@ -386,45 +438,41 @@ class MeasureAnchor:
             "<KeyRelease>", lambda e: self.update_rect_size_from_spinbox()
         )
 
-        # 显示控制区
-        display_frame = ttk.LabelFrame(control_frame, text="显示选项", padding=10)
-        display_frame.pack(fill=tk.X, pady=(0, 10))
+    def setup_display_control(self):
+        """设置显示控制区"""
+        self.display_frame = ttk.LabelFrame(
+            self.control_frame, text="显示选项", padding=10
+        )
+        self.display_frame.pack(fill=tk.X, pady=(0, 10))
 
         # 使用 grid 布局管理器
-        display_frame.grid_columnconfigure(0, weight=1)
-        display_frame.grid_columnconfigure(1, weight=1)
+        self.display_frame.grid_columnconfigure(0, weight=1)
+        self.display_frame.grid_columnconfigure(1, weight=1)
 
-        # 第0行：显示网格
+        # 显示网格复选框
         ttk.Checkbutton(
-            display_frame, text="显示网格", variable=self.show_grid, command=self.redraw
+            self.display_frame,
+            text="显示网格",
+            variable=self.show_grid,
+            command=self.redraw,
         ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
-        # 第0行第1列：网格大小标签
-        ttk.Label(display_frame, text="网格大小:").grid(row=0, column=1, padx=5, pady=5)
+        # 网格大小标签
+        ttk.Label(self.display_frame, text="网格大小:").grid(
+            row=0, column=1, padx=5, pady=5
+        )
 
-        # 第1行第1列：网格大小输入框
-        grid_size_frame = ttk.Frame(display_frame)
-        grid_size_frame.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        # 网格大小输入框
+        self.setup_grid_size_control()
 
-        ttk.Spinbox(
-            grid_size_frame,
-            from_=4,
-            to=128,
-            textvariable=self.grid_size,
-            width=8,
-            command=self.redraw,
-        ).pack(side=tk.LEFT)
-
-        ttk.Label(grid_size_frame, text="像素").pack(side=tk.LEFT, padx=5)
-
-        # 第2行：缩放标签（跨两列）
-        ttk.Label(display_frame, text="缩放:").grid(
+        # 缩放标签
+        ttk.Label(self.display_frame, text="缩放:").grid(
             row=2, column=0, columnspan=2, padx=5, pady=(10, 0)
         )
 
-        # 第3行：缩放滑块（跨两列并填充宽度）
+        # 缩放滑块
         self.scale_slider = ttk.Scale(
-            display_frame,
+            self.display_frame,
             from_=0.05,
             to=5.0,
             value=1.0,
@@ -435,11 +483,28 @@ class MeasureAnchor:
             row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5
         )
 
-        # 第4行：缩放百分比标签
-        self.scale_label = ttk.Label(display_frame, text="100%")
+        # 缩放百分比标签
+        self.scale_label = ttk.Label(self.display_frame, text="100%")
         self.scale_label.grid(row=4, column=0, columnspan=2, padx=5, pady=(0, 5))
 
-        # 状态栏
+    def setup_grid_size_control(self):
+        """设置网格大小控制"""
+        self.grid_size_frame = ttk.Frame(self.display_frame)
+        self.grid_size_frame.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+
+        ttk.Spinbox(
+            self.grid_size_frame,
+            from_=4,
+            to=128,
+            textvariable=self.grid_size,
+            width=8,
+            command=self.redraw,
+        ).pack(side=tk.LEFT)
+
+        ttk.Label(self.grid_size_frame, text="像素").pack(side=tk.LEFT, padx=5)
+
+    def setup_status_bar(self):
+        """设置状态栏"""
         self.status_var = tk.StringVar(value="就绪")
         ttk.Label(
             self.root_window,

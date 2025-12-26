@@ -515,18 +515,8 @@ class MeasureAnchor:
                     "错误", f"无法打开图像: {traceback.print_exc()}{e}"
                 )
 
-    def redraw(self):
-        """重新绘制画布"""
-        if not self.image:
-            return
-
-        self.canvas.delete("all")
-
-        # 计算缩放后的尺寸
-        self.get_img_scaled()
-        self.set_img_central_pos()
-
-        # 显示缩放后的图像
+    def draw_image(self):
+        """绘制图像"""
         scaled_image = self.image.resize(
             (self.scaled_width, self.scaled_height), Image.Resampling.NEAREST
         )
@@ -535,32 +525,33 @@ class MeasureAnchor:
             self.img_offset.x, self.img_offset.y, anchor=tk.NW, image=self.photo
         )
 
-        # 绘制网格
-        if self.show_grid.get():
-            grid_size = self.grid_size.get() * self.scale
-            for x in range(0, self.scaled_width, int(grid_size)):
-                self.canvas.create_line(
-                    self.img_offset.x + x,
-                    self.img_offset.y,
-                    self.img_offset.x + x,
-                    self.img_offset.y + self.scaled_height,
-                    fill="#444444",
-                    width=1,
-                    tags="grid",
-                )
+    def draw_grid(self):
+        """绘制网格"""
+        grid_size = self.grid_size.get() * self.scale
+        for x in range(0, self.scaled_width, int(grid_size)):
+            self.canvas.create_line(
+                self.img_offset.x + x,
+                self.img_offset.y,
+                self.img_offset.x + x,
+                self.img_offset.y + self.scaled_height,
+                fill="#444444",
+                width=1,
+                tags="grid",
+            )
 
-            for y in range(0, self.scaled_height, int(grid_size)):
-                self.canvas.create_line(
-                    self.img_offset.x,
-                    self.img_offset.y + y,
-                    self.img_offset.x + self.scaled_width,
-                    self.img_offset.y + y,
-                    fill="#444444",
-                    width=1,
-                    tags="grid",
-                )
+        for y in range(0, self.scaled_height, int(grid_size)):
+            self.canvas.create_line(
+                self.img_offset.x,
+                self.img_offset.y + y,
+                self.img_offset.x + self.scaled_width,
+                self.img_offset.y + y,
+                fill="#444444",
+                width=1,
+                tags="grid",
+            )
 
-        # 边框
+    def draw_border(self):
+        """绘制边框"""
         self.canvas.create_rectangle(
             self.img_offset.x,
             self.img_offset.y,
@@ -571,6 +562,8 @@ class MeasureAnchor:
             tags="border",
         )
 
+    def draw_rect(self):
+        """绘制矩形"""
         screen_rect = Rectangle(
             self.img_offset.x + self.rect.x * self.scale,
             self.img_offset.y + self.rect.y * self.scale,
@@ -579,7 +572,6 @@ class MeasureAnchor:
             type=int,
         )
 
-        # 矩形
         self.canvas.create_rectangle(
             screen_rect.x,
             screen_rect.y,
@@ -590,7 +582,8 @@ class MeasureAnchor:
             tags="rect",
         )
 
-        # 绘制锚点十字
+    def draw_anchor(self):
+        """绘制锚点十字"""
         anchor_screen_x = self.img_offset.x + self.anchor.x * self.scale
         anchor_screen_y = self.img_offset.y + self.anchor.y * self.scale
 
@@ -634,7 +627,8 @@ class MeasureAnchor:
             tags="anchor",
         )
 
-        # 中心点
+    def draw_central(self):
+        """绘制中心点"""
         central_x = self.img_offset.x + self.scaled_width // 2
         central_y = self.img_offset.y + self.scaled_height // 2
 
@@ -648,10 +642,11 @@ class MeasureAnchor:
             tags="central",
         )
 
+    def draw_ref(self):
+        """绘制参考点"""
         ref_screen_x = self.img_offset.x + self.ref_pos.x * self.scale
         ref_screen_y = self.img_offset.y + self.ref_pos.y * self.scale
 
-        # 绘制参考点
         self.canvas.create_oval(
             ref_screen_x - 6,
             ref_screen_y - 6,
@@ -662,7 +657,13 @@ class MeasureAnchor:
             tags="ref",
         )
 
-        # 绘制连接线（锚点到参考点）
+    def draw_line(self):
+        """绘制连接线（锚点到参考点）"""
+        anchor_screen_x = self.img_offset.x + self.anchor.x * self.scale
+        anchor_screen_y = self.img_offset.y + self.anchor.y * self.scale
+        ref_screen_x = self.img_offset.x + self.ref_pos.x * self.scale
+        ref_screen_y = self.img_offset.y + self.ref_pos.y * self.scale
+
         self.canvas.create_line(
             anchor_screen_x,
             anchor_screen_y,
@@ -674,7 +675,8 @@ class MeasureAnchor:
             tags="line",
         )
 
-        # 显示坐标文本
+    def draw_texts(self):
+        """绘制文本信息"""
         texts = [
             (f"图像大小: ({self.image.width}, {self.image.height})", "#ffffff"),
             (f"锚点: ({self.anchor.x}, {self.anchor.y})", "#ffffff"),
@@ -695,6 +697,45 @@ class MeasureAnchor:
                 font=("Arial", 10, "bold"),
                 tags="text",
             )
+
+    def redraw(self):
+        """重新绘制画布"""
+        if not self.image:
+            return
+
+        self.canvas.delete("all")
+
+        # 计算缩放后的尺寸
+        self.get_img_scaled()
+        self.set_img_central_pos()
+
+        # 显示缩放后的图像
+        self.draw_image()
+
+        # 绘制网格
+        if self.show_grid.get():
+            self.draw_grid()
+
+        # 绘制边框
+        self.draw_border()
+
+        # 绘制矩形
+        self.draw_rect()
+
+        # 绘制锚点
+        self.draw_anchor()
+
+        # 绘制中心点
+        self.draw_central()
+
+        # 绘制参考点
+        self.draw_ref()
+
+        # 绘制连接线
+        self.draw_line()
+
+        # 绘制文本
+        self.draw_texts()
 
     def on_canvas_click(self, event):
         """处理画布点击"""

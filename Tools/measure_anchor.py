@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
-import traceback, config
+import traceback, config, time
 from pathlib import Path
 from utils import clamp, Vector, Rectangle
 
@@ -17,6 +17,9 @@ class MeasureAnchor:
         self.root_window = tk.Toplevel(root)
         self.root_window.title("锚点测量工具")
         self.root_window.geometry("1200x900")
+
+        self.redraw_delay = 10
+        self.last_time = time.time()
 
         self.image_path = None
         self.image = None
@@ -756,18 +759,27 @@ class MeasureAnchor:
         """绘制文本信息"""
         self.canvas.delete("text")
         texts = [
-            (f"图像大小: ({self.image.width}, {self.image.height})", "#ffffff"),
-            (f"锚点: ({self.anchor.x}, {self.anchor.y})", "#ffffff"),
-            (f"锚点(%): ({self.percent_anchor.x}, {self.percent_anchor.y})", "#ffffff"),
-            (f"偏移: ({self.relative_offset.x}, {self.relative_offset.y})", "#ffff00"),
+            (f"图像大小: ({self.image.width}, {self.image.height})", "#ffffff", 10),
+            (f"锚点: ({self.anchor.x}, {self.anchor.y})", "#ffffff", 10),
+            (
+                f"锚点(%): ({self.percent_anchor.x}, {self.percent_anchor.y})",
+                "#ffffff",
+                10,
+            ),
+            (
+                f"偏移: ({self.relative_offset.x}, {self.relative_offset.y})",
+                "#ffff00",
+                10,
+            ),
             (
                 f"矩形偏移: ({self.relative_rect_offset.x}, {self.relative_rect_offset.y}, {self.relative_rect_offset.w}, {self.relative_rect_offset.h})",
                 "#ffff00",
+                10,
             ),
         ]
-        for i, (t, c) in enumerate(texts):
+        for i, (t, c, pos) in enumerate(texts):
             self.canvas.create_text(
-                10,
+                pos,
                 10 + 20 * i,
                 anchor=tk.NW,
                 text=t,
@@ -776,8 +788,23 @@ class MeasureAnchor:
                 tags="text",
             )
 
+    def debouncing(self):
+        """事件去抖"""
+        current_time = time.time()
+        if current_time - self.last_time < self.redraw_delay:
+            return True
+        self.last_time = current_time
+
+        return False
+
+    def check_can_draw(self):
+        return self.image and self.debouncing()
+
     def change_anchor_draw(self):
         """锚点变化时绘制"""
+        if not self.check_can_draw():
+            return
+
         self.draw_anchor()
         self.draw_ref()
         self.draw_line()
@@ -785,12 +812,15 @@ class MeasureAnchor:
 
     def change_rect_draw(self):
         """矩形变化时绘制"""
+        if not self.check_can_draw():
+            return
+
         self.draw_rect()
         self.draw_texts()
 
     def redraw_all(self):
         """重新绘制画布"""
-        if not self.image:
+        if not self.check_can_draw():
             return
 
         # 计算缩放后的尺寸

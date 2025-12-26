@@ -2,33 +2,7 @@ import subprocess, json, traceback
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
-from lupa.luajit20 import LuaRuntime
-import config
-
-config.lupa = LuaRuntime(unpack_returned_tuples=True)
-
-config.input_path = Path("input")
-config.output_path = Path("output")
-
-input_path = config.input_path
-output_path = config.output_path
-
-input_path.mkdir(exist_ok=True)
-output_path.mkdir(exist_ok=True)
-
-setting_file = "setting.json"
-try:
-    with open(setting_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-        config.setting = data
-
-except Exception as e:
-    messagebox.showerror("错误", f"加载配置文件失败: {traceback.print_exc()}")
-
-import tools
-
-Tools = tools.get_tools_data()
+import config, tools
 
 
 class MainApplication:
@@ -57,7 +31,7 @@ class MainApplication:
     def create_module_buttons(self, parent):
         """创建运行其他模块的按钮"""
         i = 0
-        for key, value in Tools.items():
+        for key, value in tools.get_tools_data().items():
             name = value["name"]
             module = value["module"]
             has_gui = value["has_gui"]
@@ -156,7 +130,7 @@ class MainApplication:
             config.setting[setting_key].update(new_setting)
 
             # 保存到文件
-            with open(setting_file, "w", encoding="utf-8") as f:
+            with open(config.setting_file, "w", encoding="utf-8") as f:
                 json.dump(config.setting, f, indent=4, ensure_ascii=False)
                 parent_window.destroy()
 

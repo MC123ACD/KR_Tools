@@ -755,7 +755,7 @@ class MeasureAnchor:
             anchor_screen_y,
             ref_screen_x,
             ref_screen_y,
-            fill="#ffff00",
+            fill="#E02EFF" if self.switch_canvas_color_state else "#ffff00",
             width=1,
             dash=(4, 2),
             tags="line",

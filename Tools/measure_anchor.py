@@ -586,6 +586,7 @@ class MeasureAnchor:
     def draw_image(self):
         """绘制图像"""
         self.canvas.delete("image")
+
         scaled_image = self.image.resize(
             (self.scaled_width, self.scaled_height), Image.Resampling.NEAREST
         )

@@ -1,4 +1,4 @@
-import re, traceback, config, math, plistlib
+import re, traceback, config, plistlib
 from utils import is_simple_key
 
 
@@ -7,9 +7,7 @@ def get_animations_data(plist_data):
 
     data = {}
 
-    animations = plist_data["animations"]
-
-    for anim_name, anim_data in animations.items():
+    for anim_name, anim_data in plist_data["animations"].items():
         if any(key in anim_data for key in layer_keys):
             match = re.match(r"(.+)_(.+)", anim_name)
             prefix, action = match.group(1), match.group(2)
@@ -94,12 +92,9 @@ def get_input_files():
             with open(file, "rb") as f:
                 plist_data = plistlib.load(f)
 
-                match_animations = match.group()
-
-                print(f"📖 读取文件: {file.name}")
-                if match_animations:
-
-                    file_data = (file.stem, match_animations, plist_data)
+                if match.group():
+                    print(f"📖 读取文件: {file.name}")
+                    file_data = (file.stem, plist_data)
 
                     files.append(file_data)
 
@@ -110,7 +105,7 @@ def main():
     files = get_input_files()
 
     try:
-        for name, match_animations, plist_data in files:
+        for name, plist_data in files:
             ani_data = get_animations_data(plist_data)
             write_animations_data(ani_data, name)
 

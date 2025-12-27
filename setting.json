@@ -435,6 +435,7 @@
         "level_name_leading_zero": 2
     },
     "measure_anchor": {
+        "use_light_bg": true,
         "presets": [
             [
                 "左上",

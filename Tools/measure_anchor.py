@@ -195,8 +195,9 @@ class MeasureAnchor:
 
     def setup_canvas(self):
         """设置画布"""
-        self.canvas = tk.Canvas(self.image_frame, bg="#2d2d2d")
+        self.canvas = tk.Canvas(self.image_frame, bg="#f3f4f5" if setting["use_light_bg"] else "#2d2d2d")
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.switch_canvas_color_state = True if setting["use_light_bg"] else False
 
     def bind_canvas_events(self):
         """绑定画布事件"""
@@ -452,13 +453,17 @@ class MeasureAnchor:
         self.display_frame.grid_columnconfigure(0, weight=1)
         self.display_frame.grid_columnconfigure(1, weight=1)
 
+        ttk.Button(
+            self.display_frame, text="切换背景颜色", command=self.switch_canvas_color
+        ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
         # 显示网格复选框
         ttk.Checkbutton(
             self.display_frame,
             text="显示网格",
             variable=self.show_grid,
             command=self.redraw_all,
-        ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
         # 网格大小标签
         ttk.Label(self.display_frame, text="网格大小:").grid(
@@ -504,7 +509,7 @@ class MeasureAnchor:
             command=self.redraw_all,
         ).pack(side=tk.LEFT)
 
-        ttk.Label(self.grid_size_frame, text="像素").pack(side=tk.LEFT, padx=5)
+        ttk.Label(self.grid_size_frame).pack(side=tk.LEFT, padx=5)
 
     def setup_status_bar(self):
         """设置状态栏"""
@@ -760,31 +765,44 @@ class MeasureAnchor:
         """绘制文本信息"""
         self.canvas.delete("text")
         texts = [
-            (f"图像大小: ({self.image.width}, {self.image.height})", "#ffffff", 10),
-            (f"锚点: ({self.anchor.x}, {self.anchor.y})", "#ffffff", 10),
+            (
+                f"图像大小: ({self.image.width}, {self.image.height})",
+                "#ffffff",
+                10,
+                "#4f4f4f",
+            ),
+            (
+                f"锚点: ({self.anchor.x}, {self.anchor.y})",
+                "#ffffff",
+                10,
+                "#4f4f4f",
+            ),
             (
                 f"锚点(%): ({self.percent_anchor.x}, {self.percent_anchor.y})",
                 "#ffffff",
                 10,
+                "#4f4f4f",
             ),
             (
                 f"偏移: ({self.relative_offset.x}, {self.relative_offset.y})",
                 "#ffff00",
                 10,
+                "#0163f6",
             ),
             (
                 f"矩形偏移: ({self.relative_rect_offset.x}, {self.relative_rect_offset.y}, {self.relative_rect_offset.w}, {self.relative_rect_offset.h})",
                 "#ffff00",
                 10,
+                "#0163f6",
             ),
         ]
-        for i, (t, c, pos) in enumerate(texts):
+        for i, (t, c, pos, c_l) in enumerate(texts):
             self.canvas.create_text(
                 pos,
                 10 + 20 * i,
                 anchor=tk.NW,
                 text=t,
-                fill=c,
+                fill=c_l if self.switch_canvas_color_state else c,
                 font=("Arial", 10, "bold"),
                 tags="text",
             )
@@ -941,6 +959,15 @@ class MeasureAnchor:
         self.root_window.clipboard_clear()
         self.root_window.clipboard_append(text)
         self.status_var.set("已复制到剪贴板")
+
+    def switch_canvas_color(self):
+        self.switch_canvas_color_state = not self.switch_canvas_color_state
+        if self.switch_canvas_color_state:
+            self.canvas.config(bg="#f3f4f5")
+        else:
+            self.canvas.config(bg="#2d2d2d")
+
+        self.draw_texts()
 
     def rect_alignment(self):
         if self.image:

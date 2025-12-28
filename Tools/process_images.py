@@ -4,29 +4,18 @@ from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-import threading
+import threading, config
 from utils import run_texconv
+
+
+settings = config.setting["process_images"]
+
 
 class ImageProcessorGUI:
     def __init__(self, root):
         self.root = tk.Toplevel(root)
         self.root.title("图片处理工具")
-        self.root.geometry("900x700")
-
-        # 初始化设置
-        self.settings = {
-            "input_path": Path("."),
-            "output_path": Path("."),
-            "use_trim": tk.BooleanVar(value=False),
-            "size_x": tk.StringVar(value=""),
-            "size_y": tk.StringVar(value=""),
-            "sharpen_percent": tk.StringVar(value=""),
-            "sharpen_radius": tk.StringVar(value="1.0"),
-            "sharpen_threshold": tk.StringVar(value="0"),
-            "brightness": tk.StringVar(value="1.0"),
-            "output_format": tk.StringVar(value="png"),
-            "delete_temporary_png": tk.BooleanVar(value=False),
-        }
+        self.root.geometry("600x500")
 
         self.create_widgets()
         self.setup_layout()
@@ -36,64 +25,72 @@ class ImageProcessorGUI:
         self.process_frame = ttk.LabelFrame(self.root, text="图片处理选项", padding=10)
 
         # 裁剪选项
-        self.trim_var = self.settings["use_trim"]
+        self.trim_var = tk.BooleanVar(value=settings["use_trim"])
         self.trim_check = ttk.Checkbutton(
             self.process_frame, text="裁剪透明区域", variable=self.trim_var
         )
 
         # 缩放选项
         self.size_label = ttk.Label(
-            self.process_frame, text="缩放设置 (留空为原始大小):"
+            self.process_frame, text="缩放设置:"
         )
+        self.use_percent_size_var = tk.BooleanVar(value=settings["use_percent_size"])
+        self.use_percent_size = ttk.Checkbutton(
+            self.process_frame, text="是否百分比缩放", variable=self.use_percent_size_var
+        )
+
         self.size_x_label = ttk.Label(self.process_frame, text="宽度:")
+        self.size_x_var = tk.StringVar(value=settings["size_x"])
         self.size_x_entry = ttk.Entry(
-            self.process_frame, textvariable=self.settings["size_x"], width=10
+            self.process_frame, textvariable=self.size_x_var, width=10
         )
         self.size_y_label = ttk.Label(self.process_frame, text="高度:")
+        self.size_y_var = tk.StringVar(value=settings["size_y"])
         self.size_y_entry = ttk.Entry(
-            self.process_frame, textvariable=self.settings["size_y"], width=10
-        )
-        self.size_help = ttk.Label(
-            self.process_frame, text="可以是整数(绝对大小)或小数(缩放比例)"
+            self.process_frame, textvariable=self.size_y_var, width=10
         )
 
         # 锐化选项
         self.sharp_label = ttk.Label(self.process_frame, text="锐化设置:")
         self.sharp_percent_label = ttk.Label(self.process_frame, text="强度(%):")
+        self.sharp_percent_var = tk.StringVar(value=settings["sharpen_percent"])
         self.sharp_percent_entry = ttk.Entry(
-            self.process_frame, textvariable=self.settings["sharpen_percent"], width=10
+            self.process_frame, textvariable=self.sharp_percent_var, width=10
         )
         self.sharp_radius_label = ttk.Label(self.process_frame, text="半径:")
+        self.sharp_radius_var = tk.StringVar(value=settings["sharpen_radius"])
         self.sharp_radius_entry = ttk.Entry(
-            self.process_frame, textvariable=self.settings["sharpen_radius"], width=10
+            self.process_frame, textvariable=self.sharp_radius_var, width=10
         )
         self.sharp_threshold_label = ttk.Label(self.process_frame, text="阈值:")
+        self.sharp_threshold_var = tk.StringVar(value=settings["sharpen_threshold"])
         self.sharp_threshold_entry = ttk.Entry(
             self.process_frame,
-            textvariable=self.settings["sharpen_threshold"],
+            textvariable=self.sharp_threshold_var,
             width=10,
         )
 
         # 亮度选项
         self.bright_label = ttk.Label(self.process_frame, text="亮度:")
+        self.bright_var = tk.StringVar(value=settings["brightness"])
         self.bright_entry = ttk.Entry(
-            self.process_frame, textvariable=self.settings["brightness"], width=10
+            self.process_frame, textvariable=self.bright_var, width=10
         )
-        self.bright_help = ttk.Label(self.process_frame, text="1.0为原始亮度")
 
         # 输出格式选项
         self.format_frame = ttk.LabelFrame(self.root, text="输出设置", padding=10)
 
         self.format_label = ttk.Label(self.format_frame, text="输出格式:")
+        self.format_var = tk.StringVar(value=settings["output_format"])
         self.format_combo = ttk.Combobox(
             self.format_frame,
-            textvariable=self.settings["output_format"],
+            textvariable=self.format_var,
             values=["png", "bc3", "bc7"],
             state="readonly",
             width=10,
         )
 
-        self.delete_png_var = self.settings["delete_temporary_png"]
+        self.delete_png_var = tk.StringVar(value=settings["delete_temporary_png"])
         self.delete_png_check = ttk.Checkbutton(
             self.format_frame,
             text="删除临时PNG文件",
@@ -108,9 +105,6 @@ class ImageProcessorGUI:
             command=self.start_processing,
             style="Accent.TButton",
         )
-        self.clear_btn = ttk.Button(
-            self.control_frame, text="清空日志", command=self.clear_log
-        )
 
         # 日志区域
         self.log_frame = ttk.LabelFrame(self.root, text="处理日志", padding=10)
@@ -123,33 +117,20 @@ class ImageProcessorGUI:
         self.progress = ttk.Progressbar(self.root, mode="indeterminate")
 
     def setup_layout(self):
-        # 路径设置布局
-        self.path_frame.grid(
-            row=0, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
-        )
-        self.input_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.input_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        self.input_btn.grid(row=0, column=2, padx=5, pady=5)
-
-        self.output_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.output_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        self.output_btn.grid(row=1, column=2, padx=5, pady=5)
-
-        self.path_frame.columnconfigure(1, weight=1)
-
         # 处理选项布局
         self.process_frame.grid(
             row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
         )
 
         self.trim_check.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-
+        self.use_percent_size.grid(
+            row=0, column=2, columnspan=3, padx=5, pady=5, sticky="w"
+        )
         self.size_label.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
         self.size_x_label.grid(row=2, column=0, padx=5, pady=2, sticky="w")
         self.size_x_entry.grid(row=2, column=1, padx=5, pady=2, sticky="w")
         self.size_y_label.grid(row=2, column=2, padx=20, pady=2, sticky="w")
         self.size_y_entry.grid(row=2, column=3, padx=5, pady=2, sticky="w")
-        self.size_help.grid(row=3, column=0, columnspan=4, padx=5, pady=2, sticky="w")
 
         self.sharp_label.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="w")
         self.sharp_percent_label.grid(row=5, column=0, padx=5, pady=2, sticky="w")
@@ -161,7 +142,6 @@ class ImageProcessorGUI:
 
         self.bright_label.grid(row=7, column=0, padx=5, pady=5, sticky="w")
         self.bright_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
-        self.bright_help.grid(row=7, column=2, padx=5, pady=5, sticky="w")
 
         self.process_frame.columnconfigure(3, weight=1)
 
@@ -176,16 +156,9 @@ class ImageProcessorGUI:
         # 控制按钮布局
         self.control_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
         self.process_btn.pack(side=tk.LEFT, padx=5)
-        self.clear_btn.pack(side=tk.LEFT, padx=5)
 
         # 进度条
         self.progress.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
-
-        # 日志区域布局
-        self.log_frame.grid(
-            row=5, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
-        )
-        self.log_text.pack(fill=tk.BOTH, expand=True)
 
         # 配置行列权重
         self.root.columnconfigure(0, weight=1)

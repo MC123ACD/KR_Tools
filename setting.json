@@ -1,9 +1,8 @@
 {
-    "handle_images": {
-        "size": [
-            100,
-            100
-        ],
+    "process_images": {
+        "size_x": 100,
+        "size_y": 100,
+        "use_percent_size": true,
         "sharpen_percent": 15,
         "sharpen_radius": 1,
         "sharpen_threshold": 1,

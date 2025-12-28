@@ -45,18 +45,14 @@ class ImageProcessorGUI:
         # 裁剪选项
         self.trim_var = tk.BooleanVar(value=settings["use_trim"])
         self.trim_check = ttk.Checkbutton(
-            self.process_frame, text="裁剪透明区域", variable=self.trim_var
+            self.process_frame, text="裁剪透明边", variable=self.trim_var
         )
         self.trim_check.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
-        # 缩放选项
         self.create_resize_section()
-
-        # 锐化选项
         self.create_sharpen_section()
-
-        # 亮度选项
         self.create_brightness_section()
+        self.create_mirror_section()
 
         # 配置处理框架的列权重
         self.process_frame.columnconfigure(3, weight=1)
@@ -99,7 +95,7 @@ class ImageProcessorGUI:
         self.sharp_label = ttk.Label(self.process_frame, text="锐化设置:")
         self.sharp_label.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="w")
 
-        self.sharp_percent_label = ttk.Label(self.process_frame, text="强度(%):")
+        self.sharp_percent_label = ttk.Label(self.process_frame, text="强度:")
         self.sharp_percent_label.grid(row=5, column=0, padx=5, pady=2, sticky="w")
 
         self.sharp_percent_var = tk.StringVar(value=settings["sharpen_percent"])
@@ -136,6 +132,27 @@ class ImageProcessorGUI:
             self.process_frame, textvariable=self.brightness_var, width=10
         )
         self.brightness_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
+
+    def create_mirror_section(self):
+        """创建镜像设置部分"""
+        self.mirror_label = ttk.Label(self.process_frame, text="镜像设置:")
+        self.mirror_label.grid(
+            row=8, column=0, columnspan=4, padx=5, pady=5, sticky="w"
+        )
+
+        # 水平镜像
+        self.mirror_horizontal_var = tk.BooleanVar(value=settings["mirror_horizontal"])
+        self.mirror_horizontal_check = ttk.Checkbutton(
+            self.process_frame, text="水平镜像", variable=self.mirror_horizontal_var
+        )
+        self.mirror_horizontal_check.grid(row=9, column=0, padx=5, pady=2, sticky="w")
+
+        # 垂直镜像
+        self.mirror_vertical_var = tk.BooleanVar(value=settings["mirror_vertical"])
+        self.mirror_vertical_check = ttk.Checkbutton(
+            self.process_frame, text="垂直镜像", variable=self.mirror_vertical_var
+        )
+        self.mirror_vertical_check.grid(row=9, column=1, padx=20, pady=2, sticky="w")
 
     def create_output_options_section(self):
         """创建输出设置部分"""
@@ -255,11 +272,13 @@ class ImageProcessorGUI:
 
         return new_img
 
-    def set_img_size(self, img, w, h):
+    def set_img_size(self, img):
         """设置图片尺寸"""
-        w, h = int(w), int(h)
+        w, h = int(self.size_x_var.get()), int(self.size_y_var.get())
 
-        if self.use_percent_size_var.get():
+        use_percent_size = self.use_percent_size_var.get()
+
+        if use_percent_size:
             w /= 100
             h /= 100
 
@@ -271,46 +290,62 @@ class ImageProcessorGUI:
 
         return img.resize((new_width, new_height))
 
-    def set_img_sharpen(self, img, percent, radius, threshold):
+    def set_img_sharpen(self, img):
         """锐化图片"""
-        sharpened = img.filter(
-            ImageFilter.UnsharpMask(int(radius), int(percent), int(threshold))
-        )
+        percent = int(self.sharp_percent_var.get())
+        radius = int(self.sharp_radius_var.get())
+        threshold = int(self.sharp_threshold_var.get())
+
+        if not (percent and percent and threshold):
+            return img
+
+        sharpened = img.filter(ImageFilter.UnsharpMask(radius, percent, threshold))
         print(f"🔼 锐化图片，强度{percent}%，半径{radius}，阈值{threshold}")
 
         return sharpened
 
-    def set_img_brightness(self, img, brightness_factor):
+    def set_img_brightness(self, img):
         """调整图片亮度"""
-        try:
-            enhancer = ImageEnhance.Brightness(img)
-            compensated = enhancer.enhance(float(brightness_factor))
-            print(f"🔆 修改图片亮度为{brightness_factor}倍")
-            return compensated
+        brightness_factor = float(self.brightness_var.get())
 
-        except Exception as e:
-            print(f"❌ 调整亮度失败: {str(e)}")
+        if brightness_factor == 1:
             return img
+
+        enhancer = ImageEnhance.Brightness(img)
+        compensated = enhancer.enhance(brightness_factor)
+        print(f"🔆 修改图片亮度为{brightness_factor}倍")
+
+        return compensated
+
+    def set_img_mirror(self, img):
+        """镜像图片"""
+        mirror_horizontal = self.mirror_horizontal_var.get()
+        mirror_vertical = self.mirror_vertical_var.get()
+
+        if not (mirror_horizontal or mirror_vertical):
+            return img
+
+        if mirror_horizontal:
+            # 水平镜像
+            mirrored_img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            print(f"🔄 水平镜像图片")
+
+        if mirror_vertical:
+            # 垂直镜像
+            mirrored_img = img.transpose(Image.FLIP_TOP_BOTTOM)
+            print(f"🔄 垂直镜像图片")
+
+        return mirrored_img
 
     def process_img(self, name, img, in_dir):
         """处理单个图片"""
         output_img = None
 
         # 应用各项处理
-        img = self.set_img_size(img, self.size_x_var.get(), self.size_y_var.get())
-
-        sharp_percent = self.sharp_percent_var.get()
-        if sharp_percent:
-            img = self.set_img_sharpen(
-                img,
-                sharp_percent,
-                self.sharp_radius_var.get(),
-                self.sharp_threshold_var.get(),
-            )
-
-        brightness = self.brightness_var.get()
-        if brightness:
-            img = self.set_img_brightness(img, brightness)
+        img = self.set_img_size(img)
+        img = self.set_img_sharpen(img)
+        img = self.set_img_brightness(img)
+        img = self.set_img_mirror(img)
 
         # 确定输出路径
         if in_dir:

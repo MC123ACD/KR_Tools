@@ -1,14 +1,16 @@
 {
     "process_images": {
+        "use_trim": false,
+        "use_percent_size": true,
         "size_x": 100,
         "size_y": 100,
-        "use_percent_size": true,
         "sharpen_percent": 15,
         "sharpen_radius": 1,
         "sharpen_threshold": 1,
         "brightness": 0.98,
-        "use_trim": false,
-        "output_format": "bc3",
+        "mirror_horizontal": false,
+        "mirror_vertical": false,
+        "output_format": "png",
         "delete_temporary_png": true
     },
     "generate_waves": {

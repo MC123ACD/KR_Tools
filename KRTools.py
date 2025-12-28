@@ -57,9 +57,8 @@ class MainApplication:
     def run_module(self, module, has_gui):
         self.root.update()
 
-        # if not any(input_path.iterdir()):
-        #     messagebox.showerror("错误", "输入目录为空，请将文件放入 input 目录后重试")
-        #     return
+        if not any(config.input_path.iterdir()):
+            print("警告：输入目录为空可能不会有输出内容")
 
         if has_gui:
             module.main(self.root)

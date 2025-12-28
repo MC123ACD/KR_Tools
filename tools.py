@@ -25,7 +25,7 @@ def get_tools_data():
         "handle_images": {
             "name": "处理图像",
             "module": handle_images,
-            "has_gui": False,
+            "has_gui": True,
         },
         "merge_images": {
             "name": "合并图像",

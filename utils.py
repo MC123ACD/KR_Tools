@@ -13,7 +13,7 @@ def clamp(value, min_value, max_value):
 
 def run_decompiler(file_path, output_path="output"):
     """反编译lua文件"""
-    subprocess.run(
+    result = subprocess.run(
         [
             "luajit-decompiler-v2.exe",
             str(file_path),
@@ -25,6 +25,25 @@ def run_decompiler(file_path, output_path="output"):
         capture_output=True,
         text=True,
     )
+
+    return result
+
+def run_texconv(format, file_path, output_path="output"):
+    result = subprocess.run(
+        [
+            "texconv.exe",
+            "-f",
+            format,  # BC格式
+            "-y",  # 覆盖已存在文件
+            "-o",
+            str(output_path),
+            str(file_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    return result
 
 
 def is_simple_key(key: str):

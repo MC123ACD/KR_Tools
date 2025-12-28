@@ -1,7 +1,7 @@
 import traceback, subprocess, time, config
 from pathlib import Path
 import Tools.generate_waves as generate_waves
-import Tools.handle_images as handle_images
+import Tools.process_images as process_images
 import Tools.merge_images as merge_images
 import Tools.luajit_decompiler as luajit_decompiler
 import Tools.sort_table as sort_table
@@ -24,7 +24,7 @@ def get_tools_data():
         },
         "handle_images": {
             "name": "处理图像",
-            "module": handle_images,
+            "module": process_images,
             "has_gui": True,
         },
         "merge_images": {

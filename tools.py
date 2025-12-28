@@ -22,7 +22,7 @@ def get_tools_data():
             "module": generate_waves,
             "has_gui": True,
         },
-        "handle_images": {
+        "process_images": {
             "name": "处理图像",
             "module": process_images,
             "has_gui": True,

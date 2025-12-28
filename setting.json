@@ -4,14 +4,30 @@
         "use_percent_size": true,
         "size_x": 100,
         "size_y": 100,
-        "sharpen_percent": 15,
-        "sharpen_radius": 1,
-        "sharpen_threshold": 1,
-        "brightness": 0.98,
+        "sharpen_percent": 0,
+        "sharpen_radius": 0,
+        "sharpen_threshold": 0,
+        "brightness": 1,
         "mirror_horizontal": false,
         "mirror_vertical": false,
         "output_format": "png",
-        "delete_temporary_png": true
+        "delete_temporary_png": true,
+        "presets": {
+            "five": {
+                "use_trim": false,
+                "use_percent_size": true,
+                "size_x": 56,
+                "size_y": 56,
+                "sharpen_percent": 15,
+                "sharpen_radius": 1,
+                "sharpen_threshold": 1,
+                "brightness": 0.98,
+                "mirror_horizontal": false,
+                "mirror_vertical": false,
+                "output_format": "png",
+                "delete_temporary_png": false
+            }
+        }
     },
     "generate_waves": {
         "time_to_s": false,

@@ -49,6 +49,22 @@ class ImageProcessorGUI:
         )
         self.trim_check.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
+        self.preset_four_btn = ttk.Button(
+            self.process_frame,
+            text="五代缩放三代预设",
+            command=lambda: self.apply_preset(settings["presets"]["five"]),
+            width=16,
+        )
+        self.preset_four_btn.grid(row=0, column=1, padx=12, pady=2)
+
+        self.preset_reset = ttk.Button(
+            self.process_frame,
+            text="重置",
+            command=lambda: self.apply_preset(settings),
+            width=8,
+        )
+        self.preset_reset.grid(row=0, column=2, padx=8, pady=2)
+
         self.create_resize_section()
         self.create_sharpen_section()
         self.create_brightness_section()
@@ -206,6 +222,22 @@ class ImageProcessorGUI:
         """设置控件样式"""
         style = ttk.Style()
         style.configure("Accent.TButton", font=("Arial", 10, "bold"))
+
+    def apply_preset(self, preset):
+        """应用预设配置"""
+        # 更新界面控件
+        self.trim_var.set(preset["use_trim"])
+        self.use_percent_size_var.set(preset["use_percent_size"])
+        self.size_x_var.set(str(preset["size_x"]))
+        self.size_y_var.set(str(preset["size_y"]))
+        self.sharp_percent_var.set(str(preset["sharpen_percent"]))
+        self.sharp_radius_var.set(str(preset["sharpen_radius"]))
+        self.sharp_threshold_var.set(str(preset["sharpen_threshold"]))
+        self.brightness_var.set(str(preset["brightness"]))
+        self.mirror_horizontal_var.set(preset["mirror_horizontal"])
+        self.mirror_vertical_var.set(preset["mirror_vertical"])
+        self.output_format_var.set(preset["output_format"])
+        self.delete_png_var.set(preset["delete_temporary_png"])
 
     def start_processing(self):
         """开始处理图片"""

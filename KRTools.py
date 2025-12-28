@@ -58,7 +58,7 @@ class MainApplication:
         self.root.update()
 
         if not any(config.input_path.iterdir()):
-            print("警告：输入目录为空可能不会有输出内容")
+            print("警告：输入目录为空，可能不会有输出内容")
 
         if has_gui:
             module.main(self.root)

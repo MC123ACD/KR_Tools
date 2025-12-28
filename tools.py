@@ -7,10 +7,10 @@ import Tools.luajit_decompiler as luajit_decompiler
 import Tools.sort_table as sort_table
 import Tools.split_atlas as split_atlas
 import Tools.generate_atlas as generate_atlas
+import Tools.measure_anchor as measure_anchor
 import Tools.plist_level_to_lua as plist_level_to_lua
 import Tools.plist_animation_to_lua as plist_animation_to_lua
-import Tools.measure_anchor as measure_anchor
-import Tools.exos_plist_to_lua as exos_plist_to_lua
+import Tools.plist_exos_to_lua as plist_exos_to_lua
 
 input_path = config.input_path
 output_path = config.output_path
@@ -52,6 +52,11 @@ def get_tools_data():
             "module": generate_atlas,
             "has_gui": False,
         },
+        "measure_anchor": {
+            "name": "测量锚点",
+            "module": measure_anchor,
+            "has_gui": True,
+        },
         "plist_level_to_lua": {
             "name": "四代关卡数据转五代",
             "module": plist_level_to_lua,
@@ -62,14 +67,9 @@ def get_tools_data():
             "module": plist_animation_to_lua,
             "has_gui": False,
         },
-        "measure_anchor": {
-            "name": "测量锚点",
-            "module": measure_anchor,
-            "has_gui": True,
-        },
         "exos_plist_to_lua": {
             "name": "四代骨骼动画转五代",
-            "module": exos_plist_to_lua,
+            "module": plist_exos_to_lua,
             "has_gui": False,
         },
     }

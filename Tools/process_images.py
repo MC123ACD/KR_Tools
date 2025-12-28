@@ -1,10 +1,8 @@
-import traceback
-import subprocess
+import traceback, config
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
-import threading, config
+from tkinter import ttk
 from utils import run_texconv
 
 
@@ -194,12 +192,7 @@ class ImageProcessorGUI:
 
     def start_processing(self):
         """开始处理图片"""
-        self.process_btn.config(state=tk.DISABLED)
-
-        # 在新线程中处理，避免界面卡顿
-        thread = threading.Thread(target=self.process_images)
-        thread.daemon = True
-        thread.start()
+        self.process_images()
 
     def process_images(self):
         """处理所有图片"""
@@ -215,10 +208,6 @@ class ImageProcessorGUI:
                 )
 
         print("\n✅ 所有图片处理完成！")
-
-    def processing_done(self):
-        """处理完成后恢复按钮状态"""
-        self.process_btn.config(state=tk.NORMAL)
 
     def get_input_files(self):
         """获取输入文件"""

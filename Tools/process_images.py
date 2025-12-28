@@ -15,74 +15,144 @@ class ImageProcessorGUI:
     def __init__(self, root):
         self.root = tk.Toplevel(root)
         self.root.title("图片处理工具")
-        self.root.geometry("600x430")
+        self.root.geometry("600x500")
 
-        self.create_widgets()
-        self.setup_layout()
+        self.create_interface()
+        self.setup_styles()
 
-    def create_widgets(self):
-        # 图片处理选项
+    def create_interface(self):
+        """创建整个界面"""
+        # 图片处理选项部分
+        self.create_process_options_section()
+
+        # 输出设置部分
+        self.create_output_options_section()
+
+        # 控制按钮部分
+        self.create_control_buttons_section()
+
+        # 配置网格权重
+        self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1, weight=1)
+        self.root.rowconfigure(5, weight=1)
+
+    def create_process_options_section(self):
+        """创建图片处理选项部分"""
+        # 创建框架
         self.process_frame = ttk.LabelFrame(self.root, text="图片处理选项", padding=10)
+        self.process_frame.grid(
+            row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
+        )
 
         # 裁剪选项
         self.trim_var = tk.BooleanVar(value=settings["use_trim"])
         self.trim_check = ttk.Checkbutton(
             self.process_frame, text="裁剪透明区域", variable=self.trim_var
         )
+        self.trim_check.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
         # 缩放选项
+        self.create_resize_section()
+
+        # 锐化选项
+        self.create_sharpen_section()
+
+        # 亮度选项
+        self.create_brightness_section()
+
+        # 配置处理框架的列权重
+        self.process_frame.columnconfigure(3, weight=1)
+
+    def create_resize_section(self):
+        """创建缩放设置部分"""
         self.size_label = ttk.Label(self.process_frame, text="缩放设置:")
+        self.size_label.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+
         self.use_percent_size_var = tk.BooleanVar(value=settings["use_percent_size"])
         self.use_percent_size = ttk.Checkbutton(
             self.process_frame,
             text="是否百分比缩放",
             variable=self.use_percent_size_var,
         )
+        self.use_percent_size.grid(
+            row=2, column=0, columnspan=4, padx=5, pady=2, sticky="w"
+        )
 
         self.size_x_label = ttk.Label(self.process_frame, text="宽度:")
+        self.size_x_label.grid(row=3, column=0, padx=5, pady=2, sticky="w")
+
         self.size_x_var = tk.StringVar(value=settings["size_x"])
         self.size_x_entry = ttk.Entry(
             self.process_frame, textvariable=self.size_x_var, width=10
         )
+        self.size_x_entry.grid(row=3, column=1, padx=5, pady=2, sticky="w")
+
         self.size_y_label = ttk.Label(self.process_frame, text="高度:")
+        self.size_y_label.grid(row=3, column=2, padx=20, pady=2, sticky="w")
+
         self.size_y_var = tk.StringVar(value=settings["size_y"])
         self.size_y_entry = ttk.Entry(
             self.process_frame, textvariable=self.size_y_var, width=10
         )
+        self.size_y_entry.grid(row=3, column=3, padx=5, pady=2, sticky="w")
 
-        # 锐化选项
+    def create_sharpen_section(self):
+        """创建锐化设置部分"""
         self.sharp_label = ttk.Label(self.process_frame, text="锐化设置:")
+        self.sharp_label.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+
         self.sharp_percent_label = ttk.Label(self.process_frame, text="强度(%):")
+        self.sharp_percent_label.grid(row=5, column=0, padx=5, pady=2, sticky="w")
+
         self.sharp_percent_var = tk.StringVar(value=settings["sharpen_percent"])
         self.sharp_percent_entry = ttk.Entry(
             self.process_frame, textvariable=self.sharp_percent_var, width=10
         )
+        self.sharp_percent_entry.grid(row=5, column=1, padx=5, pady=2, sticky="w")
+
         self.sharp_radius_label = ttk.Label(self.process_frame, text="半径:")
+        self.sharp_radius_label.grid(row=5, column=2, padx=20, pady=2, sticky="w")
+
         self.sharp_radius_var = tk.StringVar(value=settings["sharpen_radius"])
         self.sharp_radius_entry = ttk.Entry(
             self.process_frame, textvariable=self.sharp_radius_var, width=10
         )
+        self.sharp_radius_entry.grid(row=5, column=3, padx=5, pady=2, sticky="w")
+
         self.sharp_threshold_label = ttk.Label(self.process_frame, text="阈值:")
+        self.sharp_threshold_label.grid(row=6, column=0, padx=5, pady=2, sticky="w")
+
         self.sharp_threshold_var = tk.StringVar(value=settings["sharpen_threshold"])
         self.sharp_threshold_entry = ttk.Entry(
-            self.process_frame,
-            textvariable=self.sharp_threshold_var,
-            width=10,
+            self.process_frame, textvariable=self.sharp_threshold_var, width=10
         )
+        self.sharp_threshold_entry.grid(row=6, column=1, padx=5, pady=2, sticky="w")
 
-        # 亮度选项
-        self.brightness_lable = ttk.Label(self.process_frame, text="亮度:")
+    def create_brightness_section(self):
+        """创建亮度设置部分"""
+        self.brightness_label = ttk.Label(self.process_frame, text="亮度:")
+        self.brightness_label.grid(row=7, column=0, padx=5, pady=5, sticky="w")
+
         self.brightness_var = tk.StringVar(value=settings["brightness"])
         self.brightness_entry = ttk.Entry(
             self.process_frame, textvariable=self.brightness_var, width=10
         )
+        self.brightness_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
 
-        # 输出格式选项
+    def create_output_options_section(self):
+        """创建输出设置部分"""
+        # 创建框架
         self.output_format_frame = ttk.LabelFrame(
             self.root, text="输出设置", padding=10
         )
+        self.output_format_frame.grid(
+            row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
+        )
 
+        # 输出格式
         self.output_format_label = ttk.Label(self.output_format_frame, text="输出格式:")
+        self.output_format_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
         self.output_format_var = tk.StringVar(value=settings["output_format"])
         self.output_format_combo = ttk.Combobox(
             self.output_format_frame,
@@ -91,75 +161,39 @@ class ImageProcessorGUI:
             state="readonly",
             width=10,
         )
+        self.output_format_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
+        # 删除临时PNG选项
         self.delete_png_var = tk.StringVar(value=settings["delete_temporary_png"])
         self.delete_png_check = ttk.Checkbutton(
             self.output_format_frame,
             text="删除临时PNG文件",
             variable=self.delete_png_var,
         )
+        self.delete_png_check.grid(row=0, column=2, padx=20, pady=5, sticky="w")
 
-        # 控制按钮
+    def create_control_buttons_section(self):
+        """创建控制按钮部分"""
+        # 创建框架
         self.control_frame = ttk.Frame(self.root)
+        self.control_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+
+        # 开始处理按钮
         self.process_btn = ttk.Button(
             self.control_frame,
             text="开始处理",
             command=self.start_processing,
             style="Accent.TButton",
         )
-
-    def setup_layout(self):
-        # 处理选项布局
-        self.process_frame.grid(
-            row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
-        )
-
-        self.trim_check.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        self.use_percent_size.grid(
-            row=0, column=2, columnspan=3, padx=5, pady=5, sticky="w"
-        )
-        self.size_label.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        self.size_x_label.grid(row=2, column=0, padx=5, pady=2, sticky="w")
-        self.size_x_entry.grid(row=2, column=1, padx=5, pady=2, sticky="w")
-        self.size_y_label.grid(row=2, column=2, padx=20, pady=2, sticky="w")
-        self.size_y_entry.grid(row=2, column=3, padx=5, pady=2, sticky="w")
-
-        self.sharp_label.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="w")
-        self.sharp_percent_label.grid(row=5, column=0, padx=5, pady=2, sticky="w")
-        self.sharp_percent_entry.grid(row=5, column=1, padx=5, pady=2, sticky="w")
-        self.sharp_radius_label.grid(row=5, column=2, padx=20, pady=2, sticky="w")
-        self.sharp_radius_entry.grid(row=5, column=3, padx=5, pady=2, sticky="w")
-        self.sharp_threshold_label.grid(row=6, column=0, padx=5, pady=2, sticky="w")
-        self.sharp_threshold_entry.grid(row=6, column=1, padx=5, pady=2, sticky="w")
-
-        self.brightness_lable.grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        self.brightness_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
-
-        self.process_frame.columnconfigure(3, weight=1)
-
-        # 输出设置布局
-        self.output_format_frame.grid(
-            row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew"
-        )
-        self.output_format_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.output_format_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        self.delete_png_check.grid(row=0, column=2, padx=20, pady=5, sticky="w")
-
-        # 控制按钮布局
-        self.control_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
         self.process_btn.pack(side=tk.LEFT, padx=5)
 
-        # 配置行列权重
-        self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(5, weight=1)
-
-        # 设置样式
+    def setup_styles(self):
+        """设置控件样式"""
         style = ttk.Style()
         style.configure("Accent.TButton", font=("Arial", 10, "bold"))
 
     def start_processing(self):
-        # 开始处理
+        """开始处理图片"""
         self.process_btn.config(state=tk.DISABLED)
 
         # 在新线程中处理，避免界面卡顿
@@ -168,7 +202,7 @@ class ImageProcessorGUI:
         thread.start()
 
     def process_images(self):
-        # 获取输入文件
+        """处理所有图片"""
         input_subdir = self.get_input_files()
 
         # 处理所有图片
@@ -183,9 +217,11 @@ class ImageProcessorGUI:
         print("\n✅ 所有图片处理完成！")
 
     def processing_done(self):
+        """处理完成后恢复按钮状态"""
         self.process_btn.config(state=tk.NORMAL)
 
     def get_input_files(self):
+        """获取输入文件"""
         input_subdir = {"imgs": []}
 
         for item in config.input_path.iterdir():
@@ -205,6 +241,7 @@ class ImageProcessorGUI:
         return input_subdir
 
     def load_image(self, file):
+        """加载图片"""
         with Image.open(file) as img:
             new_img = img.copy()
 
@@ -230,6 +267,7 @@ class ImageProcessorGUI:
         return new_img
 
     def set_img_size(self, img, w, h):
+        """设置图片尺寸"""
         w, h = int(w), int(h)
 
         if self.use_percent_size_var.get():
@@ -237,8 +275,6 @@ class ImageProcessorGUI:
             h /= 100
 
         width, height = img.size
-        new_width = new_height = 1
-
         new_width = round(width * w)
         new_height = round(height * h)
 
@@ -247,7 +283,7 @@ class ImageProcessorGUI:
         return img.resize((new_width, new_height))
 
     def set_img_sharpen(self, img, percent, radius, threshold):
-        """锐化"""
+        """锐化图片"""
         sharpened = img.filter(
             ImageFilter.UnsharpMask(int(radius), int(percent), int(threshold))
         )
@@ -256,7 +292,7 @@ class ImageProcessorGUI:
         return sharpened
 
     def set_img_brightness(self, img, brightness_factor):
-        """亮度"""
+        """调整图片亮度"""
         try:
             enhancer = ImageEnhance.Brightness(img)
             compensated = enhancer.enhance(float(brightness_factor))
@@ -268,12 +304,11 @@ class ImageProcessorGUI:
             return img
 
     def process_img(self, name, img, in_dir):
+        """处理单个图片"""
         output_img = None
 
         # 应用各项处理
-        img = self.set_img_size(
-            img, self.size_x_var.get(), self.size_y_var.get()
-        )
+        img = self.set_img_size(img, self.size_x_var.get(), self.size_y_var.get())
 
         sharp_percent = self.sharp_percent_var.get()
         if sharp_percent:

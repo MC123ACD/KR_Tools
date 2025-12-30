@@ -1,15 +1,9 @@
-import traceback, config
-from pathlib import Path
+import traceback, config, hashlib
 from PIL import Image, ImageDraw
-import math, random, hashlib, json
-from collections import namedtuple
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
 
 setting = config.setting["generate_atlas"]
 
-# 定义数据结构：
-# v4: 四维向量，表示裁剪边界 (left, top, right, bottom)
-v4 = namedtuple("v4", ["left", "top", "right", "bottom"])
 MINAREA = "min_area"  # 最小面积策略标识
 
 
@@ -25,19 +19,11 @@ def try_merge_rectangles(rect1, rect2):
         合并后的矩形或None（如果无法合并）
     """
     # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
-    if (
-        rect1.y == rect2.y
-        and rect1.h == rect2.h
-        and rect1.x + rect1.w == rect2.x
-    ):
+    if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
         return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
 
     # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
-    if (
-        rect1.x == rect2.x
-        and rect1.w == rect2.w
-        and rect1.y + rect1.h == rect2.y
-    ):
+    if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
         return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
 
     return None
@@ -253,9 +239,7 @@ def fit(rectangles, width, height):
         rect = in_free_rect = free_rect_idx = None
 
         # 寻找最佳放置位置
-        free_rectangles, rect_data = find_position(
-            free_rectangles, w, h, min_rectangle
-        )
+        free_rectangles, rect_data = find_position(free_rectangles, w, h, min_rectangle)
 
         if rect_data:
             rect, in_free_rect, free_rect_idx = rect_data
@@ -497,12 +481,14 @@ def write_lua_data(images, results, atlas_name):
             a(f"\t\t\t{img["origin_height"]}")
             a("\t\t},")
 
+            tleft, ttop, tright, tbottom = trim
+
             # 裁剪信息
             a("\t\ttrim = {")
-            a(f"\t\t\t{trim.left},")
-            a(f"\t\t\t{trim.top},")
-            a(f"\t\t\t{trim.right},")
-            a(f"\t\t\t{trim.bottom}")
+            a(f"\t\t\t{tleft},")
+            a(f"\t\t\t{ttop},")
+            a(f"\t\t\t{tright},")
+            a(f"\t\t\t{tbottom}")
             a("\t\t},")
 
             # 图集尺寸
@@ -580,7 +566,7 @@ def process_img(img):
     # 裁剪图片
     new_img = img.crop(bbox)
 
-    trim_data = v4(int(left), int(top), int(right), int(bottom))
+    trim_data = (int(left), int(top), int(right), int(bottom))
 
     return new_img, trim_data
 

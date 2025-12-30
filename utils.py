@@ -28,7 +28,7 @@ def run_decompiler(file_path, output_path="output"):
 
     return result
 
-def run_texconv(format, file_path, output_path="output"):
+def run_texconv(format, file, output_path="output"):
     result = subprocess.run(
         [
             "texconv.exe",
@@ -37,7 +37,7 @@ def run_texconv(format, file_path, output_path="output"):
             "-y",  # 覆盖已存在文件
             "-o",
             str(output_path),
-            str(file_path),
+            str(file),
         ],
         capture_output=True,
         text=True,

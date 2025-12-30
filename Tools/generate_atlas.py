@@ -1,9 +1,9 @@
-import traceback, subprocess, config
+import traceback, config
 from pathlib import Path
 from PIL import Image, ImageDraw
 import math, random, hashlib, json
 from collections import namedtuple
-from utils import is_simple_key
+from utils import is_simple_key, run_texconv
 
 setting = config.setting["generate_atlas"]
 
@@ -58,7 +58,7 @@ class TexturePacker:
             rect = in_free_rect = free_rect_idx = None
 
             # 寻找最佳放置位置
-            d = self.find_position(w, h, min_rectangle)
+            d, invalid_rectangles = self.find_position(w, h, min_rectangle)
 
             if d:
                 rect, in_free_rect, free_rect_idx = d
@@ -88,6 +88,7 @@ class TexturePacker:
             最佳放置信息 (矩形, 所在空闲区域, 空闲区域索引) 或 None
         """
         new_free_rectangles = []
+        invalid_rectangles = []
         best_score = float("inf")  # 最佳分数（越小越好）
         best_rect = None
         in_free_rect = None
@@ -101,6 +102,7 @@ class TexturePacker:
                 or free_rect.width < min_rectangle[1]
                 or free_rect.height < min_rectangle[2]
             ):
+                invalid_rectangles.append(free_rect)
                 continue
             # 跳过无法容纳当前矩形的区域
             elif free_rect.width < width or free_rect.height < height:
@@ -125,7 +127,7 @@ class TexturePacker:
         self.free_rectangles = new_free_rectangles
 
         if best_rect:
-            return best_rect, in_free_rect, in_free_rect_idx
+            return (best_rect, in_free_rect, in_free_rect_idx), invalid_rectangles
 
         return None
 
@@ -306,7 +308,6 @@ class CreateAtlas:
         """
         self.images = images
         self.atlas_name = atlas_name
-        self.is_several_atlas = False  # 是否需要多个图集
         self.results = []  # 打包结果
 
     def create_atlas(self, rectangles, idx=1):
@@ -318,14 +319,15 @@ class CreateAtlas:
             idx: 图集索引（用于多图集情况）
         """
         # 计算最优图集尺寸
-        atlas_size, remaining_rect = self.calculate_optimal_size(rectangles, idx)
+        atlas_size, remaining_rect, is_several_atlas = self.calculate_optimal_size(
+            rectangles, idx
+        )
 
         # 使用MaxRects算法进行排列
         self.maxrects_packing(rectangles, atlas_size, idx)
 
         # 如果还有剩余矩形，创建下一个图集
-        if self.is_several_atlas:
-            self.is_several_atlas = False
+        if is_several_atlas:
             self.create_atlas(remaining_rect, idx + 1)
 
     def maxrects_packing(self, rectangles, atlas_size, idx):
@@ -371,6 +373,7 @@ class CreateAtlas:
         remaining_rect = None
         last_efficiency = last_remaining_rect = None
         last_size = None
+        is_several_atlas = False
 
         # 尝试的尺寸序列
         sizes = setting["sizes"]
@@ -390,7 +393,7 @@ class CreateAtlas:
                     best_size = size
                 else:
                     best_size = last_size
-                    self.is_several_atlas = True
+                    is_several_atlas = True
 
                     efficiency, remaining_rect = last_efficiency, last_remaining_rect
 
@@ -405,14 +408,14 @@ class CreateAtlas:
                 )
 
                 best_size = size
-                self.is_several_atlas = True
+                is_several_atlas = True
 
             last_size = size
             last_efficiency, last_remaining_rect = efficiency, remaining_rect
 
         print(f"🏁 计算{self.atlas_name}-{idx}尺寸: {best_size[0]}x{best_size[1]}")
 
-        return best_size, remaining_rect
+        return best_size, remaining_rect, is_several_atlas
 
     def simulate_packing_efficiency(self, rectangles, size):
         """
@@ -458,19 +461,7 @@ class CreateAtlas:
         output_format = f"BC{bc}_UNORM"
 
         # 使用texconv工具进行格式转换
-        subprocess.run(
-            [
-                "texconv.exe",
-                "-f",
-                output_format,  # BC格式
-                "-y",  # 覆盖已存在文件
-                "-o",
-                str(config.output_path),
-                str(output_file),
-            ],
-            capture_output=True,
-            text=True,
-        )
+        run_texconv(output_format, output_file, config.output_path)
 
         # 删除临时PNG文件
         if setting["delete_temporary_png"]:

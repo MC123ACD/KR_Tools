@@ -28,20 +28,44 @@ def run_decompiler(file_path, output_path="output"):
 
     return result
 
-def run_texconv(format, file, output_path="output"):
+
+def save_to_dds(target_file, output_path, bc, delete_temporary_png=False):
+    """
+    将PNG图片转换为DDS格式
+
+    Args:
+        output_file: 输出文件路径
+        bc: BC压缩格式 (1-7)
+    """
+    all_bc = {
+        "bc3": "BC3",
+        "bc7": "BC7",
+    }
+
+    bc = all_bc[bc]
+
+    print(f"✅ 保存为DDS {bc}格式: {target_file.stem}.dds...\n")
+
+    output_format = f"{bc}_UNORM"
+
     result = subprocess.run(
         [
             "texconv.exe",
             "-f",
-            format,  # BC格式
+            output_format,  # BC格式
             "-y",  # 覆盖已存在文件
             "-o",
-            str(output_path),
-            str(file),
+            output_path,
+            target_file,
         ],
         capture_output=True,
         text=True,
     )
+
+    # 删除临时PNG文件
+    if delete_temporary_png:
+        Path(target_file).unlink()
+        f"🗑️ 已删除临时PNG文件: {target_file.name}"
 
     return result
 

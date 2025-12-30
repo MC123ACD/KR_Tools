@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
 import tkinter as tk
 from tkinter import ttk
-from utils import run_texconv
+from utils import save_to_dds
 
 
 settings = config.setting["process_images"]
@@ -213,7 +213,7 @@ class ImageProcessorGUI:
         self.process_btn = ttk.Button(
             self.control_frame,
             text="开始处理",
-            command=self.start_processing,
+            command=self.process_images,
             style="Accent.TButton",
         )
         self.process_btn.pack(side=tk.LEFT, padx=5)
@@ -238,10 +238,6 @@ class ImageProcessorGUI:
         self.mirror_vertical_var.set(preset["mirror_vertical"])
         self.output_format_var.set(preset["output_format"])
         self.delete_png_var.set(preset["delete_temporary_png"])
-
-    def start_processing(self):
-        """开始处理图片"""
-        self.process_images()
 
     def process_images(self):
         """处理所有图片"""
@@ -390,33 +386,18 @@ class ImageProcessorGUI:
         # 保存图片
         output_format = self.output_format_var.get()
 
+        # 先保存为PNG临时文件
+        img.save(output_img)
+
         if output_format == "png":
-            img.save(output_img)
             print(f"✅ 保存为PNG: {name}")
-        elif output_format in ["bc3", "bc7"]:
-            # 先保存为PNG临时文件
-            temp_png = output_img.with_suffix(".png")
-            img.save(temp_png)
-            self.save_to_dds(temp_png, int(output_format[-1]))
-        else:
-            img.save(output_img)
-            print(f"🖼️ 保存图片: {name}")
-
-    def save_to_dds(self, output_file, bc):
-        """将PNG图片转换为DDS格式"""
-        print(f"✅ 转换为DDS BC{bc}格式: {output_file.name}...")
-
-        output_format = f"BC{bc}_UNORM"
-
-        # 使用texconv工具进行格式转换
-        run_texconv(output_format, output_file, config.output_path)
-
-        print(f"✅ DDS转换成功: {output_file.stem}.dds")
-
-        # 删除临时PNG文件
-        if self.delete_png_var.get():
-            Path(output_file).unlink()
-            print(f"🗑️  已删除临时PNG文件: {output_file.name}")
+        elif output_format == "bc3" or output_format == "bc7":
+            save_to_dds(
+                output_img,
+                config.output_path,
+                output_format,
+                settings["delete_temporary_png"],
+            )
 
 
 def main(root):

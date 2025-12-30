@@ -3,16 +3,13 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 import math, random, hashlib, json
 from collections import namedtuple
-from utils import is_simple_key, save_to_dds, Vector
+from utils import is_simple_key, save_to_dds, Vector, Rectangle
 
 setting = config.setting["generate_atlas"]
 
 # 定义数据结构：
-# v2: 二维向量，表示位置坐标 (x, y)
 # v4: 四维向量，表示裁剪边界 (left, top, right, bottom)
-# Rectangle: 矩形区域，包含位置和尺寸 (x, y, width, height)
 v4 = namedtuple("v4", ["left", "top", "right", "bottom"])
-Rectangle = namedtuple("Rectangle", ["x", "y", "width", "height"])
 MINAREA = "min_area"  # 最小面积策略标识
 
 
@@ -30,18 +27,18 @@ def try_merge_rectangles(rect1, rect2):
     # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
     if (
         rect1.y == rect2.y
-        and rect1.height == rect2.height
-        and rect1.x + rect1.width == rect2.x
+        and rect1.h == rect2.h
+        and rect1.x + rect1.w == rect2.x
     ):
-        return Rectangle(rect1.x, rect1.y, rect1.width + rect2.width, rect1.height)
+        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
 
     # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
     if (
         rect1.x == rect2.x
-        and rect1.width == rect2.width
-        and rect1.y + rect1.height == rect2.y
+        and rect1.w == rect2.w
+        and rect1.y + rect1.h == rect2.y
     ):
-        return Rectangle(rect1.x, rect1.y, rect1.width, rect1.height + rect2.height)
+        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
 
     return None
 
@@ -58,7 +55,7 @@ def calculate_score(rect, strategy):
         score: 分数值
     """
     if strategy == MINAREA:
-        return rect.width * rect.height  # 使用面积作为评分
+        return rect.w * rect.h  # 使用面积作为评分
 
     return 0
 
@@ -76,39 +73,33 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     bottom = None
 
     # 检查右侧是否还有剩余空间
-    if used_rect.x + used_rect.width != free_rect.x + free_rect.width:
-        width = free_rect.x + free_rect.width - (used_rect.x + used_rect.width)
-        height = free_rect.height
-
+    if used_rect.x + used_rect.w != free_rect.x + free_rect.w:
         right = Rectangle(
-            x=used_rect.x + used_rect.width,
-            y=free_rect.y,
-            width=width,
-            height=height,
+            used_rect.x + used_rect.w,
+            free_rect.y,
+            free_rect.x + free_rect.w - (used_rect.x + used_rect.w),
+            free_rect.h,
         )
 
     # 检查下方是否还有剩余空间
-    if used_rect.y + used_rect.height != free_rect.y + free_rect.height:
-        width = used_rect.width
-        height = free_rect.y + free_rect.height - (used_rect.y + used_rect.height)
-
+    if used_rect.y + used_rect.h != free_rect.y + free_rect.h:
         bottom = Rectangle(
-            x=used_rect.x,
-            y=used_rect.y + used_rect.height,
-            width=width,
-            height=height,
+            used_rect.x,
+            used_rect.y + used_rect.h,
+            used_rect.w,
+            free_rect.y + free_rect.h - (used_rect.y + used_rect.h),
         )
 
     # 处理分割后的区域
     if right and bottom:
         # 调整区域边界避免重叠
-        if right.width * right.height < free_rect.width * bottom.height:
+        if right.w * right.h < free_rect.w * bottom.h:
             right, bottom = Rectangle(
                 right.x,
                 right.y,
-                right.width,
-                right.height - (bottom.height),
-            ), Rectangle(bottom.x, bottom.y, free_rect.width, bottom.height)
+                right.w,
+                right.h - (bottom.h),
+            ), Rectangle(bottom.x, bottom.y, free_rect.w, bottom.h)
 
         # 更新空闲区域列表
         free_rectangles[free_rect_idx] = right
@@ -205,14 +196,14 @@ def find_position(free_rectangles, width, height, min_rectangle):
         # 删除过小的空闲区域
         if (
             free_rect == "removed"
-            or free_rect.width < min_rectangle[1]
-            or free_rect.height < min_rectangle[2]
+            or free_rect.w < min_rectangle[1]
+            or free_rect.h < min_rectangle[2]
         ):
             invalid_rectangles.append(free_rect)
             continue
 
         # 跳过无法容纳当前矩形的区域
-        if free_rect.width < width or free_rect.height < height:
+        if free_rect.w < width or free_rect.h < height:
             new_free_rectangles.append(free_rect)
             continue
 
@@ -234,9 +225,9 @@ def find_position(free_rectangles, width, height, min_rectangle):
     free_rectangles = new_free_rectangles
 
     if best_rect:
-        return best_rect, in_free_rect, in_free_rect_idx
+        return free_rectangles, (best_rect, in_free_rect, in_free_rect_idx)
 
-    return None
+    return free_rectangles, None
 
 
 def fit(rectangles, width, height):
@@ -262,10 +253,12 @@ def fit(rectangles, width, height):
         rect = in_free_rect = free_rect_idx = None
 
         # 寻找最佳放置位置
-        d = find_position(free_rectangles, w, h, min_rectangle)
+        free_rectangles, rect_data = find_position(
+            free_rectangles, w, h, min_rectangle
+        )
 
-        if d:
-            rect, in_free_rect, free_rect_idx = d
+        if rect_data:
+            rect, in_free_rect, free_rect_idx = rect_data
 
             # 分割剩余空间
             split_free_rectangle(free_rectangles, in_free_rect, rect, free_rect_idx)
@@ -338,32 +331,45 @@ def calculate_optimal_size(rectangles, images):
 
     # 遍历尺寸寻找最佳匹配
     for size in sizes:
+        is_first = size == sizes[0]
+        is_end = size == sizes[-1]
+
         # 模拟打包并计算利用率
         results = simulate_packing_efficiency(rectangles, size)
 
-        used_area = sum(img[1].width * img[1].height for img in results)
+        if len(results) < len(rectangles):
+            remaining_rect = [
+                rect
+                for rect in rectangles
+                if rect[0] not in set([r[0] for r in results])
+            ]
+
+            if is_end:
+                best_size = size
+                is_several_atlas = True
+                break
+
+            continue
+
+        used_area = sum(img[1].w * img[1].h for img in results)
         total_area = size.x * size.y
 
         efficiency = used_area / total_area
 
         # 利用率较低使用多图集打包
         if 0 < efficiency < setting["trigger_several_efficiency"]:
-            if size == sizes[0]:
+            if is_first:
                 best_size = size
             else:
                 best_size = last_size
                 is_several_atlas = True
 
                 efficiency, remaining_rect = last_efficiency, last_remaining_rect
-
             break
         # 利用率可接受，使用当前尺寸
         elif efficiency > setting["trigger_several_efficiency"]:
             best_size = size
             break
-        elif efficiency == 0 and size == sizes[-1]:
-            best_size = size
-            is_several_atlas = True
 
         last_size = size
         last_efficiency, last_remaining_rect = efficiency, remaining_rect
@@ -440,8 +446,8 @@ def write_atlas(images, result):
         # 在左上角添加白色像素（可能用于特殊用途，如血条）
         if setting["add_white_rect"]:
             draw = ImageDraw.Draw(atlas)
-            w, h = setting["white_rect_size"]
-            draw.rectangle([0, 0, w, h], "white", None, 0)
+            ww, wh = setting["white_rect_size"]
+            draw.rectangle([0, 0, ww, wh], "white", None, 0)
 
         # 保存PNG文件
         atlas.save(output_file)

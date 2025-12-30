@@ -234,7 +234,7 @@ def find_position(free_rectangles, width, height, min_rectangle):
     free_rectangles = new_free_rectangles
 
     if best_rect:
-        return (best_rect, in_free_rect, in_free_rect_idx), invalid_rectangles
+        return best_rect, in_free_rect, in_free_rect_idx
 
     return None
 
@@ -262,7 +262,7 @@ def fit(rectangles, width, height):
         rect = in_free_rect = free_rect_idx = None
 
         # 寻找最佳放置位置
-        d, invalid_rectangles = find_position(free_rectangles, w, h, min_rectangle)
+        d = find_position(free_rectangles, w, h, min_rectangle)
 
         if d:
             rect, in_free_rect, free_rect_idx = d
@@ -289,10 +289,8 @@ def maxrects_packing(rectangles, atlas_size):
         atlas_size: 图集尺寸 (width, height)
         idx: 图集索引
     """
-    atlas_w, atlas_h = atlas_size
-
     # 执行排列算法
-    results = fit(rectangles, atlas_w, atlas_h)
+    results = fit(rectangles, atlas_size.x, atlas_size.y)
 
     return results
 
@@ -334,61 +332,41 @@ def calculate_optimal_size(rectangles, images):
     # 尝试的尺寸序列
     sizes = setting["sizes"]
 
-    sizes = [Vector(s[0], s[1]) for s in sizes]
+    sizes = [Vector(s[0], s[1], int) for s in sizes]
 
     best_size = sizes[0]
 
     # 遍历尺寸寻找最佳匹配
     for size in sizes:
-        is_first = size == sizes[0]
-        is_end = size == sizes[-1]
-
         # 模拟打包并计算利用率
         results = simulate_packing_efficiency(rectangles, size)
 
-        # 如果有矩形无法排列
-        if len(results) < len(rectangles):
-            remaining_rect = [
-                rect
-                for rect in rectangles
-                if rect[0] not in set([r[0] for r in results])
-            ]
-
-        if remaining_rect:
-            if is_end:
-                best_size = size
-                is_several_atlas = True
-                break
-
-            last_size, last_efficiency, last_remaining_rect = (
-                size,
-                efficiency,
-                last_remaining_rect,
-            )
-            continue
-
-        # 计算空间利用率
-        used_area = sum(img["width"] * img["height"] for img in images)
+        used_area = sum(img[1].width * img[1].height for img in results)
         total_area = size.x * size.y
 
         efficiency = used_area / total_area
 
-        if (
-            efficiency < setting["trigger_several_efficiency"]
-            and is_first
-            or efficiency > setting["trigger_several_efficiency"]
-        ):
+        # 利用率较低使用多图集打包
+        if 0 < efficiency < setting["trigger_several_efficiency"]:
+            if size == sizes[0]:
+                best_size = size
+            else:
+                best_size = last_size
+                is_several_atlas = True
+
+                efficiency, remaining_rect = last_efficiency, last_remaining_rect
+
+            break
+        # 利用率可接受，使用当前尺寸
+        elif efficiency > setting["trigger_several_efficiency"]:
             best_size = size
             break
+        elif efficiency == 0 and size == sizes[-1]:
+            best_size = size
+            is_several_atlas = True
 
-        # 利用率过低回溯上一次信息
-        is_several_atlas = True
-        best_size = last_size
-
-        efficiency, remaining_rect = (
-            last_efficiency,
-            last_remaining_rect,
-        )
+        last_size = size
+        last_efficiency, last_remaining_rect = efficiency, remaining_rect
 
     return best_size, remaining_rect, is_several_atlas
 
@@ -401,7 +379,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         rectangles: 矩形数据列表
         idx: 图集索引（用于多图集情况）
     """
-    is_several_atlas = False
+    is_several_atlas = True
     idx = 1
     finish_results = []
 
@@ -428,13 +406,14 @@ def create_atlas(baisic_atlas_name, rectangles, images):
 
         # 转换结果为实际位置信息
         for rect_id, rect in results:
-            images[rect_id]["pos"] = Vector(rect.x, rect.y)
+            images[rect_id]["pos"] = Vector(rect.x, rect.y, int)
 
         rectangles = remaining_rect
 
         idx += 1
 
     return finish_results
+
 
 def write_atlas(images, result):
     """
@@ -445,7 +424,7 @@ def write_atlas(images, result):
     """
     # 创建空白图集
     with Image.new(
-        "RGBA", (result["atlas_size"][0], result["atlas_size"][1]), (0, 0, 0, 0)
+        "RGBA", (result["atlas_size"].x, result["atlas_size"].y), (0, 0, 0, 0)
     ) as atlas:
         output_file = config.output_path / f"{result["name"]}.png"
 
@@ -522,8 +501,8 @@ def write_lua_data(images, results, atlas_name):
 
             # 图集尺寸
             a("\t\ta_size = {")
-            a(f"\t\t\t{result["atlas_size"][0]},")
-            a(f"\t\t\t{result["atlas_size"][1]}")
+            a(f"\t\t\t{result["atlas_size"].x},")
+            a(f"\t\t\t{result["atlas_size"].y}")
             a("\t\t},")
 
             # 在图集中的位置和尺寸
@@ -698,7 +677,7 @@ def main():
         rectangles = subdir["rectangles"]
 
         # 执行图集创建流程
-        results = create_atlas(atlas_stem_name, rectangles)
+        results = create_atlas(atlas_stem_name, rectangles, images)
 
         # 输出图集文件
         for result in results:

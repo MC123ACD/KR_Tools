@@ -2,21 +2,25 @@ import traceback, config, hashlib
 from PIL import Image, ImageDraw
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
 
+# 加载生成图集的配置
 setting = config.setting["generate_atlas"]
 
-MINAREA = "min_area"  # 最小面积策略标识
+# 最小面积策略标识
+MINAREA = "min_area"
 
 
 def try_merge_rectangles(rect1, rect2):
     """
-    尝试合并两个矩形
+    尝试合并两个相邻的矩形
+
+    支持水平合并（左右相邻）和垂直合并（上下相邻）
 
     Args:
         rect1: 第一个矩形
         rect2: 第二个矩形
 
     Returns:
-        合并后的矩形或None（如果无法合并）
+        Rectangle: 合并后的矩形，如果无法合并则返回None
     """
     # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
     if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
@@ -31,14 +35,14 @@ def try_merge_rectangles(rect1, rect2):
 
 def calculate_score(rect, strategy):
     """
-    计算矩形区域的分数
+    计算矩形区域的分数，用于选择最佳放置位置
 
     Args:
-        rect: 矩形区域
-        strategy: 评分策略
+        rect: 待评估的矩形区域
+        strategy: 评分策略，目前仅支持最小面积策略
 
     Returns:
-        score: 分数值
+        float: 分数值，分数越小表示越优先选择
     """
     if strategy == MINAREA:
         return rect.w * rect.h  # 使用面积作为评分
@@ -48,12 +52,15 @@ def calculate_score(rect, strategy):
 
 def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     """
-    分割空闲区域
+    将空闲区域分割为剩余空间
+
+    当在一个空闲区域中放置矩形后，将剩余空间分割为右侧和下方的两个新空闲区域
 
     Args:
-        free_rect: 原始空闲区域
-        used_rect: 已使用的区域
-        free_rect_idx: 空闲区域索引
+        free_rectangles: 当前空闲区域列表
+        free_rect: 被使用的空闲区域
+        used_rect: 已放置的矩形区域
+        free_rect_idx: 被使用的空闲区域在列表中的索引
     """
     right = None
     bottom = None
@@ -95,23 +102,19 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     elif bottom:
         free_rectangles[free_rect_idx] = bottom
     else:
-        free_rectangles[free_rect_idx] = Rectangle(
-            0,
-            0,
-            0,
-            0,
-        )
+        # 如果空间完全被使用，标记为空矩形
+        free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0)
 
 
 def merge_free_rectangles(rectangles):
     """
-    合并相邻的空闲矩形
+    合并相邻的空闲矩形，优化空间利用
 
     Args:
         rectangles: 待合并的矩形列表
 
     Returns:
-        合并后的矩形列表
+        list: 合并后的矩形列表
     """
     changed = True
 
@@ -160,15 +163,16 @@ def merge_free_rectangles(rectangles):
 
 def find_position(free_rectangles, width, height, min_rectangle):
     """
-    寻找最佳放置位置
+    在空闲区域中寻找最佳放置位置
 
     Args:
-        width: 矩形宽度
-        height: 矩形高度
-        min_rectangle: 最小矩形尺寸
+        free_rectangles: 当前空闲区域列表
+        width: 待放置矩形的宽度
+        height: 待放置矩形的高度
+        min_rectangle: 所有矩形中的最小尺寸，用于优化判断
 
     Returns:
-        最佳放置信息 (矩形, 所在空闲区域, 空闲区域索引) 或 None
+        tuple: (更新后的空闲区域列表, (最佳矩形, 所在空闲区域, 空闲区域索引)) 或 None
     """
     new_free_rectangles = []
     invalid_rectangles = []
@@ -218,17 +222,20 @@ def find_position(free_rectangles, width, height, min_rectangle):
 
 def fit(rectangles, width, height):
     """
-    使用MaxRects算法排列矩形
+    使用MaxRects算法在指定尺寸的画布上排列矩形
 
     Args:
         rectangles: 待排列的矩形列表，格式为[(id, width, height), ...]
+        width: 画布宽度
+        height: 画布高度
 
     Returns:
-        results: 排列结果列表，格式为[(rect_id, Rectangle), ...]
+        list: 排列结果列表，格式为[(rect_id, Rectangle), ...]
     """
     border = setting["border"]
     results = []
     used_rectangles = []
+    # 初始化空闲区域为整个画布（考虑边框）
     free_rectangles = [Rectangle(border, border, width - border, height - border)]
 
     # 获取最小的矩形（用于优化判断）
@@ -259,12 +266,14 @@ def fit(rectangles, width, height):
 
 def maxrects_packing(rectangles, atlas_size):
     """
-    使用MaxRects算法进行排列
+    使用MaxRects算法进行矩形排列
 
     Args:
-        rectangles: 矩形数据列表
-        atlas_size: 图集尺寸 (width, height)
-        idx: 图集索引
+        rectangles: 矩形数据列表，格式为[(id, width, height), ...]
+        atlas_size: 图集尺寸 Vector(width, height)
+
+    Returns:
+        list: 排列结果列表
     """
     # 执行排列算法
     results = fit(rectangles, atlas_size.x, atlas_size.y)
@@ -278,11 +287,10 @@ def simulate_packing_efficiency(rectangles, size):
 
     Args:
         rectangles: 矩形数据列表
-        size: 模拟大小
+        size: 模拟的图集尺寸
 
     Returns:
-        efficiency: 空间利用率 (0-1)
-        remaining_rect: 无法排列的矩形列表
+        list: 排列结果列表
     """
     # 创建临时打包器进行模拟
     results = fit(rectangles, size.x, size.y)
@@ -294,13 +302,14 @@ def calculate_optimal_size(rectangles, images):
     """
     计算最优的图集尺寸
 
+    通过尝试不同尺寸，找到空间利用率最高的图集尺寸
+
     Args:
         rectangles: 矩形数据列表
-        idx: 图集索引
+        images: 图片数据字典
 
     Returns:
-        best_size: 最佳尺寸 (width, height)
-        remaining_rect: 剩余未排列的矩形
+        tuple: (最佳尺寸, 剩余未排列的矩形列表, 是否使用多图集)
     """
     remaining_rect = is_several_atlas = last_size = last_efficiency = (
         last_remaining_rect
@@ -308,7 +317,6 @@ def calculate_optimal_size(rectangles, images):
 
     # 尝试的尺寸序列
     sizes = setting["sizes"]
-
     sizes = [Vector(s[0], s[1], int) for s in sizes]
 
     best_size = sizes[0]
@@ -322,6 +330,7 @@ def calculate_optimal_size(rectangles, images):
         results = simulate_packing_efficiency(rectangles, size)
 
         if len(results) < len(rectangles):
+            # 有矩形无法放入，记录剩余矩形
             remaining_rect = [
                 rect
                 for rect in rectangles
@@ -329,25 +338,25 @@ def calculate_optimal_size(rectangles, images):
             ]
 
             if is_end:
+                # 已经是最大尺寸，仍有矩形无法放入
                 best_size = size
                 is_several_atlas = True
                 break
 
             continue
 
+        # 计算空间利用率
         used_area = sum(img[1].w * img[1].h for img in results)
         total_area = size.x * size.y
-
         efficiency = used_area / total_area
 
-        # 利用率较低使用多图集打包
+        # 利用率较低，考虑使用多图集打包
         if 0 < efficiency < setting["trigger_several_efficiency"]:
             if is_first:
                 best_size = size
             else:
                 best_size = last_size
                 is_several_atlas = True
-
                 efficiency, remaining_rect = last_efficiency, last_remaining_rect
             break
         # 利用率可接受，使用当前尺寸
@@ -355,6 +364,7 @@ def calculate_optimal_size(rectangles, images):
             best_size = size
             break
 
+        # 记录当前状态，用于后续回溯
         last_size = size
         last_efficiency, last_remaining_rect = efficiency, remaining_rect
 
@@ -365,17 +375,25 @@ def create_atlas(baisic_atlas_name, rectangles, images):
     """
     创建图集
 
+    可能生成多个图集（如果图片无法全部放入一个图集）
+
     Args:
+        baisic_atlas_name: 图集基础名称
         rectangles: 矩形数据列表
-        idx: 图集索引（用于多图集情况）
+        images: 图片数据字典
+
+    Returns:
+        list: 所有生成图集的结果信息列表
     """
     is_several_atlas = True
     idx = 1
     finish_results = []
 
     while is_several_atlas:
+        # 生成图集名称（多图集时添加序号）
         atlas_name = baisic_atlas_name + f"-{idx}"
 
+        # 计算最优尺寸
         atlas_size, remaining_rect, is_several_atlas = calculate_optimal_size(
             rectangles, images
         )
@@ -394,12 +412,12 @@ def create_atlas(baisic_atlas_name, rectangles, images):
             }
         )
 
-        # 转换结果为实际位置信息
+        # 更新图片位置信息
         for rect_id, rect in results:
             images[rect_id]["pos"] = Vector(rect.x, rect.y, int)
 
+        # 准备下一轮打包（如果还有剩余矩形）
         rectangles = remaining_rect
-
         idx += 1
 
     return finish_results
@@ -410,13 +428,14 @@ def write_atlas(images, result):
     创建并保存图集图片
 
     Args:
+        images: 图片数据字典
         result: 打包结果数据
     """
     # 创建空白图集
     with Image.new(
         "RGBA", (result["atlas_size"].x, result["atlas_size"].y), (0, 0, 0, 0)
     ) as atlas:
-        output_file = config.output_path / f"{result["name"]}.png"
+        output_file = config.output_path / f"{result['name']}.png"
 
         # 将所有图片粘贴到图集上
         for img_id in result["rectangles_id"]:
@@ -427,7 +446,7 @@ def write_atlas(images, result):
                 position = (img_pos.x, img_pos.y)
                 atlas.paste(img_info["image"], position)
 
-        # 在左上角添加白色像素（可能用于特殊用途，如血条）
+        # 在左上角添加白色像素（用于特殊用途，如血条占位）
         if setting["add_white_rect"]:
             draw = ImageDraw.Draw(atlas)
             ww, wh = setting["white_rect_size"]
@@ -436,7 +455,7 @@ def write_atlas(images, result):
         # 保存PNG文件
         atlas.save(output_file)
 
-        # 转换为DDS格式
+        # 转换为DDS格式（如果需要）
         if setting["output_format"] == "bc7" or setting["output_format"] == "bc3":
             save_to_dds(
                 output_file,
@@ -449,10 +468,17 @@ def write_atlas(images, result):
 
 
 def write_lua_data(images, results, atlas_name):
-    """生成Lua格式的图集数据文件"""
-    content = [
-        "return {",
-    ]
+    """
+    生成Lua格式的图集数据文件
+
+    包含每张图片在图集中的位置、尺寸、裁剪等信息
+
+    Args:
+        images: 图片数据字典
+        results: 打包结果列表
+        atlas_name: 图集名称
+    """
+    content = ["return {"]
 
     def a(str):
         content.append(str)
@@ -466,10 +492,11 @@ def write_lua_data(images, results, atlas_name):
 
             # 写入图片数据
             if is_simple_key(img["name"]):
-                a(f"\t{img["name"]} = {{")
+                a(f"\t{img['name']} = {{")
             else:
                 a(f'\t["{img["name"]}"] = {{')
 
+            # 图集文件名
             if setting["output_format"] == "png":
                 a(f'\t\ta_name = "{result["name"]}.png",')
             else:
@@ -477,8 +504,8 @@ def write_lua_data(images, results, atlas_name):
 
             # 原始尺寸
             a(f"\t\tsize = {{")
-            a(f"\t\t\t{img["origin_width"]},")
-            a(f"\t\t\t{img["origin_height"]}")
+            a(f"\t\t\t{img['origin_width']},")
+            a(f"\t\t\t{img['origin_height']}")
             a("\t\t},")
 
             tleft, ttop, tright, tbottom = trim
@@ -493,16 +520,16 @@ def write_lua_data(images, results, atlas_name):
 
             # 图集尺寸
             a("\t\ta_size = {")
-            a(f"\t\t\t{result["atlas_size"].x},")
-            a(f"\t\t\t{result["atlas_size"].y}")
+            a(f"\t\t\t{result['atlas_size'].x},")
+            a(f"\t\t\t{result['atlas_size'].y}")
             a("\t\t},")
 
             # 在图集中的位置和尺寸
             a("\t\tf_quad = {")
             a(f"\t\t\t{pos.x},")
             a(f"\t\t\t{pos.y},")
-            a(f"\t\t\t{img["width"]},")
-            a(f"\t\t\t{img["height"]}")
+            a(f"\t\t\t{img['width']},")
+            a(f"\t\t\t{img['height']}")
             a("\t\t},")
 
             # 相同图片别名
@@ -541,25 +568,25 @@ def process_img(img):
         img: PIL图片对象
 
     Returns:
-        new_img: 裁剪后的图片
-        trim_data: 调整后的裁剪信息
+        tuple: (裁剪后的图片, 裁剪信息元组)
     """
     origin_width = img.width
     origin_height = img.height
 
     left = top = right = bottom = 0
 
-    # 获取Alpha通道
+    # 确保图片有Alpha通道
     if img.mode == "RGB":
         img = img.convert("RGBA")
 
-    alpha = img.getchannel("A")
-
     # 获取非透明区域的边界框
+    alpha = img.getchannel("A")
     bbox = alpha.getbbox()
+
     if bbox:
         left, top, right, bottom = bbox
 
+    # 计算裁剪信息（相对于原始图片）
     right = origin_width - right
     bottom = origin_height - bottom
 
@@ -576,20 +603,21 @@ def get_input_subdir():
     加载输入目录中的所有图片并进行处理
 
     Returns:
-        input_subdir: 按子目录组织的图片数据字典
+        dict: 按子目录组织的图片数据字典
     """
     input_subdir = {}
 
     # 遍历输入目录下的所有子目录
     for item in config.input_path.iterdir():
         hash_groups = {}  # 用于检测重复图片
-        # 遍历子目录中的所有图片文件
+
         if not item.is_dir():
             continue
 
         input_subdir[item.name] = {"images": [], "rectangles": []}
         images = input_subdir[item.name]["images"]
 
+        # 遍历子目录中的所有图片文件
         for image_file in item.iterdir():
             image_file_name = image_file.stem
 
@@ -637,13 +665,13 @@ def get_input_subdir():
 
             padding = setting["padding"]
 
-            # 准备矩形数据用于打包 (id, width, height)
+            # 准备矩形数据用于打包 (id, width+padding, height+padding)
             rectangles = [
                 (i, img["width"] + padding, img["height"] + padding)
                 for i, img in enumerate(images)
             ]
 
-            # 按面积降序排列
+            # 按面积降序排列（MaxRects算法通常先放置大矩形）
             input_subdir[item.name]["rectangles"] = sorted(
                 rectangles, key=lambda r: r[1] * r[2], reverse=True
             )
@@ -652,13 +680,23 @@ def get_input_subdir():
 
 
 def main():
-    """主函数：执行图集生成流程"""
+    """
+    主函数：执行图集生成流程
+
+    流程：
+    1. 加载并处理输入图片
+    2. 为每个子目录创建图集
+    3. 使用MaxRects算法排列图片
+    4. 生成图集图片文件
+    5. 生成Lua数据文件
+    """
     # 加载并处理输入图片
     input_subdir = get_input_subdir()
 
     print("所有图片加载完毕\n")
 
     if not input_subdir:
+        print("未找到任何图片")
         return
 
     # 为每个子目录创建图集
@@ -675,6 +713,7 @@ def main():
         for result in results:
             write_atlas(images, result)
 
+        # 生成Lua数据文件
         write_lua_data(images, results, atlas_stem_name)
 
         print(f"{atlas_stem_name}图集生成完毕\n")

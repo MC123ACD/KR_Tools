@@ -329,6 +329,11 @@ def calculate_optimal_size(rectangles, images):
         # 模拟打包并计算利用率
         results = simulate_packing_efficiency(rectangles, size)
 
+        # 计算空间利用率
+        used_area = sum(img[1].w * img[1].h for img in results)
+        total_area = size.x * size.y
+        efficiency = used_area / total_area
+
         if len(results) < len(rectangles):
             # 有矩形无法放入，记录剩余矩形
             remaining_rect = [
@@ -343,12 +348,11 @@ def calculate_optimal_size(rectangles, images):
                 is_several_atlas = True
                 break
 
-            continue
+            # 记录当前状态，用于后续回溯
+            last_size = size
+            last_efficiency, last_remaining_rect = efficiency, remaining_rect
 
-        # 计算空间利用率
-        used_area = sum(img[1].w * img[1].h for img in results)
-        total_area = size.x * size.y
-        efficiency = used_area / total_area
+            continue
 
         # 利用率较低，考虑使用多图集打包
         if 0 < efficiency < setting["trigger_several_efficiency"]:
@@ -363,10 +367,6 @@ def calculate_optimal_size(rectangles, images):
         elif efficiency > setting["trigger_several_efficiency"]:
             best_size = size
             break
-
-        # 记录当前状态，用于后续回溯
-        last_size = size
-        last_efficiency, last_remaining_rect = efficiency, remaining_rect
 
     return best_size, remaining_rect, is_several_atlas
 

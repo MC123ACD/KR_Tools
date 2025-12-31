@@ -1,26 +1,71 @@
 import re, traceback, config, plistlib, math
 from utils import is_simple_key
-
+import numpy as np
 
 def matrix_to_transform_params(matrix):
     """
     将仿射变换矩阵转换为变换参数
     [a, b, c, d, tx, ty] -> {x, y, sx, sy, r, kx, ky}
     """
+    # 确保是numpy数组
     a, b, c, d, tx, ty = matrix
+    M = np.array([[a, b, tx], [c, d, ty], [0, 0, 1]])
 
-    # 计算缩放
-    sx = math.sqrt(a * a + c * c)
-    sy = math.sqrt(b * b + d * d)
+    # 提取矩阵元素
+    a, b, tx = M[0]
+    c, d, ty = M[1]
 
-    # 计算旋转弧度
-    r = math.atan2(c, a)
+    # 平移分量
+    x, y = tx, ty
 
-    # 计算倾斜
-    kx = math.atan2(-b, d) - r
-    ky = math.atan2(c, a) - r
+    # 使用QR分解或极性分解来分离旋转、缩放和切变
+    # 方法1: 使用SVD分解
+    linear_part = np.array([[a, b], [c, d]])
 
-    return {"x": tx, "y": ty, "sx": sx, "sy": sy, "r": r, "kx": kx, "ky": ky}
+    # SVD分解: linear_part = U * S * V^T
+    # 其中U和V是旋转矩阵，S是对角缩放矩阵
+    U, S, Vt = np.linalg.svd(linear_part)
+
+    # 旋转矩阵
+    R = U @ Vt
+
+    # 确保R是纯旋转矩阵 (det=1)
+    if np.linalg.det(R) < 0:
+        Vt[1, :] *= -1
+        S[1] *= -1
+        R = U @ Vt
+
+    # 从R中提取旋转角度
+    r = math.atan2(R[1, 0], R[0, 0])
+
+    # 缩放和切变矩阵
+    # 构建一个包含可能切变的矩阵
+    # linear_part = R @ scale_shear_matrix
+    scale_shear_matrix = R.T @ linear_part
+
+    # 从scale_shear_matrix中提取缩放和切变
+    # 假设scale_shear_matrix是上三角矩阵（包含缩放和切变）
+    sx = math.sqrt(scale_shear_matrix[0, 0]**2 + scale_shear_matrix[0, 1]**2)
+    sy = math.sqrt(scale_shear_matrix[1, 0]**2 + scale_shear_matrix[1, 1]**2)
+
+    # 计算切变参数
+    # 使用atan2计算切变角度
+    if abs(sx) > 1e-10:
+        kx = math.atan2(scale_shear_matrix[0, 1], scale_shear_matrix[0, 0])
+    else:
+        kx = 0
+
+    if abs(sy) > 1e-10:
+        ky = math.atan2(scale_shear_matrix[1, 0], scale_shear_matrix[1, 1])
+    else:
+        ky = 0
+
+    # 将切变角度转换为弧度表示的切变量
+    # 通常我们使用tan(切变角)作为切变量
+    kx = math.tan(kx) if abs(kx) > 1e-10 else 0
+    ky = math.tan(ky) if abs(ky) > 1e-10 else 0
+
+    return {"x": x, "y": y, "sx": sx, "sy": sy, "r": r, "kx": kx, "ky": ky}
 
 
 def get_animations_data(plist_data):

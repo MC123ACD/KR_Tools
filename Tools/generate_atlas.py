@@ -1,6 +1,7 @@
-import traceback, config, hashlib
+import traceback, config, hashlib, time
 from PIL import Image, ImageDraw
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
+from functools import wraps
 
 # 加载生成图集的配置
 setting = config.setting["generate_atlas"]
@@ -663,18 +664,18 @@ def get_input_subdir():
                     f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
                 )
 
-            padding = setting["padding"]
+        padding = setting["padding"]
 
-            # 准备矩形数据用于打包 (id, width+padding, height+padding)
-            rectangles = [
-                (i, img["width"] + padding, img["height"] + padding)
-                for i, img in enumerate(images)
-            ]
+        # 准备矩形数据用于打包 (id, width+padding, height+padding)
+        rectangles = [
+            (i, img["width"] + padding, img["height"] + padding)
+            for i, img in enumerate(images)
+        ]
 
-            # 按面积降序排列（MaxRects算法通常先放置大矩形）
-            input_subdir[item.name]["rectangles"] = sorted(
-                rectangles, key=lambda r: r[1] * r[2], reverse=True
-            )
+        # 按面积降序排列（MaxRects算法通常先放置大矩形）
+        input_subdir[item.name]["rectangles"] = sorted(
+            rectangles, key=lambda r: r[1] * r[2], reverse=True
+        )
 
     return input_subdir
 
@@ -723,3 +724,69 @@ def main():
             img_info["image"].close()
 
     print("所有图集生成完毕")
+
+
+def add_performance_monitor_decorator():
+    all_time = {}
+
+    def timer_decorator(func):
+        """计时装饰器"""
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            result = func(*args, **kwargs)
+            end = time.perf_counter()
+
+            if not all_time.get(func.__name__):
+                all_time[func.__name__] = []
+
+            all_time[func.__name__].append(end - start)
+
+            return result
+
+        return wrapper
+
+    global get_input_subdir
+    get_input_subdir = timer_decorator(get_input_subdir)
+    global calculate_optimal_size
+    calculate_optimal_size = timer_decorator(calculate_optimal_size)
+
+    return all_time
+
+
+def print_performance_info(all_time):
+    sum_time = 0
+    calculated_sum = []
+
+    for fn_name, time in all_time.items():
+        s = sum([t for t in time])
+
+        count = len(time)
+
+        calculated_sum.append((fn_name, s, count))
+        sum_time += s
+
+    calculated_sum.sort(key=lambda x: x[1], reverse=True)
+
+    print(f"\n=====总运行时长: {sum_time:.2f} 秒=====")
+
+    for fn_name, s, count in calculated_sum:
+        print(
+            f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)"
+        )
+
+
+def performance_monitor(main):
+    def new_main(*args, **kwargs):
+        all_time = add_performance_monitor_decorator()
+        result = main(*args, **kwargs)
+        print_performance_info(all_time)
+
+        return result
+
+    return new_main
+
+
+if setting["performance_monitor_enabled"]:
+    main = performance_monitor(main)

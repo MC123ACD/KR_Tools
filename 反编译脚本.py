@@ -1,18 +1,14 @@
-import subprocess, config
+import subprocess, subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from utils import run_decompiler
 
 
 class LuaJITDecompiler:
 
     def __init__(self, root):
-        root_window = tk.Toplevel(root)
-        root_window.title("反编译")
-        root_window.geometry("400x150")
-        root_window.transient(root)
-        root_window.grab_set()
-        self.root = root_window
+        self.root = root
+        self.root.title("反编译")
+        self.root.geometry("400x150")
 
         # 创建UI
         ttk.Label(self.root, text="选择包含LuaJIT字节码的文件夹:").pack(pady=10)
@@ -39,18 +35,35 @@ class LuaJITDecompiler:
             self.folder_entry.insert(0, folder)
 
     def run_decompiler(self):
+        """反编译lua文件"""
         target_folder = self.folder_entry.get()
 
         try:
-            run_decompiler(target_folder)
+            subprocess.run(
+                [
+                    "luajit-decompiler-v2.exe",
+                    str(target_folder),
+                    "-s",  # 禁用错误弹窗
+                    "-f",  # 始终替换
+                    "-o",
+                    str("output"),  # 输出目录
+                ],
+                capture_output=True,
+                text=True,
+            )
             messagebox.showinfo("完成", "反编译完毕")
         except Exception as e:
             messagebox.showerror("错误", f"无法进行反编译: {str(e)}")
 
 
-def main(root):
-    style = ttk.Style()
-    style.configure("TButton", padding=6)
-    style.configure("TEntry", padding=5)
+def main():
+    # style = ttk.Style()
+    # style.configure("TButton", padding=6)
+    # style.configure("TEntry", padding=5)
 
+    root = tk.Tk()
     app = LuaJITDecompiler(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()

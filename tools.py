@@ -3,7 +3,6 @@ from pathlib import Path
 import Tools.generate_waves as generate_waves
 import Tools.process_images as process_images
 import Tools.merge_images as merge_images
-import Tools.luajit_decompiler as luajit_decompiler
 import Tools.sort_table as sort_table
 import Tools.split_atlas as split_atlas
 import Tools.generate_atlas as generate_atlas
@@ -30,11 +29,6 @@ def get_tools_data():
             "name": "合并图像",
             "module": merge_images,
             "has_gui": False,
-        },
-        "luajit_decompiler": {
-            "name": "反编译",
-            "module": luajit_decompiler,
-            "has_gui": True,
         },
         "sort_table": {
             "name": "排序表",

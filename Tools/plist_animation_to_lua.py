@@ -1,71 +1,80 @@
 import re, traceback, config, plistlib, math
 from utils import is_simple_key
-import numpy as np
+
 
 def matrix_to_transform_params(matrix):
     """
     将仿射变换矩阵转换为变换参数
-    [a, b, c, d, tx, ty] -> {x, y, sx, sy, r, kx, ky}
+    假设变换顺序为：缩放(sx,sy) → 倾斜(k) → 旋转(r) → 平移(tx,ty)
+    矩阵形式: [a, b, tx; c, d, ty]
+
+    返回: {"x": tx, "y": ty, "sx": sx, "sy": sy, "r": r, "kx": kx, "ky": ky}
     """
-    # 确保是numpy数组
     a, b, c, d, tx, ty = matrix
-    M = np.array([[a, b, tx], [c, d, ty], [0, 0, 1]])
 
-    # 提取矩阵元素
-    a, b, tx = M[0]
-    c, d, ty = M[1]
-
-    # 平移分量
+    # 计算平移
     x, y = tx, ty
 
-    # 使用QR分解或极性分解来分离旋转、缩放和切变
-    # 方法1: 使用SVD分解
-    linear_part = np.array([[a, b], [c, d]])
+    # 计算行列式（用于检查是否有反射）
+    det = a * d - b * c
 
-    # SVD分解: linear_part = U * S * V^T
-    # 其中U和V是旋转矩阵，S是对角缩放矩阵
-    U, S, Vt = np.linalg.svd(linear_part)
-
-    # 旋转矩阵
-    R = U @ Vt
-
-    # 确保R是纯旋转矩阵 (det=1)
-    if np.linalg.det(R) < 0:
-        Vt[1, :] *= -1
-        S[1] *= -1
-        R = U @ Vt
-
-    # 从R中提取旋转角度
-    r = math.atan2(R[1, 0], R[0, 0])
-
-    # 缩放和切变矩阵
-    # 构建一个包含可能切变的矩阵
-    # linear_part = R @ scale_shear_matrix
-    scale_shear_matrix = R.T @ linear_part
-
-    # 从scale_shear_matrix中提取缩放和切变
-    # 假设scale_shear_matrix是上三角矩阵（包含缩放和切变）
-    sx = math.sqrt(scale_shear_matrix[0, 0]**2 + scale_shear_matrix[0, 1]**2)
-    sy = math.sqrt(scale_shear_matrix[1, 0]**2 + scale_shear_matrix[1, 1]**2)
-
-    # 计算切变参数
-    # 使用atan2计算切变角度
-    if abs(sx) > 1e-10:
-        kx = math.atan2(scale_shear_matrix[0, 1], scale_shear_matrix[0, 0])
+    # 处理奇异矩阵
+    if abs(det) < 1e-10:
+        # 接近奇异矩阵时使用近似值
+        if abs(a) < 1e-10 and abs(d) < 1e-10:
+            sx = math.hypot(b, c)
+            sy = 0
+            r = 0
+            kx = 0
+            ky = math.atan2(c, b) if b != 0 else 0
+        else:
+            sx = math.hypot(a, c)
+            sy = math.hypot(b, d)
+            r = math.atan2(c, a) if a != 0 else 0
+            kx = math.atan2(b, d) if d != 0 else 0
+            ky = 0
     else:
-        kx = 0
+        # 去除旋转影响以提取缩放和倾斜
+        # 计算旋转角度（atan2返回的是 -π 到 π 之间的值）
+        r = math.atan2(b - c, a + d) / 2
 
-    if abs(sy) > 1e-10:
-        ky = math.atan2(scale_shear_matrix[1, 0], scale_shear_matrix[1, 1])
-    else:
-        ky = 0
+        # 计算去除旋转后的矩阵
+        cos_r = math.cos(r)
+        sin_r = math.sin(r)
 
-    # 将切变角度转换为弧度表示的切变量
-    # 通常我们使用tan(切变角)作为切变量
-    kx = math.tan(kx) if abs(kx) > 1e-10 else 0
-    ky = math.tan(ky) if abs(ky) > 1e-10 else 0
+        # 构建旋转矩阵的逆
+        # 计算 M_rot_inv = [cos(r), sin(r); -sin(r), cos(r)]
+        # 然后计算 M_no_rot = M * M_rot_inv
+        a_prime = a * cos_r + c * sin_r
+        b_prime = b * cos_r + d * sin_r
+        c_prime = -a * sin_r + c * cos_r
+        d_prime = -b * sin_r + d * cos_r
 
-    return {"x": x, "y": y, "sx": sx, "sy": sy, "r": r, "kx": kx, "ky": ky}
+        # 提取缩放和倾斜
+        sx = math.copysign(math.hypot(a_prime, c_prime), det)
+        sy = math.copysign(math.hypot(b_prime, d_prime), det)
+
+        # 计算倾斜角度（通常倾斜是相同的，但这里保持kx,ky分离以匹配你的需求）
+        # 注意：通常倾斜矩阵是上三角或下三角形式
+        if abs(sx) > 1e-10:
+            kx = math.atan2(b_prime, sx)
+        else:
+            kx = 0
+
+        if abs(sy) > 1e-10:
+            ky = math.atan2(c_prime, sy)
+        else:
+            ky = 0
+
+    return {
+        "x": x,  # 平移X
+        "y": y,  # 平移Y
+        "sx": sx,  # 缩放X
+        "sy": sy,  # 缩放Y
+        "r": r,  # 旋转角度（弧度）
+        "kx": kx,  # X方向倾斜角度
+        "ky": ky,  # Y方向倾斜角度
+    }
 
 
 def get_animations_data(plist_data):

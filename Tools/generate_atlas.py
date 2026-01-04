@@ -751,6 +751,10 @@ def add_performance_monitor_decorator():
     get_input_subdir = timer_decorator(get_input_subdir)
     global calculate_optimal_size
     calculate_optimal_size = timer_decorator(calculate_optimal_size)
+    global merge_free_rectangles
+    merge_free_rectangles = timer_decorator(merge_free_rectangles)
+    global split_free_rectangle
+    split_free_rectangle = timer_decorator(split_free_rectangle)
 
     return all_time
 

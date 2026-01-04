@@ -8,6 +8,7 @@ setting = config.setting["generate_atlas"]
 
 # 最小面积策略标识
 MINAREA = "min_area"
+SHORTSIDE = "short_side"
 
 
 def try_merge_rectangles(rect1, rect2):
@@ -47,8 +48,52 @@ def calculate_score(rect, strategy):
     """
     if strategy == MINAREA:
         return rect.w * rect.h  # 使用面积作为评分
+    elif strategy == SHORTSIDE:
+        return min(rect.w, rect.h)  # 使用短边长度作为评分
 
     return 0
+
+
+def find_position(free_rectangles, width, height):
+    """
+    在空闲区域中寻找最佳放置位置
+
+    Args:
+        free_rectangles: 当前空闲区域列表
+        width: 待放置矩形的宽度
+        height: 待放置矩形的高度
+        min_rectangle: 所有矩形中的最小尺寸，用于优化判断
+
+    Returns:
+        tuple: (更新后的空闲区域列表, (最佳矩形, 所在空闲区域, 空闲区域索引)) 或 None
+    """
+    best_score = float("inf")  # 最佳分数（越小越好）
+    best_rect = None
+    in_free_rect = None
+    in_free_rect_idx = None
+
+    # 遍历所有空闲区域
+    for i in range(len(free_rectangles)):
+        free_rect = free_rectangles[i]
+
+        # 跳过无法容纳当前矩形的区域
+        if free_rect.w < width or free_rect.h < height:
+            continue
+
+        # 计算当前空闲区域的分数
+        score = calculate_score(free_rect, MINAREA)
+
+        # 更新最佳位置
+        if score < best_score:
+            best_score = score
+            best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
+            in_free_rect = free_rect
+            in_free_rect_idx = i
+
+    if best_rect:
+        return (best_rect, in_free_rect, in_free_rect_idx)
+
+    return None
 
 
 def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
@@ -63,8 +108,16 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
         used_rect: 已放置的矩形区域
         free_rect_idx: 被使用的空闲区域在列表中的索引
     """
-    right = None
-    bottom = None
+    left = right = top = bottom = None
+
+    # 检查左侧是否还有剩余空间
+    if used_rect.x != free_rect.x:
+        left = Rectangle(
+            free_rect.x,
+            free_rect.y,
+            used_rect.x - free_rect.x,
+            free_rect.h,
+        )
 
     # 检查右侧是否还有剩余空间
     if used_rect.x + used_rect.w != free_rect.x + free_rect.w:
@@ -73,6 +126,15 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
             free_rect.y,
             free_rect.x + free_rect.w - (used_rect.x + used_rect.w),
             free_rect.h,
+        )
+
+    # 检查上方是否还有剩余空间
+    if used_rect.y != free_rect.y:
+        top = Rectangle(
+            used_rect.x,
+            free_rect.y,
+            used_rect.w,
+            used_rect.y - free_rect.y,
         )
 
     # 检查下方是否还有剩余空间
@@ -84,27 +146,25 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
             free_rect.y + free_rect.h - (used_rect.y + used_rect.h),
         )
 
-    # 处理分割后的区域
-    if right and bottom:
-        # 调整区域边界避免重叠
-        if right.w * right.h < free_rect.w * bottom.h:
-            right, bottom = Rectangle(
-                right.x,
-                right.y,
-                right.w,
-                right.h - (bottom.h),
-            ), Rectangle(bottom.x, bottom.y, free_rect.w, bottom.h)
+    product_queue = [left, right, top, bottom]
 
-        # 更新空闲区域列表
-        free_rectangles[free_rect_idx] = right
-        free_rectangles.append(bottom)
-    elif right:
-        free_rectangles[free_rect_idx] = right
-    elif bottom:
-        free_rectangles[free_rect_idx] = bottom
-    else:
+    if not any(product_queue):
         # 如果空间完全被使用，标记为空矩形
         free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0)
+        return
+
+    is_first = True
+    for rect in product_queue:
+        if rect is None:
+            continue
+
+        if is_first:
+            # 用第一个非空闲区域替换当前空闲区域
+            free_rectangles[free_rect_idx] = rect
+            is_first = False
+            continue
+
+        free_rectangles.append(rect)
 
 
 def merge_free_rectangles(rectangles):
@@ -119,106 +179,53 @@ def merge_free_rectangles(rectangles):
     """
     changed = True
 
+    merged_rects = []  # 存储合并后的矩形
+    skip_indices = set()  # 存储已处理的索引
+
     # 循环合并直到没有变化
     while changed and rectangles:
         changed = False
-        rectangles.sort(key=lambda r: (r.y, r.x))  # 按位置排序
+        rectangles.sort(key=lambda r: (r.y, r.x))
 
-        # 使用临时列表记录要删除的索引
-        to_remove = []
-
-        i = 0
-        while i < len(rectangles):
-            if i in to_remove:
-                i += 1
+        for i in range(len(rectangles)):
+            if i in skip_indices:
                 continue
 
-            merged = False
-            j = i + 1
+            current_rect = rectangles[i]
 
-            # 尝试与后续矩形合并
-            while j < len(rectangles):
-                if j in to_remove:
-                    j += 1
+            # 只与后面的矩形合并，避免重复比较
+            for j in range(i + 1, len(rectangles)):
+                if j in skip_indices:
                     continue
 
-                # 尝试合并两个矩形
-                merged_rect = try_merge_rectangles(rectangles[i], rectangles[j])
-
+                merged_rect = try_merge_rectangles(current_rect, rectangles[j])
                 if merged_rect:
-                    rectangles[i] = merged_rect
-                    to_remove.append(j)
+                    current_rect = merged_rect
                     changed = True
-                    merged = True
 
-                j += 1
-            if not merged:
-                i += 1
+            merged_rects.append(current_rect)
+            skip_indices.add(i)
 
-        # 从后往前删除，避免索引问题
-        for index in reversed(to_remove):
-            del rectangles[index]
-
-    return rectangles
+    return merged_rects
 
 
-def find_position(free_rectangles, width, height, min_rectangle):
-    """
-    在空闲区域中寻找最佳放置位置
-
-    Args:
-        free_rectangles: 当前空闲区域列表
-        width: 待放置矩形的宽度
-        height: 待放置矩形的高度
-        min_rectangle: 所有矩形中的最小尺寸，用于优化判断
-
-    Returns:
-        tuple: (更新后的空闲区域列表, (最佳矩形, 所在空闲区域, 空闲区域索引)) 或 None
-    """
-    new_free_rectangles = []
+def delete_invalid_rectangles(rectangles, min_rectangle):
     invalid_rectangles = []
-    best_score = float("inf")  # 最佳分数（越小越好）
-    best_rect = None
-    in_free_rect = None
-    in_free_rect_idx = None
+    removed_idx = set()
 
-    # 遍历所有空闲区域
-    for free_rect in free_rectangles:
-        # 删除过小的空闲区域
-        if (
-            free_rect == "removed"
-            or free_rect.w < min_rectangle[1]
-            or free_rect.h < min_rectangle[2]
-        ):
+    # 删除过小的空闲区域
+    for i in range(len(rectangles)):
+        free_rect = rectangles[i]
+
+        if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
             invalid_rectangles.append(free_rect)
+            removed_idx.add(i)
             continue
 
-        # 跳过无法容纳当前矩形的区域
-        if free_rect.w < width or free_rect.h < height:
-            new_free_rectangles.append(free_rect)
-            continue
+    for idx in sorted(removed_idx, reverse=True):
+        del rectangles[idx]
 
-        # 计算当前空闲区域的分数
-        score = calculate_score(free_rect, MINAREA)
-
-        # 更新最佳位置
-        if score < best_score:
-            best_score = score
-            best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
-            in_free_rect = free_rect
-            in_free_rect_idx = len(new_free_rectangles)
-
-        # 保留当前空闲区域
-        if free_rect not in new_free_rectangles:
-            new_free_rectangles.append(free_rect)
-
-    # 更新空闲区域列表
-    free_rectangles = new_free_rectangles
-
-    if best_rect:
-        return free_rectangles, (best_rect, in_free_rect, in_free_rect_idx)
-
-    return free_rectangles, None
+    return invalid_rectangles
 
 
 def fit(rectangles, width, height):
@@ -247,15 +254,13 @@ def fit(rectangles, width, height):
         rect = in_free_rect = free_rect_idx = None
 
         # 寻找最佳放置位置
-        free_rectangles, rect_data = find_position(free_rectangles, w, h, min_rectangle)
+        rect_data = find_position(free_rectangles, w, h)
 
         if rect_data:
             rect, in_free_rect, free_rect_idx = rect_data
 
-            # 分割剩余空间
             split_free_rectangle(free_rectangles, in_free_rect, rect, free_rect_idx)
-
-            # 合并相邻的空闲区域
+            delete_invalid_rectangles(free_rectangles, min_rectangle)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
             # 记录已使用的矩形
@@ -529,8 +534,8 @@ def write_lua_data(images, results, atlas_name):
             a("\t\tf_quad = {")
             a(f"\t\t\t{pos.x},")
             a(f"\t\t\t{pos.y},")
-            a(f"\t\t\t{img['width']},")
-            a(f"\t\t\t{img['height']}")
+            a(f"\t\t\t{img['image'].width},")
+            a(f"\t\t\t{img['image'].height}")
             a("\t\t},")
 
             # 相同图片别名
@@ -639,15 +644,11 @@ def get_input_subdir():
 
                 # 构建图片数据字典
                 img_data = {
-                    "path": image_file,
+                    "name": image_file_name,
                     "image": new_img,
-                    "width": new_img.width,
-                    "height": new_img.height,
                     "origin_width": img.width,
                     "origin_height": img.height,
-                    "name": image_file_name,
                     "samed_img": [],  # 相同图片列表
-                    "removed": False,
                     "trim": trim,  # 裁剪信息
                 }
 
@@ -668,7 +669,7 @@ def get_input_subdir():
 
         # 准备矩形数据用于打包 (id, width+padding, height+padding)
         rectangles = [
-            (i, img["width"] + padding, img["height"] + padding)
+            (i, img["image"].width + padding, img["image"].height + padding)
             for i, img in enumerate(images)
         ]
 
@@ -776,9 +777,7 @@ def print_performance_info(all_time):
     print(f"\n=====总运行时长: {sum_time:.2f} 秒=====")
 
     for fn_name, s, count in calculated_sum:
-        print(
-            f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)"
-        )
+        print(f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
 
 
 def performance_monitor(main):

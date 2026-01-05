@@ -77,10 +77,6 @@ def is_simple_key(key: str):
     return all(c.isalnum() or c == "_" for c in key)
 
 
-import numpy as np
-from typing import Union, List
-
-
 class Vector:
     """向量类"""
 

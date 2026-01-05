@@ -11,30 +11,6 @@ MINAREA = "min_area"
 SHORTSIDE = "short_side"
 
 
-def try_merge_rectangles(rect1, rect2):
-    """
-    尝试合并两个相邻的矩形
-
-    支持水平合并（左右相邻）和垂直合并（上下相邻）
-
-    Args:
-        rect1: 第一个矩形
-        rect2: 第二个矩形
-
-    Returns:
-        Rectangle: 合并后的矩形，如果无法合并则返回None
-    """
-    # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
-    if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
-        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
-
-    # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
-    if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
-        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
-
-    return None
-
-
 def calculate_score(rect, strategy):
     """
     计算矩形区域的分数，用于选择最佳放置位置
@@ -108,63 +84,86 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
         used_rect: 已放置的矩形区域
         free_rect_idx: 被使用的空闲区域在列表中的索引
     """
-    left = right = top = bottom = None
+    new_rects = []
 
     # 检查左侧是否还有剩余空间
     if used_rect.x != free_rect.x:
-        left = Rectangle(
-            free_rect.x,
-            free_rect.y,
-            used_rect.x - free_rect.x,
-            free_rect.h,
+        new_rects.append(
+            Rectangle(
+                free_rect.x,
+                free_rect.y,
+                used_rect.x - free_rect.x,
+                free_rect.h,
+            )
         )
 
     # 检查右侧是否还有剩余空间
     if used_rect.x + used_rect.w != free_rect.x + free_rect.w:
-        right = Rectangle(
-            used_rect.x + used_rect.w,
-            free_rect.y,
-            free_rect.x + free_rect.w - (used_rect.x + used_rect.w),
-            free_rect.h,
+        new_rects.append(
+            Rectangle(
+                used_rect.x + used_rect.w,
+                free_rect.y,
+                free_rect.x + free_rect.w - (used_rect.x + used_rect.w),
+                free_rect.h,
+            )
         )
 
     # 检查上方是否还有剩余空间
     if used_rect.y != free_rect.y:
-        top = Rectangle(
-            used_rect.x,
-            free_rect.y,
-            used_rect.w,
-            used_rect.y - free_rect.y,
+        new_rects.append(
+            Rectangle(
+                used_rect.x,
+                free_rect.y,
+                used_rect.w,
+                used_rect.y - free_rect.y,
+            )
         )
 
     # 检查下方是否还有剩余空间
     if used_rect.y + used_rect.h != free_rect.y + free_rect.h:
-        bottom = Rectangle(
-            used_rect.x,
-            used_rect.y + used_rect.h,
-            used_rect.w,
-            free_rect.y + free_rect.h - (used_rect.y + used_rect.h),
+        new_rects.append(
+            Rectangle(
+                used_rect.x,
+                used_rect.y + used_rect.h,
+                used_rect.w,
+                free_rect.y + free_rect.h - (used_rect.y + used_rect.h),
+            )
         )
 
-    product_queue = [left, right, top, bottom]
-
-    if not any(product_queue):
+    if not new_rects:
         # 如果空间完全被使用，标记为空矩形
         free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0)
         return
 
-    is_first = True
-    for rect in product_queue:
-        if rect is None:
-            continue
+    # 用第一个非空闲区域替换当前空闲区域
+    free_rectangles[free_rect_idx] = new_rects[0]
 
-        if is_first:
-            # 用第一个非空闲区域替换当前空闲区域
-            free_rectangles[free_rect_idx] = rect
-            is_first = False
-            continue
-
+    for rect in new_rects[1:]:
         free_rectangles.append(rect)
+
+
+def try_merge_rectangles(rect1, rect2):
+    """
+    尝试合并两个相邻的矩形
+
+    支持水平合并（左右相邻）和垂直合并（上下相邻）
+
+    Args:
+        rect1: 第一个矩形
+        rect2: 第二个矩形
+
+    Returns:
+        Rectangle: 合并后的矩形，如果无法合并则返回None
+    """
+    # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
+    if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
+        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
+
+    # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
+    if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
+        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
+
+    return None
 
 
 def merge_free_rectangles(rectangles):
@@ -210,7 +209,6 @@ def merge_free_rectangles(rectangles):
 
 
 def delete_invalid_rectangles(rectangles, min_rectangle):
-    invalid_rectangles = []
     removed_idx = set()
 
     # 删除过小的空闲区域
@@ -218,14 +216,11 @@ def delete_invalid_rectangles(rectangles, min_rectangle):
         free_rect = rectangles[i]
 
         if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
-            invalid_rectangles.append(free_rect)
             removed_idx.add(i)
             continue
 
     for idx in sorted(removed_idx, reverse=True):
         del rectangles[idx]
-
-    return invalid_rectangles
 
 
 def fit(rectangles, width, height):
@@ -242,7 +237,6 @@ def fit(rectangles, width, height):
     """
     border = setting["border"]
     results = []
-    used_rectangles = []
     # 初始化空闲区域为整个画布（考虑边框）
     free_rectangles = [Rectangle(border, border, width - border, height - border)]
 
@@ -263,8 +257,6 @@ def fit(rectangles, width, height):
             delete_invalid_rectangles(free_rectangles, min_rectangle)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
-            # 记录已使用的矩形
-            used_rectangles.append(rect)
             results.append((rect_id, rect))
 
     return results

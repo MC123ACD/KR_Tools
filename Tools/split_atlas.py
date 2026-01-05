@@ -217,7 +217,7 @@ def gen_png_from_plist(plist_path, png_path, open_plist=None):
         result_image = Image.new("RGBA", sprite_size, (0, 0, 0, 0))
         result_image.paste(rect_on_big, position)
 
-        output_dir = config.output_path / plist_path.stem
+        output_dir = config.output_path / plist_path.stem.split("-")[0]
 
         output_dir.mkdir(exist_ok=True)
 
@@ -238,7 +238,7 @@ def process_plist_conversion():
                 run_decompiler(filename, config.input_path)
 
                 with open(filename, "r", encoding="utf-8-sig") as f:
-                    print(f"📖 读取文件: {filename}")
+                    print(f"📖 读取文件: {filename.name}")
 
                     # 读取图集数据
                     atlases = read_atlases_data(f)
@@ -267,6 +267,8 @@ def process_plist_conversion():
                         atlas_image = config.input_path / a_name
                         if atlas_image.exists():
                             gen_png_from_plist(plist_path, atlas_image)
+                            print(f"✅ 图集拆分完毕: {a_name}\n")
+
                         else:
                             print(f"⚠️ 图集不存在: {a_name}")
 
@@ -275,10 +277,15 @@ def process_plist_conversion():
 
             elif filename.suffix == ".plist":
                 # 处理现有的Plist文件
-                print(f"📖 读取文件: {filename}")
+                print(f"📖 读取文件: {filename.name}")
 
                 with open(filename, "rb") as file:
                     open_plist = plistlib.load(file)
+
+                    if not open_plist.get("metadata") :
+                        print(f"⚠️ 无效的Plist文件: {filename.name}")
+                        continue
+
                     frames = open_plist["metadata"]["realTextureFileName"]
 
                 # 处理对应图集
@@ -286,6 +293,7 @@ def process_plist_conversion():
                 if atlas_image.exists():
                     # 生成图像
                     gen_png_from_plist(filename, atlas_image, open_plist)
+                    print(f"✅ 图集拆分完毕: {a_name}\n")
                 else:
                     print(f"⚠️ 图集不存在: {frames}")
 

@@ -490,8 +490,8 @@ def write_lua_data(images, results, atlas_name):
         content.append(str)
 
     # 遍历所有打包结果
-    for result in results:
-        for i, img_id in enumerate(result["rectangles_id"]):
+    for i, result in enumerate(results):
+        for j, img_id in enumerate(result["rectangles_id"]):
             img = images[img_id]
             pos = img["pos"]
             trim = img["trim"]
@@ -541,8 +541,8 @@ def write_lua_data(images, results, atlas_name):
             # 相同图片别名
             if len(img["samed_img"]) > 0:
                 a("\t\talias = {")
-                for i, name in enumerate(img["samed_img"]):
-                    if i < len(img["samed_img"]) - 1:
+                for ii, name in enumerate(img["samed_img"]):
+                    if ii < len(img["samed_img"]) - 1:
                         a(f'\t\t\t"{name}",')
                     else:
                         a(f'\t\t\t"{name}"')
@@ -551,7 +551,7 @@ def write_lua_data(images, results, atlas_name):
                 a("\t\talias = {}")
 
             # 结束当前图片数据
-            if i < len(result["rectangles_id"]) - 1:
+            if i < len(results) - 1 or j < len(result["rectangles_id"]) - 1:
                 a("\t},")
             else:
                 a("\t}")

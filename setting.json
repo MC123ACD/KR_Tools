@@ -419,7 +419,7 @@
         "performance_monitor_enabled": true,
         "padding": 3,
         "border": 5,
-        "output_format": "bc3",
+        "output_format": "png",
         "delete_temporary_png": true,
         "trigger_several_efficiency": 0.35,
         "add_white_rect": true,

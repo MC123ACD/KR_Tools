@@ -4,7 +4,9 @@ from PIL import Image, ImageFilter, ImageEnhance
 import tkinter as tk
 from tkinter import ttk
 from utils import save_to_dds
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 
 settings = config.setting["process_images"]
 
@@ -13,7 +15,7 @@ class ImageProcessorGUI:
     def __init__(self, root):
         self.root = tk.Toplevel(root)
         self.root.title("图片处理工具")
-        self.root.geometry("600x500")
+        self.root.geometry("600x600")
 
         self.create_interface()
         self.setup_styles()
@@ -25,6 +27,8 @@ class ImageProcessorGUI:
 
         # 输出设置部分
         self.create_output_options_section()
+
+        self.create_merge_section()
 
         # 控制按钮部分
         self.create_control_buttons_section()
@@ -170,6 +174,22 @@ class ImageProcessorGUI:
         )
         self.mirror_vertical_check.grid(row=9, column=1, padx=20, pady=2, sticky="w")
 
+    def create_merge_section(self):
+        """创建合并设置部分"""
+        self.merge_label = ttk.Label(self.process_frame, text="合并设置:")
+        self.merge_label.grid(
+            row=10, column=0, columnspan=4, padx=5, pady=5, sticky="w"
+        )
+
+        # 启用合并
+        self.merge_var = tk.BooleanVar(value=settings["merge_images"])
+        self.merge_check = ttk.Checkbutton(
+            self.process_frame,
+            text="合并每个文件夹中的图像",
+            variable=self.merge_var,
+        )
+        self.merge_check.grid(row=11, column=0, padx=5, pady=2, sticky="w")
+
     def create_output_options_section(self):
         """创建输出设置部分"""
         # 创建框架
@@ -236,43 +256,9 @@ class ImageProcessorGUI:
         self.brightness_var.set(str(preset["brightness"]))
         self.mirror_horizontal_var.set(preset["mirror_horizontal"])
         self.mirror_vertical_var.set(preset["mirror_vertical"])
+        self.merge_var.set(preset["merge_images"])
         self.output_format_var.set(preset["output_format"])
         self.delete_png_var.set(preset["delete_temporary_png"])
-
-    def process_images(self):
-        """处理所有图片"""
-        input_subdir = self.get_input_files()
-
-        # 处理所有图片
-        for dir_name, (dir_list) in input_subdir.items():
-            for filename, img in dir_list:
-                self.process_img(
-                    filename,
-                    img,
-                    dir_name if dir_name != "imgs" else None,
-                )
-
-        print("\n✅ 所有图片处理完成！")
-
-    def get_input_files(self):
-        """获取输入文件"""
-        input_subdir = {"imgs": []}
-
-        for item in config.input_path.iterdir():
-            print(f"📖 读取: {item.name}")
-
-            if item.is_dir():
-                input_subdir[item.name] = []
-
-                for file in item.iterdir():
-                    new_img = self.load_image(file)
-                    input_subdir[item.name].append((file.name, new_img))
-
-            elif item.suffix.lower() in [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]:
-                new_img = self.load_image(item)
-                input_subdir["imgs"].append((item.name, new_img))
-
-        return input_subdir
 
     def load_image(self, file):
         """加载图片"""
@@ -299,6 +285,30 @@ class ImageProcessorGUI:
                 print(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
 
         return new_img
+
+    def get_input_files(self):
+        """获取输入文件"""
+        input_subdir = {"imgs": []}
+
+        for item in config.input_path.iterdir():
+            print(f"📖 读取: {item.name}")
+
+            if item.is_dir():
+                input_subdir[item.name] = []
+
+                for file in item.iterdir():
+                    new_img = self.load_image(file)
+                    input_subdir[item.name].append((file.name, new_img))
+
+            elif item.suffix.lower() in [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]:
+                new_img = self.load_image(item)
+                input_subdir["imgs"].append((item.name, new_img))
+
+        for subdir in input_subdir:
+            subdir_list = input_subdir[subdir]
+            subdir_list.sort(key=lambda x: x[0])
+
+        return input_subdir
 
     def set_img_size(self, img):
         """设置图片尺寸"""
@@ -365,16 +375,7 @@ class ImageProcessorGUI:
 
         return mirrored_img
 
-    def process_img(self, name, img, in_dir):
-        """处理单个图片"""
-        output_img = None
-
-        # 应用各项处理
-        img = self.set_img_size(img)
-        img = self.set_img_sharpen(img)
-        img = self.set_img_brightness(img)
-        img = self.set_img_mirror(img)
-
+    def save_img(self, img, in_dir, name):
         # 确定输出路径
         if in_dir:
             output_dir = config.output_path / in_dir
@@ -398,6 +399,61 @@ class ImageProcessorGUI:
                 output_format,
                 settings["delete_temporary_png"],
             )
+
+    def process_img(self, name, img, in_dir):
+        """处理单个图片"""
+        # 应用各项处理
+        img = self.set_img_size(img)
+        img = self.set_img_sharpen(img)
+        img = self.set_img_brightness(img)
+        img = self.set_img_mirror(img)
+
+        if self.merge_var.get():
+            return
+
+        self.save_img(img, in_dir, name)
+
+    def merge_images(self, groups):
+        # 合并每个文件夹中的图片
+        for i in range(len(groups)):
+            main_dir_name = list(groups.keys())[i]
+            main_dir_list = groups[main_dir_name]
+
+            for j in range(i + 1, len(groups)):
+                other_dir_name = list(groups.keys())[j]
+                other_dir_list = groups[other_dir_name]
+
+                if len(main_dir_list) != len(other_dir_list):
+                    log.error(
+                        f"⚠️ 无法合并文件夹 {main_dir_name} 和 {other_dir_name}，因为它们的图片数量不一致"
+                    )
+                    continue
+
+                for idx in range(len(main_dir_list)):
+                    main_name, main_img = main_dir_list[idx]
+                    other_name, other_img = other_dir_list[idx]
+
+    def process_images(self):
+        """处理所有图片"""
+        input_subdir = self.get_input_files()
+        groups = {}
+
+        # 处理所有图片
+        for dir_name, (dir_list) in input_subdir.items():
+            if dir_name != "imgs":
+                groups[dir_name] = dir_list
+
+            for filename, img in dir_list:
+                self.process_img(
+                    filename,
+                    img,
+                    dir_name if dir_name != "imgs" else None,
+                )
+
+        if self.merge_var.get():
+            self.merge_images(groups)
+
+        print("\n✅ 所有图片处理完成！")
 
 
 def main(root):

@@ -1,5 +1,8 @@
 import traceback, config
 from utils import is_simple_key
+import log
+
+log = log.setup_logging(config.log_level, config.log_file)
 
 
 def sort_lua_table():

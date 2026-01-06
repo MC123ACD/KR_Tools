@@ -1,6 +1,9 @@
 import traceback, subprocess, time, config
 from pathlib import Path
 import numpy as np
+import log
+
+log = log.setup_logging(config.log_level, config.log_file)
 
 input_path = config.input_path
 output_path = config.output_path
@@ -223,14 +226,14 @@ class Rectangle:
         """返回另一个矩形相当于当前矩形的位置"""
         pos = []
 
-        if self.x + self.w < other.x:
+        if self.x + self.w <= other.x:
             pos.append("right")
-        elif self.x > other.x:
+        elif self.x >= other.x:
             pos.append("left")
 
-        if self.y + self.h < other.y:
+        if self.y + self.h <= other.y:
             pos.append("top")
-        elif self.y > other.y:
+        elif self.y >= other.y:
             pos.append("bottom")
 
         if not pos:

@@ -2,9 +2,11 @@ import re, traceback, plistlib, subprocess, math, config
 from PIL import Image
 from utils import run_decompiler
 from pathlib import Path
+import log
+
+log = log.setup_logging(config.log_level, config.log_file)
 
 setting = config.setting["split_atlas"]
-
 
 def read_atlases_data(f):
     """

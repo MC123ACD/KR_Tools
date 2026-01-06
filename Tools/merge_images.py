@@ -1,7 +1,9 @@
 import traceback, config, subprocess
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 # setting = config.setting["merge_images"]
 
 

@@ -1,6 +1,8 @@
 import re, traceback, config, math, plistlib
 from utils import is_simple_key
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 setting = config.setting["plist_level_to_lua"]
 
 

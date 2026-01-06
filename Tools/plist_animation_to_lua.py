@@ -1,5 +1,8 @@
 import re, traceback, config, plistlib, math
 from utils import is_simple_key
+import log
+
+log = log.setup_logging(config.log_level, config.log_file)
 
 
 def matrix_to_transform_params(matrix):
@@ -132,11 +135,13 @@ def get_animations_data(plist_data):
                 }
 
                 for p in af["parts"]:
-                    f["parts"].append({
-                        "alpha": p.get("alpha"),
-                        "name": p["name"],
-                        "xform": matrix_to_transform_params(p["matrix"]),
-                    })
+                    f["parts"].append(
+                        {
+                            "alpha": p.get("alpha"),
+                            "name": p["name"],
+                            "xform": matrix_to_transform_params(p["matrix"]),
+                        }
+                    )
 
                 a["frames"].append(f)
 

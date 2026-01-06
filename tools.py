@@ -2,7 +2,6 @@ import traceback, subprocess, time, config
 from pathlib import Path
 import Tools.generate_waves as generate_waves
 import Tools.process_images as process_images
-import Tools.merge_images as merge_images
 import Tools.sort_table as sort_table
 import Tools.split_atlas as split_atlas
 import Tools.generate_atlas as generate_atlas
@@ -24,11 +23,6 @@ def get_tools_data():
             "name": "处理图像",
             "module": process_images,
             "has_gui": True,
-        },
-        "merge_images": {
-            "name": "合并图像",
-            "module": merge_images,
-            "has_gui": False,
         },
         "sort_table": {
             "name": "排序表",

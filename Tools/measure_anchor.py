@@ -4,7 +4,9 @@ from PIL import Image, ImageTk
 import traceback, config, time
 from pathlib import Path
 from utils import clamp, Vector, Rectangle
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
@@ -195,7 +197,9 @@ class MeasureAnchor:
 
     def setup_canvas(self):
         """设置画布"""
-        self.canvas = tk.Canvas(self.image_frame, bg="#f3f4f5" if setting["use_light_bg"] else "#2d2d2d")
+        self.canvas = tk.Canvas(
+            self.image_frame, bg="#f3f4f5" if setting["use_light_bg"] else "#2d2d2d"
+        )
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.switch_canvas_color_state = True if setting["use_light_bg"] else False
 

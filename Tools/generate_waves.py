@@ -2,7 +2,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import config
 from pathlib import Path
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 setting = config.setting["generate_waves"]
 
 
@@ -409,7 +411,9 @@ class WaveDataGenerator:
             self.save_wave(set_origin=False)
 
         new_wave = {
-            "wave_arrive_time": setting["default_wave_data"]["groups"]["wave_arrive_time"],
+            "wave_arrive_time": setting["default_wave_data"]["groups"][
+                "wave_arrive_time"
+            ],
             "waves": [],
         }
         self.wave_data["groups"].append(new_wave)

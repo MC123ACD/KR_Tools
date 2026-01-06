@@ -1,0 +1,7 @@
+[19:14:35] atlas_generator.ERROR KRTools GUI模块启动
+[19:16:05]atlas_generator.ERROR KRTools GUI模块启动
+[19:17:30]atlas_generator.ERROR KRTools GUI模块启动
+[19:54:12]atlas_generator.ERROR ⚠️ 无法合并文件夹 imgs 和 go_towers，因为它们的图片数量不一致
+[19:54:12]atlas_generator.ERROR ⚠️ 无法合并文件夹 imgs 和 go_towers - 副本，因为它们的图片数量不一致
+[19:54:12]atlas_generator.ERROR ⚠️ 无法合并文件夹 go_towers 和 go_towers - 副本，因为它们的图片数量不一致
+[20:21:01]atlas_generator.ERROR ⚠️ 无法合并文件夹 go_towers 和 go_towers - 副本，因为它们的图片数量不一致

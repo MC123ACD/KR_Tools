@@ -10,6 +10,7 @@
         "brightness": 1,
         "mirror_horizontal": false,
         "mirror_vertical": false,
+        "merge_images": false,
         "output_format": "png",
         "delete_temporary_png": true,
         "presets": {
@@ -24,6 +25,7 @@
                 "brightness": 0.98,
                 "mirror_horizontal": false,
                 "mirror_vertical": false,
+                "merge_images": false,
                 "output_format": "png",
                 "delete_temporary_png": false
             }

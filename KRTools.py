@@ -3,13 +3,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 import config, tools
+import log
 
+log = log.setup_logging(config.log_level, config.log_file)
 
 class MainApplication:
     def __init__(self, root):
         self.root = root
         self.root.title("KRTools")
-        self.root.geometry("1150x130")
+        self.root.geometry("1050x130")
 
         # 创建界面
         self.create_widgets()

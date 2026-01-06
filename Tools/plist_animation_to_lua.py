@@ -202,7 +202,7 @@ def write_common_animations_data(data, filename):
     output_dir = config.output_path / "animations"
     output_dir.mkdir(exist_ok=True)
 
-    print(f"写入动画数据{file}...")
+    log.info(f"写入动画数据{file}...")
 
     with open(output_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
@@ -296,7 +296,7 @@ def write_exos_data(data, filename):
     output_dir = config.output_path / "exoskeletons"
     output_dir.mkdir(exist_ok=True)
 
-    print(f"写入骨骼动画数据{file}...")
+    log.info(f"写入骨骼动画数据{file}...")
 
     with open(output_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
@@ -312,7 +312,7 @@ def get_input_files():
                 plist_data = plistlib.load(f)
 
                 if match.group():
-                    print(f"📖 读取文件: {file.name}")
+                    log.info(f"📖 读取文件: {file.name}")
                     file_data = (file.stem, plist_data)
 
                     files.append(file_data)
@@ -332,6 +332,6 @@ def main():
             else:
                 write_common_animations_data(ani_data, name)
 
-        print("所有文件转化完毕")
+        log.info("所有文件转化完毕")
     except Exception as e:
         traceback.print_exc()

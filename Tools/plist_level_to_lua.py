@@ -451,7 +451,7 @@ class CconvertPlistToLua:
 
         if self.plist_data["custom_spawners"]["events"]:
             if not self.main_datas[self.level_num]["level_data"].get("entities_list"):
-                print(f"❌ 错误，请放入{f"level{self.level_num}_data.lua"}文件")
+                log.error(f"请放入{f"level{self.level_num}_data.lua"}文件")
                 return
 
             main_data["spawners_data"][num_level_mode] = self.get_spawners_data()
@@ -858,7 +858,7 @@ class CconvertPlistToLua:
         lua_content = "\n".join(content)
         file = level_data["name"]
 
-        print(f"写入关卡数据{file}...")
+        log.info(f"写入关卡数据{file}...")
 
         with open(levels_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
@@ -936,7 +936,7 @@ class CconvertPlistToLua:
         lua_content = "\n".join(content)
         file = level_data["name"].replace("data", "paths")
 
-        print(f"写入路径数据{file}...")
+        log.info(f"写入路径数据{file}...")
 
         with open(levels_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
@@ -974,7 +974,7 @@ class CconvertPlistToLua:
         lua_content = "\n".join(content)
         file = level_data["name"].replace("data", "grid")
 
-        print(f"写入网格数据{file}...")
+        log.info(f"写入网格数据{file}...")
 
         with open(levels_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
@@ -1032,7 +1032,7 @@ class CconvertPlistToLua:
             lua_content = "\n".join(content)
             file = waves_data["name"]
 
-            print(f"写入波次数据{file}...")
+            log.info(f"写入波次数据{file}...")
 
             with open(waves_dir / file, "w", encoding="utf-8") as f:
                 f.write(lua_content)
@@ -1138,7 +1138,7 @@ class CconvertPlistToLua:
             lua_content = "\n".join(content)
             file = spawners_data["name"]
 
-            print(f"写入特殊出怪数据{file}...")
+            log.info(f"写入特殊出怪数据{file}...")
 
             with open(levels_dir / file, "w", encoding="utf-8") as f:
                 f.write(lua_content)
@@ -1173,7 +1173,7 @@ def get_input_files():
                 plist_data = plistlib.load(f)
                 level_num, level_mode = match.group(1), match.group(2)
 
-                print(f"📖 读取文件: {file.name}")
+                log.info(f"📖 读取文件: {file.name}")
                 if level_mode == "data":
                     file_data = (file, level_num, level_mode, plist_data)
 
@@ -1196,6 +1196,6 @@ def main():
         app = CconvertPlistToLua()
         app.main(files)
 
-        print("所有文件转化完毕")
+        log.info("所有文件转化完毕")
     except Exception as e:
         traceback.print_exc()

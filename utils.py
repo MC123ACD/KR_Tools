@@ -47,7 +47,7 @@ def save_to_dds(target_file, output_path, bc, delete_temporary_png=False):
 
     bc = all_bc[bc]
 
-    print(f"✅ 保存为DDS {bc}格式: {target_file.stem}.dds...")
+    log.info(f"✅ 保存为DDS {bc}格式: {target_file.stem}.dds...")
 
     output_format = f"{bc}_UNORM"
 

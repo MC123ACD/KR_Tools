@@ -276,13 +276,13 @@ class ImageProcessorGUI:
                 bbox = alpha.getbbox()
                 if bbox:
                     new_img = img.crop(bbox)
-                    print(
+                    log.info(
                         f"📖 加载图片  {file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
                     )
                 else:
-                    print(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
+                    log.info(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
             else:
-                print(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
+                log.info(f"📖 加载图片  {file.name} ({img.width}x{img.height})")
 
         return new_img
 
@@ -291,7 +291,7 @@ class ImageProcessorGUI:
         input_subdir = {"imgs": []}
 
         for item in config.input_path.iterdir():
-            print(f"📖 读取: {item.name}")
+            log.info(f"📖 读取: {item.name}")
 
             if item.is_dir():
                 input_subdir[item.name] = []
@@ -320,13 +320,17 @@ class ImageProcessorGUI:
             w /= 100
             h /= 100
 
+        if w == 1 and h == 1:
+            return img
+
         width, height = img.size
         new_width = round(width * w)
         new_height = round(height * h)
 
-        print(f"🔎 缩放图片大小，从{width}x{height}到{new_width}x{new_height}")
+        img = img.resize((new_width, new_height))
+        log.info(f"🔎 缩放图片大小，从{width}x{height}到{new_width}x{new_height}")
 
-        return img.resize((new_width, new_height))
+        return img
 
     def set_img_sharpen(self, img):
         """锐化图片"""
@@ -334,11 +338,11 @@ class ImageProcessorGUI:
         radius = int(self.sharp_radius_var.get())
         threshold = int(self.sharp_threshold_var.get())
 
-        if not (percent and percent and threshold):
+        if not all([percent, radius, threshold]):
             return img
 
         sharpened = img.filter(ImageFilter.UnsharpMask(radius, percent, threshold))
-        print(f"🔼 锐化图片，强度{percent}%，半径{radius}，阈值{threshold}")
+        log.info(f"🔼 锐化图片，强度{percent}%，半径{radius}，阈值{threshold}")
 
         return sharpened
 
@@ -351,7 +355,7 @@ class ImageProcessorGUI:
 
         enhancer = ImageEnhance.Brightness(img)
         compensated = enhancer.enhance(brightness_factor)
-        print(f"🔆 修改图片亮度为{brightness_factor}倍")
+        log.info(f"🔆 修改图片亮度为{brightness_factor}倍")
 
         return compensated
 
@@ -366,12 +370,12 @@ class ImageProcessorGUI:
         if mirror_horizontal:
             # 水平镜像
             mirrored_img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            print(f"🔄 水平镜像图片")
+            log.info(f"🔄 水平镜像图片")
 
         if mirror_vertical:
             # 垂直镜像
             mirrored_img = img.transpose(Image.FLIP_TOP_BOTTOM)
-            print(f"🔄 垂直镜像图片")
+            log.info(f"🔄 垂直镜像图片")
 
         return mirrored_img
 
@@ -391,7 +395,7 @@ class ImageProcessorGUI:
         img.save(output_img)
 
         if output_format == "png":
-            print(f"✅ 保存为PNG: {name}")
+            log.info(f"✅ 保存为PNG: {name}")
         elif output_format == "bc3" or output_format == "bc7":
             save_to_dds(
                 output_img,
@@ -433,6 +437,13 @@ class ImageProcessorGUI:
                     main_name, main_img = main_dir_list[idx]
                     other_name, other_img = other_dir_list[idx]
 
+                    new_img = Image.alpha_composite(main_img, other_img)
+                    log.info(
+                        f"🖼️ 合并图片: {main_dir_name}/{main_name} + {other_dir_name}/{other_name}"
+                    )
+
+                    self.save_img(new_img, Path("merged"), main_name)
+
     def process_images(self):
         """处理所有图片"""
         input_subdir = self.get_input_files()
@@ -453,7 +464,7 @@ class ImageProcessorGUI:
         if self.merge_var.get():
             self.merge_images(groups)
 
-        print("\n✅ 所有图片处理完成！")
+        log.info("\n✅ 所有图片处理完成！")
 
 
 def main(root):

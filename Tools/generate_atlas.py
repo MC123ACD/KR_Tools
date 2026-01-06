@@ -262,11 +262,11 @@ def fit(rectangles, width, height):
 
             for existing_id, existing_rect in results:
                 if rect.get_other_pos(existing_rect) == ["in"]:
-                    print(f"⚠️  警告: 矩形 {rect_id} 与矩形 {existing_id} 重叠!")
+                    log.warning(f"⚠️  警告: 矩形 {rect_id} 与矩形 {existing_id} 重叠!")
 
             for free_rect in free_rectangles:
                 if in_free_rect.get_other_pos(free_rect) == ["in"]:
-                    print(
+                    log.warning(
                         f"⚠️  警告: 空闲区域 {in_free_rect} 与空闲区域 {free_rect} 重叠!"
                     )
 
@@ -408,7 +408,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
             rectangles, images
         )
 
-        print(f"🏁 计算{atlas_name}尺寸: {atlas_size.x}x{atlas_size.y}")
+        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.x}x{atlas_size.y}")
 
         # 使用MaxRects算法进行排列
         results = maxrects_packing(rectangles, atlas_size)
@@ -474,7 +474,7 @@ def write_atlas(images, result):
                 setting["delete_temporary_png"],
             )
         elif setting["output_format"] == "png":
-            print(f"✅ 保存为png: {output_file.name}...")
+            log.info(f"✅ 保存为png: {output_file.name}...")
 
 
 def write_lua_data(images, results, atlas_name):
@@ -640,7 +640,7 @@ def get_input_subdir():
                     hash_group = hash_groups[hash_key]
                     hash_group["similar"].append(image_file_name)
 
-                    print(f"跳过重复图片 {image_file.name}")
+                    log.info(f"跳过重复图片 {image_file.name}")
                     continue
 
                 # 处理图片：裁剪透明区域
@@ -665,7 +665,7 @@ def get_input_subdir():
                         "similar": img_data["samed_img"],
                     }
 
-                print(
+                log.info(
                     f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
                 )
 
@@ -699,10 +699,10 @@ def main():
     # 加载并处理输入图片
     input_subdir = get_input_subdir()
 
-    print("所有图片加载完毕\n")
+    log.info("所有图片加载完毕\n")
 
     if not input_subdir:
-        print("未找到任何图片")
+        log.info("未找到任何图片")
         return
 
     # 为每个子目录创建图集
@@ -722,13 +722,13 @@ def main():
         # 生成Lua数据文件
         write_lua_data(images, results, atlas_stem_name)
 
-        print(f"{atlas_stem_name}图集生成完毕\n")
+        log.info(f"{atlas_stem_name}图集生成完毕\n")
 
         # 释放图片资源
         for img_info in images:
             img_info["image"].close()
 
-    print("所有图集生成完毕")
+    log.info("所有图集生成完毕")
 
 
 def add_performance_monitor_decorator():
@@ -778,10 +778,10 @@ def print_performance_info(all_time):
 
     calculated_sum.sort(key=lambda x: x[1], reverse=True)
 
-    print(f"\n=====总运行时长: {sum_time:.2f} 秒=====")
+    log.info(f"\n=====总运行时长: {sum_time:.2f} 秒=====")
 
     for fn_name, s, count in calculated_sum:
-        print(f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
+        log.info(f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
 
 
 def performance_monitor(main):

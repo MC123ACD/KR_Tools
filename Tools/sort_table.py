@@ -11,22 +11,17 @@ def sort_lua_table():
     """
     for filename in config.input_path.iterdir():
         if filename.suffix == ".lua":
-            print(f"📖 读取文件: {filename}")
+            log.info(f"📖 读取文件: {filename}")
 
-            try:
-                # 读取Lua文件内容
-                with open(filename, "r", encoding="utf-8-sig") as f:
-                    sorted_dict, sorted_list = process_table(f)
+            # 读取Lua文件内容
+            with open(filename, "r", encoding="utf-8-sig") as f:
+                sorted_dict, sorted_list = process_table(f)
 
-                    write_lua_file(
-                        config.output_path / filename.name, sorted_dict, sorted_list
-                    )
-
-            except Exception as e:
-                print(f"❌ 处理错误 {filename}: {str(e)}")
-                traceback.print_exc()
+                write_lua_file(
+                    config.output_path / filename.name, sorted_dict, sorted_list
+                )
         else:
-            print(f"⚠️ 跳过无效文件{filename}")
+            log.warning(f"⚠️ 跳过无效文件{filename}")
             return
 
 
@@ -64,7 +59,7 @@ def write_lua_file(lua_file_path: str, sorted_dict: dict, sorted_list: list):
 
         f.write("}")
 
-    print(f"✅ 处理完成！结果已保存到: {lua_file_path}")
+    log.info(f"✅ 处理完成！结果已保存到: {lua_file_path}")
 
 
 def process_table(f):

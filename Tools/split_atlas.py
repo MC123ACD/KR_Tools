@@ -18,7 +18,7 @@ def read_atlases_data(f):
     lua_data = config.lupa.execute(f.read())
 
     if not lua_data:
-        print("⚠️ 空的图集数据")
+        log.warning("⚠️ 空的图集数据")
         return {}
 
     def format_point(x, y):
@@ -226,7 +226,7 @@ def gen_png_from_plist(plist_path, png_path, open_plist=None):
         # 保存结果图像
         output_file = output_dir / f"{framename}.png"
         result_image.save(output_file)
-        print(f"🖼️ 生成图像: {output_file.name}")
+        log.info(f"🖼️ 生成图像: {output_file.name}")
 
 
 def process_plist_conversion():
@@ -240,7 +240,7 @@ def process_plist_conversion():
                 run_decompiler(filename, config.input_path)
 
                 with open(filename, "r", encoding="utf-8-sig") as f:
-                    print(f"📖 读取文件: {filename.name}")
+                    log.info(f"📖 读取文件: {filename.name}")
 
                     # 读取图集数据
                     atlases = read_atlases_data(f)
@@ -253,7 +253,7 @@ def process_plist_conversion():
                         # 检查文件扩展名
                         match = re.search(r"\.(png|dds)$", a_name)
                         if not match:
-                            print(f"⚠️ 跳过无效文件: {a_name}")
+                            log.warning(f"⚠️ 跳过无效文件: {a_name}")
                             continue
 
                         # 生成Plist文件
@@ -263,29 +263,29 @@ def process_plist_conversion():
 
                         with open(plist_path, "w", encoding="utf-8-sig") as plist_file:
                             plist_file.write(to_plist(atlas, a_name, size))
-                            print(f"✅ 生成Plist: {plist_filename}")
+                            log.info(f"✅ 生成Plist: {plist_filename}")
 
                         # 处理对应图集
                         atlas_image = config.input_path / a_name
                         if atlas_image.exists():
                             gen_png_from_plist(plist_path, atlas_image)
-                            print(f"✅ 图集拆分完毕: {a_name}\n")
+                            log.info(f"✅ 图集拆分完毕: {a_name}\n")
 
                         else:
-                            print(f"⚠️ 图集不存在: {a_name}")
+                            log.warning(f"⚠️ 图集不存在: {a_name}")
 
                         if setting["delete_temporary_plist"]:
                             Path(plist_path).unlink()
 
             elif filename.suffix == ".plist":
                 # 处理现有的Plist文件
-                print(f"📖 读取文件: {filename.name}")
+                log.info(f"📖 读取文件: {filename.name}")
 
                 with open(filename, "rb") as file:
                     open_plist = plistlib.load(file)
 
                     if not open_plist.get("metadata") :
-                        print(f"⚠️ 无效的Plist文件: {filename.name}")
+                        log.warning(f"⚠️ 无效的Plist文件: {filename.name}")
                         continue
 
                     frames = open_plist["metadata"]["realTextureFileName"]
@@ -295,9 +295,9 @@ def process_plist_conversion():
                 if atlas_image.exists():
                     # 生成图像
                     gen_png_from_plist(filename, atlas_image, open_plist)
-                    print(f"✅ 图集拆分完毕: {a_name}\n")
+                    log.info(f"✅ 图集拆分完毕: {a_name}\n")
                 else:
-                    print(f"⚠️ 图集不存在: {frames}")
+                    log.warning(f"⚠️ 图集不存在: {frames}")
 
     except Exception as e:
         traceback.print_exc()
@@ -306,4 +306,4 @@ def process_plist_conversion():
 def main():
     process_plist_conversion()
 
-    print("所有图集拆分完毕")
+    log.info("所有图集拆分完毕")

@@ -1,9 +1,7 @@
-import traceback, config, hashlib, time, concurrent.futures
+import traceback, config, hashlib, time
 from PIL import Image, ImageDraw
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
 from functools import wraps
-from bisect import bisect_left
-
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
@@ -144,7 +142,7 @@ def delete_invalid_rectangles(free_rectangles, min_rectangle):
     for i in range(len(free_rectangles)):
         free_rect = free_rectangles[i]
 
-        if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
+        if free_rect.w < min_rectangle[1] and free_rect.h < min_rectangle[2]:
             removed_idx.add(i)
 
     for idx in sorted(removed_idx, reverse=True):
@@ -164,56 +162,186 @@ def try_merge_rectangles(rect1, rect2):
     Returns:
         Rectangle: 合并后的矩形，如果无法合并则返回None
     """
-    # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
-    if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
-        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h, int)
+    connect_side = rect1.connect_side(rect2)
 
-    # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
-    if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
-        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h, int)
+    is_same_height = rect1.y == rect2.y and rect1.h == rect2.h
 
-    return None
+    if connect_side == "left":
+        if is_same_height:
+            return [Rectangle(rect2.x, rect2.y, rect1.w + rect2.w, rect2.h, int), None]
+
+        if rect1.h > rect2.h:
+            if rect1.y == rect2.y:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y + rect2.h, rect1.w, rect1.h - rect2.h, int
+                )
+            else:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y, rect1.w, rect1.h - rect2.h, int
+                )
+
+            return [
+                Rectangle(rect2.x, rect2.y, rect1.w + rect2.w, rect2.h, int),
+                other_rect,
+            ]
+
+        if rect1.y == rect2.y:
+            other_rect = Rectangle(
+                rect2.x, rect2.y + rect1.h, rect2.w, rect2.h - rect1.h, int
+            )
+        else:
+            other_rect = Rectangle(rect2.x, rect2.y, rect2.w, rect2.h - rect1.h, int)
+
+        return [
+            Rectangle(rect2.x, rect1.y, rect1.w + rect2.w, rect1.h, int),
+            other_rect,
+        ]
+
+    if connect_side == "right":
+        if is_same_height:
+            return [Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h, int), None]
+
+        if rect1.h > rect2.h:
+            if rect1.y == rect2.y:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y + rect2.h, rect1.w, rect1.h - rect2.h, int
+                )
+            else:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y, rect1.w, rect1.h - rect2.h, int
+                )
+
+            return [
+                Rectangle(rect1.x, rect2.y, rect1.w + rect2.w, rect2.h, int),
+                other_rect,
+            ]
+
+        if rect1.y == rect2.y:
+            other_rect = Rectangle(
+                rect2.x, rect2.y + rect1.h, rect2.w, rect2.h - rect1.h, int
+            )
+        else:
+            other_rect = Rectangle(rect2.x, rect2.y, rect2.w, rect2.h - rect1.h, int)
+
+        return [
+            Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h, int),
+            other_rect,
+        ]
+
+    is_same_width = rect1.x == rect2.x and rect1.w == rect2.w
+
+    if connect_side == "top":
+        if is_same_width:
+            return [Rectangle(rect1.x, rect2.y, rect1.w, rect1.h + rect2.h, int), None]
+
+        if rect1.w > rect2.w:
+            if rect1.x == rect2.x:
+                other_rect = Rectangle(
+                    rect1.x + rect2.w, rect1.y, rect1.w - rect2.w, rect1.h, int
+                )
+            else:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y, rect1.w - rect2.w, rect1.h, int
+                )
+
+            return [
+                Rectangle(rect2.x, rect2.y, rect2.w, rect1.h + rect2.h, int),
+                other_rect,
+            ]
+
+        if rect1.x == rect2.x:
+            other_rect = Rectangle(
+                rect1.x + rect1.w, rect2.y, rect2.w - rect1.w, rect2.h, int
+            )
+        else:
+            other_rect = Rectangle(rect2.x, rect2.y, rect2.w - rect1.w, rect2.h, int)
+
+        return [
+            Rectangle(rect1.x, rect2.y, rect1.w, rect1.h + rect2.h, int),
+            other_rect,
+        ]
+    if connect_side == "bottom":
+        if is_same_width:
+            return [Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h, int), None]
+
+        if rect1.w > rect2.w:
+            if rect1.x == rect2.x:
+                other_rect = Rectangle(
+                    rect1.x + rect2.w, rect1.y, rect1.w - rect2.w, rect1.h, int
+                )
+            else:
+                other_rect = Rectangle(
+                    rect1.x, rect1.y, rect1.w - rect2.w, rect1.h, int
+                )
+
+            return [
+                Rectangle(rect2.x, rect1.y, rect2.w, rect1.h + rect2.h, int),
+                other_rect,
+            ]
+
+        if rect1.x == rect2.x:
+            other_rect = Rectangle(
+                rect1.x + rect1.w, rect2.y, rect2.w - rect1.w, rect2.h, int
+            )
+        else:
+            other_rect = Rectangle(rect2.x, rect2.y, rect2.w - rect1.w, rect2.h, int)
+
+        return [
+            Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h, int),
+            other_rect,
+        ]
+
+    return [None, None]
 
 
 def merge_free_rectangles(free_rectangles):
     """
-    使用类似R-tree的空间索引优化
+    合并相邻的空闲矩形，优化空间利用
+
+    Args:
+        free_rectangles: 待合并的矩形列表
+
+    Returns:
+        list: 合并后的矩形列表
     """
-    if not free_rectangles:
-        return []
+    changed = True
 
-    # 按x坐标排序并建立索引
-    sorted_by_x = sorted(free_rectangles, key=lambda r: r.x)
-    x_coords = [r.x for r in sorted_by_x]
+    merged_rects = []  # 存储合并后的矩形
+    skip_indices = set()  # 存储已处理的索引
 
-    merged = []
+    free_rectangles.sort(key=lambda r: (r.y, r.x))
 
-    for rect in sorted_by_x:
-        # 使用二分查找找到可能重叠的矩形
-        start_idx = bisect_left(x_coords, rect.x - rect.w)  # 调整搜索范围
-        found_merge = False
+    # 循环合并直到没有变化
+    while changed:
+        changed = False
 
-        for i in range(start_idx, len(sorted_by_x)):
-            if sorted_by_x[i].x > rect.x + rect.w:
-                break
-
-            if sorted_by_x[i] == rect:
+        for i, current_rect in enumerate(free_rectangles):
+            if i in skip_indices:
                 continue
 
-            merged_rect = try_merge_rectangles(rect, sorted_by_x[i])
-            if merged_rect:
-                # 更新矩形和坐标列表
-                rect = merged_rect
-                # 移除被合并的矩形
-                del sorted_by_x[i]
-                del x_coords[i]
-                found_merge = True
-                break
+            # 只与后面的矩形合并，避免重复比较
+            for j in range(i + 1, len(free_rectangles)):
+                if j in skip_indices:
+                    continue
 
-        if not found_merge:
-            merged.append(rect)
+                rect, other_rect = try_merge_rectangles(
+                    current_rect, free_rectangles[j]
+                )
+                if rect:
+                    current_rect = rect
+                    changed = True
+                    skip_indices.add(j)
 
-    return merged
+                if other_rect:
+                    merged_rects.append(other_rect)
+
+            merged_rects.append(current_rect)
+            skip_indices.add(i)
+
+        if changed:
+            free_rectangles.sort(key=lambda r: (r.y, r.x))
+
+    return merged_rects
 
 
 def maxrects_packing(rectangles, width, height):
@@ -342,6 +470,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         idx += 1
 
     return finish_results
+
 
 def write_atlas(images, result):
     """

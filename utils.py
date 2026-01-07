@@ -222,7 +222,7 @@ class Rectangle:
         """返回副本"""
         return Rectangle(*self._data.copy())
 
-    def get_other_pos(self, other: "Rectangle") -> list[str]:
+    def other_pos(self, other: "Rectangle") -> list[str]:
         """返回另一个矩形相当于当前矩形的位置"""
         pos = []
 
@@ -240,3 +240,32 @@ class Rectangle:
             pos.append("in")
 
         return pos
+
+    def connect_side(self, other: "Rectangle") -> str:
+        """返回另一个矩形相对于当前矩形连接的边"""
+        if (
+            self.x == other.x + other.w
+            and self.y + self.h > other.y
+            and self.y < other.y + other.h
+        ):
+            return "left"
+        elif (
+            self.x + self.w == other.x
+            and self.y + self.h > other.y
+            and self.y < other.y + other.h
+        ):
+            return "right"
+        elif (
+            self.y == other.y + other.h
+            and self.x + self.w > other.x
+            and self.x < other.x + other.w
+        ):
+            return "top"
+        elif (
+            self.y + self.h == other.y
+            and self.x + self.w > other.x
+            and self.x < other.x + other.w
+        ):
+            return "bottom"
+        else:
+            return "none"

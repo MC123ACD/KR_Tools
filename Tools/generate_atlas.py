@@ -228,7 +228,7 @@ def merge_free_rectangles(free_rectangles):
     return merged_rects
 
 
-def fit(rectangles, width, height):
+def maxrects_packing(rectangles, width, height):
     """
     使用MaxRects算法在指定尺寸的画布上排列矩形
 
@@ -275,41 +275,7 @@ def fit(rectangles, width, height):
     return results
 
 
-def maxrects_packing(rectangles, atlas_size):
-    """
-    使用MaxRects算法进行矩形排列
-
-    Args:
-        rectangles: 矩形数据列表，格式为[(id, width, height), ...]
-        atlas_size: 图集尺寸 Vector(width, height)
-
-    Returns:
-        list: 排列结果列表
-    """
-    # 执行排列算法
-    results = fit(rectangles, atlas_size.x, atlas_size.y)
-
-    return results
-
-
-def simulate_packing_efficiency(rectangles, size):
-    """
-    模拟排列并计算空间利用率
-
-    Args:
-        rectangles: 矩形数据列表
-        size: 模拟的图集尺寸
-
-    Returns:
-        list: 排列结果列表
-    """
-    # 创建临时打包器进行模拟
-    results = fit(rectangles, size.x, size.y)
-
-    return results
-
-
-def calculate_optimal_size(rectangles, images):
+def calculate_optimal_size(rectangles):
     """
     计算最优的图集尺寸
 
@@ -317,68 +283,21 @@ def calculate_optimal_size(rectangles, images):
 
     Args:
         rectangles: 矩形数据列表
-        images: 图片数据字典
 
     Returns:
-        tuple: (最佳尺寸, 剩余未排列的矩形列表, 是否使用多图集)
+        tuple: 最佳尺寸 Vector(width, height)
     """
-    remaining_rect = is_several_atlas = last_size = last_efficiency = (
-        last_remaining_rect
-    ) = None
+    total_area = sum(rect[1] * rect[2] for rect in rectangles)
+    sqrt_area = int(total_area**0.5) + total_area // 10
 
-    # 尝试的尺寸序列
-    sizes = [Vector(size[0], size[1], int) for size in setting["sizes"]]
+    size = 1 << sqrt_area.bit_length()
 
-    best_size = sizes[0]
+    if size > setting["max_size"]:
+        size = setting["max_size"]
 
-    # 遍历尺寸寻找最佳匹配
-    for size in sizes:
-        is_first = size == sizes[0]
-        is_end = size == sizes[-1]
+    size = Vector(size, size, int)
 
-        # 模拟打包并计算利用率
-        results = simulate_packing_efficiency(rectangles, size)
-
-        # 计算空间利用率
-        used_area = sum(img[1].w * img[1].h for img in results)
-        total_area = size.x * size.y
-        efficiency = used_area / total_area
-
-        if len(results) < len(rectangles):
-            # 有矩形无法放入，记录剩余矩形
-            remaining_rect = [
-                rect
-                for rect in rectangles
-                if rect[0] not in set([r[0] for r in results])
-            ]
-
-            if is_end:
-                # 已经是最大尺寸，仍有矩形无法放入
-                best_size = size
-                is_several_atlas = True
-                break
-
-            # 记录当前状态，用于后续回溯
-            last_size = size
-            last_efficiency, last_remaining_rect = efficiency, remaining_rect
-
-            continue
-
-        # 利用率较低，考虑使用多图集打包
-        if 0 < efficiency < setting["trigger_several_efficiency"]:
-            if is_first:
-                best_size = size
-            else:
-                best_size = last_size
-                is_several_atlas = True
-                efficiency, remaining_rect = last_efficiency, last_remaining_rect
-            break
-        # 利用率可接受，使用当前尺寸
-        elif efficiency > setting["trigger_several_efficiency"]:
-            best_size = size
-            break
-
-    return best_size, remaining_rect, is_several_atlas
+    return size
 
 
 def create_atlas(baisic_atlas_name, rectangles, images):
@@ -395,23 +314,20 @@ def create_atlas(baisic_atlas_name, rectangles, images):
     Returns:
         list: 所有生成图集的结果信息列表
     """
-    is_several_atlas = True
     idx = 1
     finish_results = []
 
-    while is_several_atlas:
+    while True:
         # 生成图集名称（多图集时添加序号）
         atlas_name = baisic_atlas_name + f"-{idx}"
 
         # 计算最优尺寸
-        atlas_size, remaining_rect, is_several_atlas = calculate_optimal_size(
-            rectangles, images
-        )
+        atlas_size = calculate_optimal_size(rectangles)
 
         log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.x}x{atlas_size.y}")
 
         # 使用MaxRects算法进行排列
-        results = maxrects_packing(rectangles, atlas_size)
+        results = maxrects_packing(rectangles, atlas_size.x, atlas_size.y)
 
         # 记录打包结果
         finish_results.append(
@@ -426,7 +342,14 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         for rect_id, rect in results:
             images[rect_id]["pos"] = Vector(rect.x, rect.y, int)
 
-        # 准备下一轮打包（如果还有剩余矩形）
+        # 计算剩余未打包的矩形
+        packed_ids = set(rect[0] for rect in results)
+        remaining_rect = [rect for rect in rectangles if rect[0] not in packed_ids]
+
+        if not remaining_rect:
+            break
+
+        log.info(f"🔄 还有 {len(remaining_rect)} 个矩形未打包，准备下一轮打包")
         rectangles = remaining_rect
         idx += 1
 

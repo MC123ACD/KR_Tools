@@ -13,7 +13,7 @@ lupa = LuaRuntime(unpack_returned_tuples=True)
 setting = {}
 
 log_level = "INFO"
-log_file = "log.txt"
+log_file = None
 
 with open(setting_file, "r", encoding="utf-8") as f:
     data = json.load(f)

@@ -1,4 +1,4 @@
-import traceback, config, hashlib, time, concurrent.futures
+import traceback, config, hashlib, time, concurrent.futures, os
 from PIL import Image, ImageDraw
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
 from functools import wraps
@@ -14,7 +14,7 @@ setting = config.setting["generate_atlas"]
 # 最小面积策略标识
 MINAREA = "min_area"
 SHORTSIDE = "short_side"
-
+MAXAREA = "max_area"
 
 def calculate_score(rect, strategy):
     """
@@ -31,6 +31,8 @@ def calculate_score(rect, strategy):
         return rect.w * rect.h  # 使用面积作为评分
     elif strategy == SHORTSIDE:
         return min(rect.w, rect.h)  # 使用短边长度作为评分
+    elif strategy == MAXAREA:
+        return -rect.w * rect.h  # 使用面积作为评分
 
     return 0
 
@@ -43,7 +45,6 @@ def find_position(free_rectangles, width, height):
         free_rectangles: 当前空闲区域列表
         width: 待放置矩形的宽度
         height: 待放置矩形的高度
-        min_rectangle: 所有矩形中的最小尺寸，用于优化判断
 
     Returns:
         tuple: (更新后的空闲区域列表, (最佳矩形, 所在空闲区域, 空闲区域索引)) 或 None
@@ -177,11 +178,12 @@ def try_merge_rectangles(rect1, rect2):
 
 def merge_free_rectangles(free_rectangles):
     """
-    使用类似R-tree的空间索引优化
+    合并相邻的空闲矩形
     """
     if not free_rectangles:
         return []
-
+    
+    # 使用类似R-tree的空间索引优化
     # 按x坐标排序并建立索引
     sorted_by_x = sorted(free_rectangles, key=lambda r: r.x)
     x_coords = [r.x for r in sorted_by_x]
@@ -376,7 +378,12 @@ def write_atlas(images, result):
             # 裁剪图集到实际内容大小
             bbox = atlas.getbbox()
             if bbox:
-                atlas = atlas.crop(bbox)
+                left, top, right, bottom = bbox
+
+                right += 4 - (right % 4)
+                bottom += 4 - (bottom % 4)
+
+                atlas = atlas.crop((left, top, right, bottom))
 
         # 保存PNG文件
         atlas.save(output_file)
@@ -391,6 +398,8 @@ def write_atlas(images, result):
             )
         elif setting["output_format"] == "png":
             log.info(f"✅ 保存为png: {output_file.name}...")
+
+        return Vector(atlas.width, atlas.height, int)
 
 
 def write_lua_data(images, results, atlas_name):
@@ -509,8 +518,10 @@ def process_img(img):
     alpha = img.getchannel("A")
     bbox = alpha.getbbox()
 
-    if bbox:
-        left, top, right, bottom = bbox
+    if not bbox:
+        return img, (0, 0, 0, 0)
+
+    left, top, right, bottom = bbox
 
     # 计算裁剪信息（相对于原始图片）
     right = origin_width - right
@@ -532,73 +543,137 @@ def get_input_subdir():
         dict: 按子目录组织的图片数据字典
     """
     input_subdir = {}
+    padding = setting["padding"]
 
-    # 遍历输入目录下的所有子目录
-    for item in config.input_path.iterdir():
-        hash_groups = {}  # 用于检测重复图片
+    # 1. 并行处理子目录
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(4, (os.cpu_count() or 2))
+    ) as executor:
+        # 提交所有子目录处理任务
+        future_to_dir = {
+            executor.submit(process_directory, item, padding): item.name
+            for item in config.input_path.iterdir()
+            if item.is_dir()
+        }
 
-        if not item.is_dir():
-            continue
-
-        input_subdir[item.name] = {"images": [], "rectangles": []}
-        images = input_subdir[item.name]["images"]
-
-        # 遍历子目录中的所有图片文件
-        for image_file in item.iterdir():
-            image_file_name = image_file.stem
-
-            with Image.open(image_file) as img:
-                # 计算图片哈希值用于重复检测
-                hash_key = hashlib.md5(img.tobytes()).hexdigest()
-
-                # 跳过重复图片
-                if hash_key in hash_groups:
-                    hash_group = hash_groups[hash_key]
-                    hash_group["similar"].append(image_file_name)
-
-                    log.info(f"跳过重复图片 {image_file.name}")
-                    continue
-
-                # 处理图片：裁剪透明区域
-                new_img, trim = process_img(img)
-
-                # 构建图片数据字典
-                img_data = {
-                    "name": image_file_name,
-                    "image": new_img,
-                    "origin_width": img.width,
-                    "origin_height": img.height,
-                    "samed_img": [],  # 相同图片列表
-                    "trim": trim,  # 裁剪信息
-                }
-
-                images.append(img_data)
-
-                # 更新哈希分组
-                if hash_key not in hash_groups:
-                    hash_groups[hash_key] = {
-                        "main": img_data,
-                        "similar": img_data["samed_img"],
-                    }
-
-                log.info(
-                    f"📖 加载图片  {image_file.name} ({img.width}x{img.height}, 裁剪后{new_img.width}x{new_img.height})"
-                )
-
-        padding = setting["padding"]
-
-        # 准备矩形数据用于打包 (id, width+padding, height+padding)
-        rectangles = [
-            (i, img["image"].width + padding, img["image"].height + padding)
-            for i, img in enumerate(images)
-        ]
-
-        # 按面积降序排列（MaxRects算法通常先放置大矩形）
-        input_subdir[item.name]["rectangles"] = sorted(
-            rectangles, key=lambda r: r[1] * r[2], reverse=True
-        )
+        # 收集结果
+        for future in concurrent.futures.as_completed(future_to_dir):
+            dir_name = future_to_dir[future]
+            try:
+                result = future.result()
+                if result:
+                    input_subdir[dir_name] = result
+            except Exception as exc:
+                log.error(f"处理目录 {dir_name} 时出错: {exc}")
 
     return input_subdir
+
+
+def process_directory(directory_path, padding):
+    """
+    处理单个目录的图片
+    """
+    hash_groups = {}  # 用于检测重复图片
+    images = []
+
+    # 预收集所有图片文件路径
+    image_files = list(directory_path.glob("*.*"))
+    image_files = [
+        f
+        for f in image_files
+        if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+    ]
+
+    # 2. 批量处理图片（减少IO操作）
+    for image_file in image_files:
+        log.info(f"📂 处理图片: {image_file.name}...")
+        try:
+            image_data = process_single_image(image_file, hash_groups)
+            if image_data:
+                images.append(image_data)
+        except Exception as e:
+            log.error(f"处理图片 {image_file.name} 失败: {e}")
+            continue
+
+    if not images:
+        return None
+
+    # 3. 准备矩形数据（使用生成器表达式）
+    rectangles = [
+        (i, img["image"].width + padding, img["image"].height + padding)
+        for i, img in enumerate(images)
+    ]
+
+    # 4. 使用更高效的排序
+    rectangles.sort(key=lambda r: (r[1], r[1] * r[2]), reverse=True)
+
+    return {"images": images, "rectangles": rectangles}
+
+
+def process_single_image(image_file, hash_groups):
+    """
+    处理单张图片
+    """
+    image_file_name = image_file.stem
+
+    # 5. 优化：先检查文件大小再计算哈希（快速跳过）
+    file_size = image_file.stat().st_size
+    if file_size == 0:
+        log.warning(f"跳过空文件: {image_file.name}")
+        return None
+
+    with Image.open(image_file) as img:
+        # 如果需要更快的速度，可以使用文件内容的哈希而不是图片数据的哈希
+        hash_key = calculate_image_hash(img)
+
+        # 跳过重复图片
+        if hash_key in hash_groups:
+            hash_group = hash_groups[hash_key]
+            hash_group["similar"].append(image_file_name)
+            log.info(f"跳过重复图片 {image_file.name}")
+            return None
+
+        # 处理图片：裁剪透明区域
+        new_img, trim = process_img(img)
+
+        # 构建图片数据字典
+        img_data = {
+            "name": image_file_name,
+            "image": new_img,
+            "origin_width": img.width,
+            "origin_height": img.height,
+            "samed_img": [],  # 相同图片列表
+            "trim": trim,  # 裁剪信息
+            "file_size": file_size,
+            "aspect_ratio": img.width / img.height if img.height > 0 else 0,
+        }
+
+        # 更新哈希分组
+        hash_groups[hash_key] = {
+            "main": img_data,
+            "similar": img_data["samed_img"],
+        }
+
+        log.debug(
+            f"加载图片 {image_file.name} "
+            f"({img.width}x{img.height} → {new_img.width}x{new_img.height}) "
+            f"大小: {file_size:,} bytes"
+        )
+
+        return img_data
+
+
+def calculate_image_hash(img):
+    """
+    计算图片哈希值，支持多种策略
+    """
+    # 策略1：使用图片数据哈希（准确但较慢）
+    return hashlib.md5(img.tobytes()).hexdigest()
+
+    # # 策略2：使用缩略图哈希（更快，适用于大多数重复检测）
+    # thumbnail = img.copy()
+    # thumbnail.thumbnail((64, 64))  # 缩放到64x64
+    # return hashlib.md5(thumbnail.tobytes()).hexdigest()
 
 
 def main():
@@ -633,7 +708,7 @@ def main():
 
         # 输出图集文件
         for result in results:
-            write_atlas(images, result)
+            result["atlas_size"] = write_atlas(images, result)
 
         # 生成Lua数据文件
         write_lua_data(images, results, atlas_stem_name)
@@ -670,6 +745,8 @@ def add_performance_monitor_decorator():
 
     global get_input_subdir
     get_input_subdir = timer_decorator(get_input_subdir)
+    global find_position
+    find_position = timer_decorator(find_position)
     global calculate_optimal_size
     calculate_optimal_size = timer_decorator(calculate_optimal_size)
     global merge_free_rectangles
@@ -694,10 +771,10 @@ def print_performance_info(all_time):
 
     calculated_sum.sort(key=lambda x: x[1], reverse=True)
 
-    log.info(f"\n=====总运行时长: {sum_time:.2f} 秒=====")
+    log.info(f"\n=====总运行时长: {sum_time:.3f} 秒=====")
 
     for fn_name, s, count in calculated_sum:
-        log.info(f"{fn_name:<25}: {s:.2f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
+        log.info(f"{fn_name:<25}: {s:.3f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
 
 
 def performance_monitor(main):

@@ -2,7 +2,7 @@ import traceback, config, hashlib, time, concurrent.futures, os
 from PIL import Image, ImageDraw
 from utils import is_simple_key, save_to_dds, Vector, Rectangle
 from functools import wraps
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 
 import log
 
@@ -12,9 +12,194 @@ log = log.setup_logging(config.log_level, config.log_file)
 setting = config.setting["generate_atlas"]
 
 # 最小面积策略标识
-MINAREA = "min_area"
-SHORTSIDE = "short_side"
-MAXAREA = "max_area"
+MIN_AREA = "min_area"
+MAX_AREA = "max_area"
+SHOR_TSIDE = "short_side"
+
+TYPE_RECT = "rect"
+TYPE_FREE_RECT = "free_rect"
+
+
+def process_img(img):
+    """
+    处理单张图片：裁剪透明区域并计算裁剪信息
+
+    Args:
+        img: PIL图片对象
+
+    Returns:
+        tuple: (裁剪后的图片, 裁剪信息元组)
+    """
+    origin_width = img.width
+    origin_height = img.height
+
+    left = top = right = bottom = 0
+
+    # 确保图片有Alpha通道
+    if img.mode == "RGB":
+        img = img.convert("RGBA")
+
+    # 获取非透明区域的边界框
+    alpha = img.getchannel("A")
+    bbox = alpha.getbbox()
+
+    if not bbox:
+        return img, (0, 0, 0, 0)
+
+    left, top, right, bottom = bbox
+
+    # 计算裁剪信息（相对于原始图片）
+    right = origin_width - right
+    bottom = origin_height - bottom
+
+    # 裁剪图片
+    new_img = img.crop(bbox)
+
+    trim_data = (int(left), int(top), int(right), int(bottom))
+
+    return new_img, trim_data
+
+
+def calculate_image_hash(img):
+    """
+    计算图片哈希值，支持多种策略
+    """
+    # 策略1：使用图片数据哈希（准确但较慢）
+    return hashlib.md5(img.tobytes()).hexdigest()
+
+    # # 策略2：使用缩略图哈希（更快，适用于大多数重复检测）
+    # thumbnail = img.copy()
+    # thumbnail.thumbnail((64, 64))  # 缩放到64x64
+    # return hashlib.md5(thumbnail.tobytes()).hexdigest()
+
+
+def process_single_image(image_file, hash_groups):
+    """
+    处理单张图片
+    """
+    image_file_name = image_file.stem
+
+    # 5. 优化：先检查文件大小再计算哈希（快速跳过）
+    file_size = image_file.stat().st_size
+    if file_size == 0:
+        log.warning(f"跳过空文件: {image_file.name}")
+        return None
+
+    with Image.open(image_file) as img:
+        # 如果需要更快的速度，可以使用文件内容的哈希而不是图片数据的哈希
+        hash_key = calculate_image_hash(img)
+
+        # 跳过重复图片
+        if hash_key in hash_groups:
+            hash_group = hash_groups[hash_key]
+            hash_group["similar"].append(image_file_name)
+            log.info(f"跳过重复图片 {image_file.name}")
+            return None
+
+        # 处理图片：裁剪透明区域
+        new_img, trim = process_img(img)
+
+        # 构建图片数据字典
+        img_data = {
+            "name": image_file_name,
+            "image": new_img,
+            "origin_width": img.width,
+            "origin_height": img.height,
+            "samed_img": [],  # 相同图片列表
+            "trim": trim,  # 裁剪信息
+            "file_size": file_size,
+            "aspect_ratio": img.width / img.height if img.height > 0 else 0,
+        }
+
+        # 更新哈希分组
+        hash_groups[hash_key] = {
+            "main": img_data,
+            "similar": img_data["samed_img"],
+        }
+
+        log.debug(
+            f"加载图片 {image_file.name} "
+            f"({img.width}x{img.height} → {new_img.width}x{new_img.height}) "
+            f"大小: {file_size:,} bytes"
+        )
+
+        return img_data
+
+
+def process_directory(directory_path, padding):
+    """
+    处理单个目录的图片
+    """
+    hash_groups = {}  # 用于检测重复图片
+    images = []
+
+    # 预收集所有图片文件路径
+    image_files = list(directory_path.glob("*.*"))
+    image_files = [
+        f
+        for f in image_files
+        if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+    ]
+
+    # 2. 批量处理图片（减少IO操作）
+    for image_file in image_files:
+        log.info(f"📂 处理图片: {image_file.name}...")
+        try:
+            image_data = process_single_image(image_file, hash_groups)
+            if image_data:
+                images.append(image_data)
+        except Exception as e:
+            log.error(f"处理图片 {image_file.name} 失败: {e}")
+            continue
+
+    if not images:
+        return None
+
+    # 3. 准备矩形数据（使用生成器表达式）
+    rectangles = [
+        (i, img["image"].width + padding, img["image"].height + padding)
+        for i, img in enumerate(images)
+    ]
+
+    # 4. 使用更高效的排序
+    rectangles.sort(key=lambda r: (r[1], r[1] * r[2]), reverse=True)
+
+    return {"images": images, "rectangles": rectangles}
+
+
+def get_input_subdir():
+    """
+    加载输入目录中的所有图片并进行处理
+
+    Returns:
+        dict: 按子目录组织的图片数据字典
+    """
+    input_subdir = {}
+    padding = setting["padding"]
+
+    # 1. 并行处理子目录
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(4, (os.cpu_count() or 2))
+    ) as executor:
+        # 提交所有子目录处理任务
+        future_to_dir = {
+            executor.submit(process_directory, item, padding): item.name
+            for item in config.input_path.iterdir()
+            if item.is_dir()
+        }
+
+        # 收集结果
+        for future in concurrent.futures.as_completed(future_to_dir):
+            dir_name = future_to_dir[future]
+            try:
+                result = future.result()
+                if result:
+                    input_subdir[dir_name] = result
+            except Exception as exc:
+                log.error(f"处理目录 {dir_name} 时出错: {exc}")
+
+    return input_subdir
+
 
 def calculate_score(rect, strategy):
     """
@@ -27,14 +212,39 @@ def calculate_score(rect, strategy):
     Returns:
         float: 分数值，分数越小表示越优先选择
     """
-    if strategy == MINAREA:
+    if strategy == MIN_AREA:
         return rect.w * rect.h  # 使用面积作为评分
-    elif strategy == SHORTSIDE:
+    elif strategy == SHOR_TSIDE:
         return min(rect.w, rect.h)  # 使用短边长度作为评分
-    elif strategy == MAXAREA:
+    elif strategy == MAX_AREA:
         return -rect.w * rect.h  # 使用面积作为评分
 
     return 0
+
+
+def calculate_optimal_size(rectangles):
+    """
+    计算最优的图集尺寸
+
+    通过尝试不同尺寸，找到空间利用率最高的图集尺寸
+
+    Args:
+        rectangles: 矩形数据列表
+
+    Returns:
+        tuple: 最佳尺寸 Vector(width, height)
+    """
+    total_area = sum(rect[1] * rect[2] for rect in rectangles)
+    sqrt_area = int(total_area**0.5) + total_area // 10
+
+    size = 1 << sqrt_area.bit_length()
+
+    if size > setting["max_size"]:
+        size = setting["max_size"]
+
+    size = Vector(size, size, int)
+
+    return size
 
 
 def find_position(free_rectangles, width, height):
@@ -59,7 +269,7 @@ def find_position(free_rectangles, width, height):
             continue
 
         # 计算当前空闲区域的分数
-        score = calculate_score(free_rect, MINAREA)
+        score = calculate_score(free_rect, MIN_AREA)
 
         # 更新最佳位置
         if score < best_score:
@@ -138,18 +348,18 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     free_rectangles.extend(new_rects[1:])
 
 
-def delete_invalid_rectangles(free_rectangles, min_rectangle):
-    removed_idx = set()
+# def delete_invalid_rectangles(free_rectangles, min_rectangle):
+#     removed_idx = set()
 
-    # 删除过小的空闲区域
-    for i in range(len(free_rectangles)):
-        free_rect = free_rectangles[i]
+#     # 删除过小的空闲区域
+#     for i in range(len(free_rectangles)):
+#         free_rect = free_rectangles[i]
 
-        if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
-            removed_idx.add(i)
+#         if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
+#             removed_idx.add(i)
 
-    for idx in sorted(removed_idx, reverse=True):
-        del free_rectangles[idx]
+#     for idx in sorted(removed_idx, reverse=True):
+#         del free_rectangles[idx]
 
 
 def try_merge_rectangles(rect1, rect2):
@@ -182,35 +392,47 @@ def merge_free_rectangles(free_rectangles):
     """
     if not free_rectangles:
         return []
-    
+
     # 使用类似R-tree的空间索引优化
     # 按x坐标排序并建立索引
     sorted_by_x = sorted(free_rectangles, key=lambda r: r.x)
     x_coords = [r.x for r in sorted_by_x]
 
+    used_idx = set()
     merged = []
 
-    for rect in sorted_by_x:
-        # 使用二分查找找到可能重叠的矩形
+    for i in range(len(sorted_by_x)):
+        if i in used_idx:
+            continue
+
+        rect = sorted_by_x[i]
+
+        # 使用二分查找找到可能可以合并的矩形
         start_idx = bisect_left(x_coords, rect.x - rect.w)  # 调整搜索范围
         found_merge = False
 
-        for i in range(start_idx, len(sorted_by_x)):
-            if sorted_by_x[i].x > rect.x + rect.w:
-                break
-
-            if sorted_by_x[i] == rect:
+        for j in range(start_idx, len(sorted_by_x)):
+            if j in used_idx:
                 continue
 
-            merged_rect = try_merge_rectangles(rect, sorted_by_x[i])
-            if merged_rect:
-                # 更新矩形和坐标列表
-                rect = merged_rect
-                # 移除被合并的矩形
-                del sorted_by_x[i]
-                del x_coords[i]
-                found_merge = True
+            s_rect = sorted_by_x[j]
+
+            if s_rect.x > rect.x + rect.w:
                 break
+
+            if s_rect == rect:
+                continue
+
+            merged_rect = try_merge_rectangles(rect, s_rect)
+            if not merged_rect:
+                continue
+
+            # 更新矩形和坐标列表
+            rect = merged_rect
+
+            used_idx.add(j)
+            found_merge = True
+            break
 
         if not found_merge:
             merged.append(rect)
@@ -236,7 +458,7 @@ def maxrects_packing(rectangles, width, height):
     free_rectangles = [Rectangle(border, border, width - border, height - border)]
 
     # 获取最小的矩形（用于优化判断）
-    min_rectangle = rectangles[-1]
+    # min_rectangle = rectangles[-1]
 
     # 遍历所有矩形进行排列
     for rect_id, w, h in rectangles:
@@ -247,7 +469,7 @@ def maxrects_packing(rectangles, width, height):
             rect, in_free_rect, free_rect_idx = rect_data
 
             split_free_rectangle(free_rectangles, in_free_rect, rect, free_rect_idx)
-            delete_invalid_rectangles(free_rectangles, min_rectangle)
+            # delete_invalid_rectangles(free_rectangles, min_rectangle)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
             for existing_id, existing_rect in results:
@@ -262,32 +484,128 @@ def maxrects_packing(rectangles, width, height):
 
             results.append((rect_id, rect))
 
-    return results
+    return results, free_rectangles
 
 
-def calculate_optimal_size(rectangles):
+def try_move_rect(free_rect, rect):
     """
-    计算最优的图集尺寸
+    尝试将矩形移动到空闲区域左上角
 
-    通过尝试不同尺寸，找到空间利用率最高的图集尺寸
-
-    Args:
-        rectangles: 矩形数据列表
-
-    Returns:
-        tuple: 最佳尺寸 Vector(width, height)
+    :param free_rect: 空闲区域
+    :param rect: 矩形
     """
-    total_area = sum(rect[1] * rect[2] for rect in rectangles)
-    sqrt_area = int(total_area**0.5) + total_area // 10
+    if free_rect.w == 0 or free_rect.h == 0:
+        return None
 
-    size = 1 << sqrt_area.bit_length()
+    if free_rect.x + free_rect.w != rect.x:
+        return None
 
-    if size > setting["max_size"]:
-        size = setting["max_size"]
+    if rect.y < free_rect.y or rect.y + rect.h > free_rect.y + free_rect.h:
+        return None
 
-    size = Vector(size, size, int)
+    # 左移
+    new_rect = Rectangle(free_rect.x, rect.y, rect.w, rect.h, int)
+    new_free_rects = {"right": None, "bottom": None}
 
-    return size
+    if free_rect.h - rect.h != 0:
+        # 上移
+        new_rect.y = free_rect.y
+        new_free_rects["bottom"] = Rectangle(
+            free_rect.x, new_rect.y + rect.h, free_rect.w, free_rect.h - rect.w
+        )
+
+    new_free_rects["right"] = Rectangle(
+        free_rect.x + rect.w, rect.y, free_rect.w - rect.w, rect.y
+    )
+
+    log.info(f"移动 {rect} 到 {new_rect}")
+
+    return new_rect, new_free_rects
+
+
+def try_permute_with_free_rectangle(rectangles, free_rect_data, sorted_by_x, x_coords):
+    free_rect, free_rect_idx, _, free_rect_origin_idx = free_rect_data
+    used_rectangles = set()
+    used_free_rect = False
+    has_new_free_rect = True
+
+    while has_new_free_rect:
+        has_new_free_rect = False
+        if used_free_rect:
+            break
+
+        start_idx = bisect_right(x_coords, (free_rect.x, TYPE_RECT))
+
+        for rect_idx in range(start_idx, len(sorted_by_x)):
+            if rect_idx in used_rectangles:
+                continue
+
+            rect, rect_type, rect_id, rect_origin_idx = sorted_by_x[rect_idx]
+            if rect_type != TYPE_RECT or free_rect.y != rect.y:
+                continue
+
+            permutation = try_move_rect(free_rect, rect)
+            if not permutation:
+                continue
+
+            new_rect, new_free_rects = permutation
+            right_free_rect = new_free_rects["right"]
+            bottom_free_rect = new_free_rects["bottom"]
+
+            # 更新原矩形
+            rectangles.add(rect_idx)
+            rectangles[rect_origin_idx] = (rect_id, new_rect)
+            used_rectangles.add(rect_idx)
+
+            if right_free_rect:
+                free_rect = right_free_rect
+                has_new_free_rect = True
+
+            if bottom_free_rect:
+                bottom_free_rect_data = (
+                    bottom_free_rect,
+                    TYPE_FREE_RECT,
+                    None,
+                    free_rect_origin_idx,
+                )
+                # 下空闲区域覆盖原空闲区域
+                sorted_by_x[free_rect_idx] = bottom_free_rect_data
+                x_coords[free_rect_idx] = (bottom_free_rect.x, TYPE_FREE_RECT)
+
+                try_permute_with_free_rectangle(
+                    rectangles,
+                    bottom_free_rect_data,
+                    sorted_by_x,
+                    x_coords,
+                )
+
+            used_free_rect = True
+
+            break
+
+
+def optimize_rectangle_layouts(rectangles, free_rectangles):
+    if not free_rectangles:
+        return
+
+    combined = [(r[1], TYPE_RECT, r[0], i) for i, r in enumerate(rectangles)] + [
+        (r, TYPE_FREE_RECT, None, i) for i, r in enumerate(free_rectangles)
+    ]
+
+    sorted_by_x = sorted(combined, key=lambda data: data[0].x)
+    x_coords = [(r[0].x, r[1]) for r in sorted_by_x]
+
+    for free_rect_data in sorted_by_x:
+        rect_type = free_rect_data[1]
+        if rect_type != TYPE_FREE_RECT:
+            continue
+
+        try_permute_with_free_rectangle(
+            rectangles,
+            free_rect_data,
+            sorted_by_x,
+            x_coords,
+        )
 
 
 def create_atlas(baisic_atlas_name, rectangles, images):
@@ -305,7 +623,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         list: 所有生成图集的结果信息列表
     """
     idx = 1
-    finish_results = []
+    final_results = []
 
     while True:
         # 生成图集名称（多图集时添加序号）
@@ -317,23 +635,28 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.x}x{atlas_size.y}")
 
         # 使用MaxRects算法进行排列
-        results = maxrects_packing(rectangles, atlas_size.x, atlas_size.y)
+        results_rectangles, free_rectangles = maxrects_packing(
+            rectangles, atlas_size.x, atlas_size.y
+        )
+
+        # 优化排列
+        optimize_rectangle_layouts(results_rectangles, free_rectangles)
 
         # 记录打包结果
-        finish_results.append(
+        final_results.append(
             {
                 "name": atlas_name,
-                "rectangles_id": sorted([rect[0] for rect in results]),
+                "rectangles": results_rectangles,
                 "atlas_size": atlas_size,
             }
         )
 
         # 更新图片位置信息
-        for rect_id, rect in results:
+        for rect_id, rect in results_rectangles:
             images[rect_id]["pos"] = Vector(rect.x, rect.y, int)
 
         # 计算剩余未打包的矩形
-        packed_ids = set(rect[0] for rect in results)
+        packed_ids = set(rect[0] for rect in results_rectangles)
         remaining_rect = [rect for rect in rectangles if rect[0] not in packed_ids]
 
         if not remaining_rect:
@@ -343,7 +666,8 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         rectangles = remaining_rect
         idx += 1
 
-    return finish_results
+    return final_results
+
 
 def write_atlas(images, result):
     """
@@ -360,7 +684,8 @@ def write_atlas(images, result):
         output_file = config.output_path / f"{result['name']}.png"
 
         # 将所有图片粘贴到图集上
-        for img_id in result["rectangles_id"]:
+        for rect in result["rectangles"]:
+            img_id = rect[0]
             img_info = images[img_id]
             img_pos = img_info["pos"]
 
@@ -420,7 +745,8 @@ def write_lua_data(images, results, atlas_name):
 
     # 遍历所有打包结果
     for i, result in enumerate(results):
-        for j, img_id in enumerate(result["rectangles_id"]):
+        for j, rect in enumerate(result["rectangles"]):
+            img_id = rect[0]
             img = images[img_id]
             pos = img["pos"]
             trim = img["trim"]
@@ -480,7 +806,7 @@ def write_lua_data(images, results, atlas_name):
                 a("\t\talias = {}")
 
             # 结束当前图片数据
-            if i < len(results) - 1 or j < len(result["rectangles_id"]) - 1:
+            if i < len(results) - 1 or j < len(result["rectangles"]) - 1:
                 a("\t},")
             else:
                 a("\t}")
@@ -493,187 +819,6 @@ def write_lua_data(images, results, atlas_name):
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(lua_content)
-
-
-def process_img(img):
-    """
-    处理单张图片：裁剪透明区域并计算裁剪信息
-
-    Args:
-        img: PIL图片对象
-
-    Returns:
-        tuple: (裁剪后的图片, 裁剪信息元组)
-    """
-    origin_width = img.width
-    origin_height = img.height
-
-    left = top = right = bottom = 0
-
-    # 确保图片有Alpha通道
-    if img.mode == "RGB":
-        img = img.convert("RGBA")
-
-    # 获取非透明区域的边界框
-    alpha = img.getchannel("A")
-    bbox = alpha.getbbox()
-
-    if not bbox:
-        return img, (0, 0, 0, 0)
-
-    left, top, right, bottom = bbox
-
-    # 计算裁剪信息（相对于原始图片）
-    right = origin_width - right
-    bottom = origin_height - bottom
-
-    # 裁剪图片
-    new_img = img.crop(bbox)
-
-    trim_data = (int(left), int(top), int(right), int(bottom))
-
-    return new_img, trim_data
-
-
-def get_input_subdir():
-    """
-    加载输入目录中的所有图片并进行处理
-
-    Returns:
-        dict: 按子目录组织的图片数据字典
-    """
-    input_subdir = {}
-    padding = setting["padding"]
-
-    # 1. 并行处理子目录
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=min(4, (os.cpu_count() or 2))
-    ) as executor:
-        # 提交所有子目录处理任务
-        future_to_dir = {
-            executor.submit(process_directory, item, padding): item.name
-            for item in config.input_path.iterdir()
-            if item.is_dir()
-        }
-
-        # 收集结果
-        for future in concurrent.futures.as_completed(future_to_dir):
-            dir_name = future_to_dir[future]
-            try:
-                result = future.result()
-                if result:
-                    input_subdir[dir_name] = result
-            except Exception as exc:
-                log.error(f"处理目录 {dir_name} 时出错: {exc}")
-
-    return input_subdir
-
-
-def process_directory(directory_path, padding):
-    """
-    处理单个目录的图片
-    """
-    hash_groups = {}  # 用于检测重复图片
-    images = []
-
-    # 预收集所有图片文件路径
-    image_files = list(directory_path.glob("*.*"))
-    image_files = [
-        f
-        for f in image_files
-        if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
-    ]
-
-    # 2. 批量处理图片（减少IO操作）
-    for image_file in image_files:
-        log.info(f"📂 处理图片: {image_file.name}...")
-        try:
-            image_data = process_single_image(image_file, hash_groups)
-            if image_data:
-                images.append(image_data)
-        except Exception as e:
-            log.error(f"处理图片 {image_file.name} 失败: {e}")
-            continue
-
-    if not images:
-        return None
-
-    # 3. 准备矩形数据（使用生成器表达式）
-    rectangles = [
-        (i, img["image"].width + padding, img["image"].height + padding)
-        for i, img in enumerate(images)
-    ]
-
-    # 4. 使用更高效的排序
-    rectangles.sort(key=lambda r: (r[1], r[1] * r[2]), reverse=True)
-
-    return {"images": images, "rectangles": rectangles}
-
-
-def process_single_image(image_file, hash_groups):
-    """
-    处理单张图片
-    """
-    image_file_name = image_file.stem
-
-    # 5. 优化：先检查文件大小再计算哈希（快速跳过）
-    file_size = image_file.stat().st_size
-    if file_size == 0:
-        log.warning(f"跳过空文件: {image_file.name}")
-        return None
-
-    with Image.open(image_file) as img:
-        # 如果需要更快的速度，可以使用文件内容的哈希而不是图片数据的哈希
-        hash_key = calculate_image_hash(img)
-
-        # 跳过重复图片
-        if hash_key in hash_groups:
-            hash_group = hash_groups[hash_key]
-            hash_group["similar"].append(image_file_name)
-            log.info(f"跳过重复图片 {image_file.name}")
-            return None
-
-        # 处理图片：裁剪透明区域
-        new_img, trim = process_img(img)
-
-        # 构建图片数据字典
-        img_data = {
-            "name": image_file_name,
-            "image": new_img,
-            "origin_width": img.width,
-            "origin_height": img.height,
-            "samed_img": [],  # 相同图片列表
-            "trim": trim,  # 裁剪信息
-            "file_size": file_size,
-            "aspect_ratio": img.width / img.height if img.height > 0 else 0,
-        }
-
-        # 更新哈希分组
-        hash_groups[hash_key] = {
-            "main": img_data,
-            "similar": img_data["samed_img"],
-        }
-
-        log.debug(
-            f"加载图片 {image_file.name} "
-            f"({img.width}x{img.height} → {new_img.width}x{new_img.height}) "
-            f"大小: {file_size:,} bytes"
-        )
-
-        return img_data
-
-
-def calculate_image_hash(img):
-    """
-    计算图片哈希值，支持多种策略
-    """
-    # 策略1：使用图片数据哈希（准确但较慢）
-    return hashlib.md5(img.tobytes()).hexdigest()
-
-    # # 策略2：使用缩略图哈希（更快，适用于大多数重复检测）
-    # thumbnail = img.copy()
-    # thumbnail.thumbnail((64, 64))  # 缩放到64x64
-    # return hashlib.md5(thumbnail.tobytes()).hexdigest()
 
 
 def main():
@@ -705,6 +850,9 @@ def main():
 
         # 执行图集创建流程
         results = create_atlas(atlas_stem_name, rectangles, images)
+
+        # 按图集名称排序结果
+        results.sort(key=lambda x: x["name"])
 
         # 输出图集文件
         for result in results:
@@ -753,6 +901,8 @@ def add_performance_monitor_decorator():
     merge_free_rectangles = timer_decorator(merge_free_rectangles)
     global split_free_rectangle
     split_free_rectangle = timer_decorator(split_free_rectangle)
+    global permutation_rectangles
+    permutation_rectangles = timer_decorator(permutation_rectangles)
 
     return all_time
 

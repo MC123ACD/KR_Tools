@@ -419,7 +419,7 @@
     },
     "generate_atlas": {
         "performance_monitor_enabled": true,
-        "padding": 3,
+        "padding": 2,
         "border": 5,
         "output_format": "bc3",
         "delete_temporary_png": true,

@@ -575,13 +575,12 @@ class MeasureAnchor:
                 )
 
                 # 重置矩形
-                self.rect = Rectangle(0, 0, 0, 0, type=int)
+                self.rect = Rectangle(0, 0, 0, 0)
                 self.relative_rect_offset = Rectangle(
                     -self.anchor.x,
                     -self.anchor.y,
                     -self.anchor.x,
                     -self.anchor.y,
-                    type=int,
                 )
 
                 self.redraw_all()
@@ -655,7 +654,6 @@ class MeasureAnchor:
             self.img_offset.y + self.rect.y * self.scale,
             self.img_offset.x + self.rect.w * self.scale,
             self.img_offset.y + self.rect.h * self.scale,
-            type=int,
         )
 
         self.canvas.create_rectangle(

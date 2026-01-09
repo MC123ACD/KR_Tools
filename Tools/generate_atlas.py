@@ -157,7 +157,7 @@ def process_directory(directory_path, padding):
 
     # 3. 准备矩形数据（使用生成器表达式）
     rectangles = [
-        (i, img["image"].width + padding, img["image"].height + padding)
+        (i, img["image"].width + padding, img["image"].height + padding, img["name"])
         for i, img in enumerate(images)
     ]
 
@@ -274,7 +274,7 @@ def find_position(free_rectangles, width, height):
         # 更新最佳位置
         if score < best_score:
             best_score = score
-            best_rect = Rectangle(free_rect.x, free_rect.y, width, height, int)
+            best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
             in_free_rect = free_rect
             in_free_rect_idx = i
 
@@ -302,7 +302,7 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     if used_rect.x != free_rect.x:
         new_rects.append(
             Rectangle(
-                free_rect.x, free_rect.y, used_rect.x - free_rect.x, free_rect.h, int
+                free_rect.x, free_rect.y, used_rect.x - free_rect.x, free_rect.h
             )
         )
 
@@ -314,7 +314,6 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
                 free_rect.y,
                 free_rect.x + free_rect.w - (used_rect.x + used_rect.w),
                 free_rect.h,
-                int,
             )
         )
 
@@ -322,7 +321,7 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     if used_rect.y != free_rect.y:
         new_rects.append(
             Rectangle(
-                used_rect.x, free_rect.y, used_rect.w, used_rect.y - free_rect.y, int
+                used_rect.x, free_rect.y, used_rect.w, used_rect.y - free_rect.y
             )
         )
 
@@ -334,13 +333,12 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
                 used_rect.y + used_rect.h,
                 used_rect.w,
                 free_rect.y + free_rect.h - (used_rect.y + used_rect.h),
-                int,
             )
         )
 
     if not new_rects:
         # 如果空间完全被使用，标记为空矩形
-        free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0, int)
+        free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0)
         return
 
     # 用第一个非空闲区域替换当前空闲区域
@@ -377,11 +375,11 @@ def try_merge_rectangles(rect1, rect2):
     """
     # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
     if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
-        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h, int)
+        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
 
     # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
     if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
-        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h, int)
+        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
 
     return None
 
@@ -461,7 +459,7 @@ def maxrects_packing(rectangles, width, height):
     # min_rectangle = rectangles[-1]
 
     # 遍历所有矩形进行排列
-    for rect_id, w, h in rectangles:
+    for rect_id, w, h, rect_name in rectangles:
         # 寻找最佳放置位置
         rect_data = find_position(free_rectangles, w, h)
 
@@ -472,7 +470,7 @@ def maxrects_packing(rectangles, width, height):
             # delete_invalid_rectangles(free_rectangles, min_rectangle)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
-            for existing_id, existing_rect in results:
+            for existing_id, existing_rect, _ in results:
                 if rect.other_pos(existing_rect) == ["in"]:
                     log.warning(f"⚠️  警告: 矩形 {rect_id} 与矩形 {existing_id} 重叠!")
 
@@ -482,7 +480,7 @@ def maxrects_packing(rectangles, width, height):
                         f"⚠️  警告: 空闲区域 {in_free_rect} 与空闲区域 {free_rect} 重叠!"
                     )
 
-            results.append((rect_id, rect))
+            results.append((rect_id, rect, rect_name))
 
     return results, free_rectangles
 
@@ -504,7 +502,7 @@ def try_move_rect(free_rect, rect):
         return None
 
     # 左移
-    new_rect = Rectangle(free_rect.x, rect.y, rect.w, rect.h, int)
+    new_rect = Rectangle(free_rect.x, rect.y, rect.w, rect.h)
     new_free_rects = {"right": None, "bottom": None}
 
     if free_rect.h - rect.h != 0:
@@ -641,6 +639,8 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         # 优化排列
         optimize_rectangle_layouts(results_rectangles, free_rectangles)
 
+        results_rectangles.sort(key=lambda x: x[2])
+
         # 记录打包结果
         final_results.append(
             {
@@ -651,7 +651,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         )
 
         # 更新图片位置信息
-        for rect_id, rect in results_rectangles:
+        for rect_id, rect, rect_name in results_rectangles:
             images[rect_id]["pos"] = Point(rect.x, rect.y)
 
         # 计算剩余未打包的矩形
@@ -678,7 +678,7 @@ def write_atlas(images, result):
     """
     # 创建空白图集
     with Image.new(
-        "RGBA", (result["atlas_size"].x, result["atlas_size"].y), (0, 0, 0, 0)
+        "RGBA", (result["atlas_size"].w, result["atlas_size"].h), (0, 0, 0, 0)
     ) as atlas:
         output_file = config.output_path / f"{result['name']}.png"
 
@@ -780,8 +780,8 @@ def write_lua_data(images, results, atlas_name):
 
             # 图集尺寸
             a("\t\ta_size = {")
-            a(f"\t\t\t{result['atlas_size'].x},")
-            a(f"\t\t\t{result['atlas_size'].y}")
+            a(f"\t\t\t{result['atlas_size'].w},")
+            a(f"\t\t\t{result['atlas_size'].h}")
             a("\t\t},")
 
             # 在图集中的位置和尺寸
@@ -850,9 +850,6 @@ def main():
         # 执行图集创建流程
         results = create_atlas(atlas_stem_name, rectangles, images)
 
-        # 按图集名称排序结果
-        results.sort(key=lambda x: x["name"])
-
         # 输出图集文件
         for result in results:
             result["atlas_size"] = write_atlas(images, result)
@@ -900,8 +897,8 @@ def add_performance_monitor_decorator():
     merge_free_rectangles = timer_decorator(merge_free_rectangles)
     global split_free_rectangle
     split_free_rectangle = timer_decorator(split_free_rectangle)
-    global permutation_rectangles
-    permutation_rectangles = timer_decorator(permutation_rectangles)
+    global optimize_rectangle_layouts
+    optimize_rectangle_layouts = timer_decorator(optimize_rectangle_layouts)
 
     return all_time
 

@@ -1,6 +1,6 @@
 import traceback, config, hashlib, time, concurrent.futures, os
 from PIL import Image, ImageDraw
-from utils import is_simple_key, save_to_dds, Vector, Rectangle
+from utils import is_simple_key, save_to_dds, Point, Size, Rectangle, Bounds
 from functools import wraps
 from bisect import bisect_left, bisect_right
 
@@ -55,7 +55,7 @@ def process_img(img):
     # 裁剪图片
     new_img = img.crop(bbox)
 
-    trim_data = (int(left), int(top), int(right), int(bottom))
+    trim_data = Bounds(left, top, right, bottom)
 
     return new_img, trim_data
 
@@ -138,7 +138,7 @@ def process_directory(directory_path, padding):
     image_files = [
         f
         for f in image_files
-        if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+        if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
     ]
 
     # 2. 批量处理图片（减少IO操作）
@@ -242,7 +242,7 @@ def calculate_optimal_size(rectangles):
     if size > setting["max_size"]:
         size = setting["max_size"]
 
-    size = Vector(size, size, int)
+    size = Size(size, size)
 
     return size
 
@@ -553,7 +553,6 @@ def try_permute_with_free_rectangle(rectangles, free_rect_data, sorted_by_x, x_c
             bottom_free_rect = new_free_rects["bottom"]
 
             # 更新原矩形
-            rectangles.add(rect_idx)
             rectangles[rect_origin_idx] = (rect_id, new_rect)
             used_rectangles.add(rect_idx)
 
@@ -632,11 +631,11 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         # 计算最优尺寸
         atlas_size = calculate_optimal_size(rectangles)
 
-        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.x}x{atlas_size.y}")
+        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.w}x{atlas_size.h}")
 
         # 使用MaxRects算法进行排列
         results_rectangles, free_rectangles = maxrects_packing(
-            rectangles, atlas_size.x, atlas_size.y
+            rectangles, atlas_size.w, atlas_size.h
         )
 
         # 优化排列
@@ -653,7 +652,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
 
         # 更新图片位置信息
         for rect_id, rect in results_rectangles:
-            images[rect_id]["pos"] = Vector(rect.x, rect.y, int)
+            images[rect_id]["pos"] = Point(rect.x, rect.y)
 
         # 计算剩余未打包的矩形
         packed_ids = set(rect[0] for rect in results_rectangles)
@@ -724,7 +723,7 @@ def write_atlas(images, result):
         elif setting["output_format"] == "png":
             log.info(f"✅ 保存为png: {output_file.name}...")
 
-        return Vector(atlas.width, atlas.height, int)
+        return Size(atlas.width, atlas.height)
 
 
 def write_lua_data(images, results, atlas_name):
@@ -924,7 +923,7 @@ def print_performance_info(all_time):
     log.info(f"\n=====总运行时长: {sum_time:.3f} 秒=====")
 
     for fn_name, s, count in calculated_sum:
-        log.info(f"{fn_name:<25}: {s:.3f} 秒, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
+        log.info(f"{fn_name:<25}: {int(s * 1000)} ms, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
 
 
 def performance_monitor(main):

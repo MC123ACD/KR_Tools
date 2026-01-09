@@ -1,4 +1,4 @@
-import traceback, subprocess, time, config
+import traceback, subprocess, time, config, re
 from pathlib import Path
 import numpy as np
 import log
@@ -79,148 +79,93 @@ def is_simple_key(key: str):
         return False
     return all(c.isalnum() or c == "_" for c in key)
 
+find_num_regex = r"[-+]?\d*\.?\d+"
+class Point:
 
-class Vector:
-    """向量类"""
+    def __init__(self, x=None, y=None, str_format=None):
+        if str_format:
+            numbers = re.findall(find_num_regex, str_format)
+            if len(numbers) >= 2:
+                self.x = float(numbers[0])
+                self.y = float(numbers[1])
+            return
+        
+        self.x = x
+        self.y = y
 
-    def __init__(self, x, y, type=float, rounding="trunc"):
-        """
-        Args:
-            rounding: 'trunc' - 截断, 'round' - 四舍五入, 'floor' - 向下取整, 'ceil' - 向上取整
-        """
-        self.rounding = rounding
+    def __iter__(self):
+        yield self.x
+        yield self.y
 
-        if type is int:
-            if rounding == "round":
-                # 四舍五入
-                x, y = [round(v) for v in (x, y)]
-            elif rounding == "floor":
-                # 向下取整
-                x, y = [np.floor(v) for v in (x, y)]
-            elif rounding == "ceil":
-                # 向上取整
-                x, y = [np.ceil(v) for v in (x, y)]
-            # 'trunc' 或默认：直接转换，NumPy会截断
+    def __str__(self):
+        return "{%s, %s}" % (self.x, self.y)
 
-            self._data = np.array([x, y], dtype=np.int64)
-        elif type is float:
-            self._data = np.array([x, y], dtype=np.float64)
+    def copy(self):
+        return Point(self.x, self.y)
+    
+    def map(self, func):
+        return func(self.x, self.y)
 
-    @property
-    def x(self) -> float:
-        return self._data[0]
 
-    @x.setter
-    def x(self, value: float):
-        self._data[0] = value
+class Size:
 
-    @property
-    def y(self) -> float:
-        return self._data[1]
+    def __init__(self, w=None, h=None, str_format=None):
+        if str_format:
+            numbers = re.findall(find_num_regex, str_format)
+            if len(numbers) >= 2:
+                self.w = float(numbers[0])
+                self.h = float(numbers[1])
+            return
 
-    @y.setter
-    def y(self, value: float):
-        self._data[1] = value
+        self.w = w
+        self.h = h
 
-    def __add__(self, other: "Vector") -> "Vector":
-        return Vector(*(self._data + other._data))
+    def __iter__(self):
+        yield self.w
+        yield self.h
 
-    def __sub__(self, other: "Vector") -> "Vector":
-        return Vector(*(self._data - other._data))
+    def __str__(self):
+        return "{%s, %s}" % (self.w, self.h)
 
-    def __mul__(self, scalar: float) -> "Vector":
-        return Vector(*(self._data * scalar))
+    def copy(self):
+        return Size(self.w, self.h)
 
-    def dot(self, other: "Vector") -> float:
-        return np.dot(self._data, other._data)
-
-    def cross(self, other: "Vector") -> "Vector":
-        return Vector(*np.cross(self._data, other._data))
-
-    def norm(self) -> float:
-        return np.linalg.norm(self._data)
-
-    def normalize(self) -> "Vector":
-        norm = self.norm()
-        return Vector(*(self._data / norm)) if norm > 0 else Vector()
-
-    def __repr__(self) -> str:
-        return f"Vector({self.x:.2f}, {self.y:.2f})"
-
-    def as_array(self) -> np.ndarray:
-        """返回底层的NumPy数组（只读视图）"""
-        return self._data.view()
-
-    def copy(self) -> "Vector":
-        """返回副本"""
-        return Vector(*self._data.copy())
+    def map(self, func):
+        return func(self.w, self.h)
 
 
 class Rectangle:
     """向量类"""
 
-    def __init__(self, x, y, w, h, type=float, rounding="floor"):
-        """
-        Args:
-            rounding: 'trunc' - 截断, 'round' - 四舍五入, 'floor' - 向下取整, 'ceil' - 向上取整
-        """
-        if type is int:
-            if rounding == "round":
-                # 四舍五入
-                x, y, w, h = [round(v) for v in (x, y, w, h)]
-            elif rounding == "floor":
-                # 向下取整
-                x, y, w, h = [np.floor(v) for v in (x, y, w, h)]
-            elif rounding == "ceil":
-                # 向上取整
-                x, y, w, h = [np.ceil(v) for v in (x, y, w, h)]
+    def __init__(self, x=None, y=None, w=None, h=None, str_format=None):
+        if str_format:
+            numbers = re.findall(find_num_regex, str_format)
+            if len(numbers) == 4:
+                self.x = float(numbers[0])
+                self.y = float(numbers[1])
+                self.w = float(numbers[2])
+                self.h = float(numbers[3])
+            return
 
-            self._data = np.array([x, y, w, h], dtype=np.int64)
-        elif type is float:
-            self._data = np.array([x, y, w, h], dtype=np.float64)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
-    @property
-    def x(self) -> float:
-        return self._data[0]
+    def __iter__(self):
+        yield self.x
+        yield self.y
+        yield self.w
+        yield self.h
 
-    @x.setter
-    def x(self, value: float):
-        self._data[0] = value
+    def __str__(self):
+        return "{{%s, %s}, {%s, %s}}" % (self.x, self.y, self.w, self.h)
 
-    @property
-    def y(self) -> float:
-        return self._data[1]
+    def copy(self):
+        return Rectangle(self.x, self.y, self.w, self.h)
 
-    @y.setter
-    def y(self, value: float):
-        self._data[1] = value
-
-    @property
-    def w(self) -> float:
-        return self._data[2]
-
-    @w.setter
-    def w(self, value: float):
-        self._data[2] = value
-
-    @property
-    def h(self) -> float:
-        return self._data[3]
-
-    @h.setter
-    def h(self, value: float):
-        self._data[3] = value
-
-    def __repr__(self) -> str:
-        return f"Rectangle({self.x:.2f}, {self.y:.2f}, {self.w:.2f}, {self.h:.2f})"
-
-    def as_array(self) -> np.ndarray:
-        """返回底层的NumPy数组（只读视图）"""
-        return self._data.view()
-
-    def copy(self) -> "Rectangle":
-        """返回副本"""
-        return Rectangle(*self._data.copy())
+    def map(self, func):
+        return func(self.x, self.y, self.w, self.h)
 
     def other_pos(self, other: "Rectangle") -> list[str]:
         """返回另一个矩形相当于当前矩形的位置"""
@@ -240,3 +185,36 @@ class Rectangle:
             pos.append("in")
 
         return pos
+
+
+class Bounds:
+
+    def __init__(self, left=None, top=None, right=None, bottom=None, str_format=None):
+        if str_format:
+            numbers = re.findall(find_num_regex, str_format)
+            if len(numbers) == 4:
+                self.left = float(numbers[0])
+                self.top = float(numbers[1])
+                self.right = float(numbers[2])
+                self.bottom = float(numbers[3])
+            return
+
+        self.left = left
+        self.top = top
+        self.right = right
+        self.bottom = bottom
+
+    def __iter__(self):
+        yield self.left
+        yield self.top
+        yield self.right
+        yield self.bottom
+
+    def __str__(self):
+        return "{{%s, %s}, {%s, %s}}" % (self.left, self.top, self.right, self.bottom)
+
+    def copy(self):
+        return Bounds(self.left, self.top, self.right, self.bottom)
+
+    def map(self, func):
+        return func(self.left, self.top, self.right, self.bottom)

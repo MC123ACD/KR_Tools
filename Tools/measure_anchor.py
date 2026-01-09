@@ -3,7 +3,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import traceback, config, time
 from pathlib import Path
-from utils import clamp, Vector, Rectangle
+from utils import clamp, Point, Size, Rectangle, Bounds
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
@@ -28,25 +28,25 @@ class MeasureAnchor:
         self.photo = None
         self.scale = 1.0
 
-        self.img_offset = Vector(0, 0, type=int)
+        self.img_offset = Point(0, 0)
 
         # 锚点坐标（相对于图像左上角）
-        self.anchor = Vector(0, 0, type=int)
-        self.percent_anchor = Vector(0.5, 0.5)
+        self.anchor = Point(0, 0)
+        self.percent_anchor = Point(0.5, 0.5)
 
         # 参考点坐标
-        self.ref_pos = Vector(0, 0, type=int)
+        self.ref_pos = Point(0, 0)
 
         # 相对偏移
-        self.relative_offset = Vector(0, 0, type=int)
-        self.relative_rect_offset = Rectangle(0, 0, 0, 0, type=int)
+        self.relative_offset = Point(0, 0)
+        self.relative_rect_offset = Rectangle(0, 0, 0, 0)
 
         # 网格设置
         self.show_grid = tk.BooleanVar(value=True)
         self.grid_size = tk.IntVar(value=32)
 
         # 矩形
-        self.rect = Rectangle(0, 0, 0, 0, type=int)
+        self.rect = Rectangle(0, 0, 0, 0)
 
         self.setup_ui()
 
@@ -553,7 +553,7 @@ class MeasureAnchor:
                 bbox = alpha.getbbox()
                 if bbox:
                     left, top, right, bottom = bbox
-                    self.trim = (left, top, right, bottom)
+                    self.trim = Bounds(left, top, right, bottom)
 
                 self.original_image = self.image.copy()
                 self.scale = 1.0
@@ -975,11 +975,12 @@ class MeasureAnchor:
 
     def rect_alignment(self):
         if self.image:
-            l, t, r, b = self.trim
-            self.set_rect_pos(l, t)
-            self.set_rect_size(r, b)
-            self.set_relative_rect_pos(l - self.anchor.x, t - self.anchor.y)
-            self.set_relative_rect_size(r - self.anchor.x, b - self.anchor.y)
+            anchor = self.anchor
+            left, top, right, bottom = self.trim
+            self.set_rect_pos(left, top)
+            self.set_rect_size(right, bottom)
+            self.set_relative_rect_pos(left - anchor.x, top - anchor.y)
+            self.set_relative_rect_size(right - anchor.x, bottom - anchor.y)
             self.change_rect_draw()
 
     def on_mousewheel(self, event):

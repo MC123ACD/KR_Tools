@@ -39,12 +39,10 @@ def process_img(img):
     if img.mode == "RGB":
         img = img.convert("RGBA")
 
-    # 获取非透明区域的边界框
-    alpha = img.getchannel("A")
-    bbox = alpha.getbbox()
+    bbox = img.getbbox()
 
     if not bbox:
-        return img, (0, 0, 0, 0)
+        bbox = (0, 0, 0, 0)
 
     left, top, right, bottom = bbox
 
@@ -484,17 +482,17 @@ def maxrects_packing(rectangles, atlas_size):
             # delete_invalid_rectangles(free_rectangles)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
-            for _, existing_name, existing_rect in result_rectangles:
-                if "in" in used_rect.other_position(existing_rect):
-                    log.warning(
-                        f"⚠️  警告: 矩形{existing_name} {repr(used_rect)} 与矩形 {existing_name} {repr(existing_rect)} 重叠!"
-                    )
+            # for _, existing_name, existing_rect in result_rectangles:
+            #     if "in" in used_rect.other_position(existing_rect):
+            #         log.warning(
+            #             f"⚠️  警告: 矩形{existing_name} {repr(used_rect)} 与矩形 {existing_name} {repr(existing_rect)} 重叠!"
+            #         )
 
-            for free_rect in free_rectangles:
-                if "in" in in_free_rect.other_position(free_rect):
-                    log.warning(
-                        f"⚠️  警告: 空闲区域 {in_free_rect} 与空闲区域 {free_rect} 重叠!"
-                    )
+            # for free_rect in free_rectangles:
+            #     if "in" in in_free_rect.other_position(free_rect):
+            #         log.warning(
+            #             f"⚠️  警告: 空闲区域 {in_free_rect} 与空闲区域 {free_rect} 重叠!"
+            #         )
 
             result_rectangles.append((rect_id, rect_name, used_rect))
 

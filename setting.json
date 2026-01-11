@@ -420,7 +420,7 @@
     "generate_atlas": {
         "performance_monitor_enabled": true,
         "padding": 2,
-        "border": 5,
+        "border": 3,
         "output_format": "bc3",
         "delete_temporary_png": true,
         "trigger_several_efficiency": 0.35,

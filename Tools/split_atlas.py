@@ -157,6 +157,15 @@ def to_xml(value, level):
     # 处理字符串和自定义对象类型（转换为字符串）
     elif isinstance(value, (str, Point, Rectangle, Size, Bounds)):
         a(f"{indent(level)}<string>{str(value)}</string>")
+    # 处理列表类型
+    elif isinstance(value, list):
+        a(f"{indent(level)}<array>")
+        for v in value:
+            xml_content.extend(to_xml(v, level + 1))
+        a(f"{indent(level)}</array>")
+    # 处理数值类型
+    elif isinstance(value, (int, float)):
+        a(f"{indent(level)}<real>{str(value)}</real>")
 
     # 如果没有内容生成，返回空列表
     if not xml_content:
@@ -305,44 +314,45 @@ def gen_png_from_plist(plist_path, plist_data, png_path):
         framename = frame_key.replace(".png", "")
 
         # 解析帧数据
-        sprite_size = Size(str_format=frame_data["spriteSourceSize"])  # 精灵原始尺寸
+        sprite_size = Size(str_format=frame_data["spriteSourceSize"]).to_int()
+        # 精灵原始尺寸
         texture_rect = Rectangle(
             str_format=frame_data["textureRect"]
-        )  # 在图集中的位置和尺寸
-        offset = Point(str_format=frame_data["spriteOffset"])  # 偏移量
+        ).to_int()  # 在图集中的位置和尺寸
+        offset = Point(str_format=frame_data["spriteOffset"]).to_int()  # 偏移量
         texture_rotated = frame_data["textureRotated"]  # 是否旋转
 
         # 计算在图集中的裁剪框
-        result_box = [
-            int(texture_rect.x),
-            int(texture_rect.y),
-            int(texture_rect.x + texture_rect.w),
-            int(texture_rect.y + texture_rect.h),
-        ]
+        result_box = Bounds(
+            texture_rect.x,
+            texture_rect.y,
+            texture_rect.x + texture_rect.w,
+            texture_rect.y + texture_rect.h,
+        ).to_int()
 
         # 如果精灵在图集中被旋转，调整裁剪框尺寸
         if texture_rotated:
             # 旋转的精灵：交换宽高
-            result_box[2] = int(texture_rect.x + texture_rect.h)
-            result_box[3] = int(texture_rect.y + texture_rect.w)
+            result_box.w = texture_rect.x + texture_rect.h
+            result_box.h = texture_rect.y + texture_rect.w
 
         # 从图集中裁剪精灵区域
-        rect_on_big = atlas_image.crop(result_box)
+        rect_on_big = atlas_image.crop(tuple(result_box))
 
         # 如果精灵被旋转，执行逆时针90度旋转
         if texture_rotated:
             rect_on_big = rect_on_big.transpose(Image.ROTATE_90)
 
         # 计算在目标图像中的粘贴位置
-        position = (
-            int((sprite_size.w - texture_rect.w) / 2 + offset.x),
-            int((sprite_size.h - texture_rect.h) / 2 - offset.y),
-        )
+        position = Point(
+            (sprite_size.w - texture_rect.w) / 2 + offset.x,
+            (sprite_size.h - texture_rect.h) / 2 - offset.y,
+        ).to_int()
 
         # 创建目标尺寸的透明背景图像
-        result_image = Image.new("RGBA", [int(s) for s in sprite_size], (0, 0, 0, 0))
+        result_image = Image.new("RGBA", tuple(sprite_size), (0, 0, 0, 0))
         # 将裁剪的精灵粘贴到正确位置
-        result_image.paste(rect_on_big, position)
+        result_image.paste(rect_on_big, tuple(position))
 
         # 创建输出目录（按图集名称分组）
         output_dir = config.output_path / plist_path.stem.split("-")[0]

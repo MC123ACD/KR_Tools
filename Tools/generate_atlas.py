@@ -136,9 +136,7 @@ def process_directory(directory_path, padding):
     # 预收集所有图片文件路径
     image_files = list(directory_path.glob("*.*"))
     image_files = [
-        f
-        for f in image_files
-        if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
+        f for f in image_files if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
     ]
 
     # 2. 批量处理图片（减少IO操作）
@@ -157,12 +155,16 @@ def process_directory(directory_path, padding):
 
     # 3. 准备矩形数据（使用生成器表达式）
     rectangles = [
-        (i, img["image"].width + padding, img["image"].height + padding, img["name"])
+        (
+            i,
+            img["name"],
+            Size(img["image"].width + padding, img["image"].height + padding),
+        )
         for i, img in enumerate(images)
     ]
 
     # 4. 使用更高效的排序
-    rectangles.sort(key=lambda r: (r[1], r[1] * r[2]), reverse=True)
+    rectangles.sort(key=lambda r: r[2].w, reverse=True)
 
     return {"images": images, "rectangles": rectangles}
 
@@ -191,12 +193,9 @@ def get_input_subdir():
         # 收集结果
         for future in concurrent.futures.as_completed(future_to_dir):
             dir_name = future_to_dir[future]
-            try:
-                result = future.result()
-                if result:
-                    input_subdir[dir_name] = result
-            except Exception as exc:
-                log.error(f"处理目录 {dir_name} 时出错: {exc}")
+            result = future.result()
+            if result:
+                input_subdir[dir_name] = result
 
     return input_subdir
 
@@ -213,11 +212,11 @@ def calculate_score(rect, strategy):
         float: 分数值，分数越小表示越优先选择
     """
     if strategy == MIN_AREA:
-        return rect.w * rect.h  # 使用面积作为评分
+        return rect.area()  # 使用面积作为评分
     elif strategy == SHOR_TSIDE:
         return min(rect.w, rect.h)  # 使用短边长度作为评分
     elif strategy == MAX_AREA:
-        return -rect.w * rect.h  # 使用面积作为评分
+        return -rect.area()  # 使用面积作为评分
 
     return 0
 
@@ -234,8 +233,8 @@ def calculate_optimal_size(rectangles):
     Returns:
         tuple: 最佳尺寸 Vector(width, height)
     """
-    total_area = sum(rect[1] * rect[2] for rect in rectangles)
-    sqrt_area = int(total_area**0.5) + total_area // 10
+    total_area = sum(rect[2].area() for rect in rectangles)
+    sqrt_area = int(total_area**0.5 * 1.1)
 
     size = 1 << sqrt_area.bit_length()
 
@@ -247,7 +246,7 @@ def calculate_optimal_size(rectangles):
     return size
 
 
-def find_position(free_rectangles, width, height):
+def find_position(free_rectangles, rect):
     """
     在空闲区域中寻找最佳放置位置
 
@@ -265,7 +264,7 @@ def find_position(free_rectangles, width, height):
     # 遍历所有空闲区域
     for i, free_rect in enumerate(free_rectangles):
         # 跳过无法容纳当前矩形的区域
-        if free_rect.w < width or free_rect.h < height:
+        if free_rect.w < rect.w or free_rect.h < rect.h:
             continue
 
         # 计算当前空闲区域的分数
@@ -274,7 +273,7 @@ def find_position(free_rectangles, width, height):
         # 更新最佳位置
         if score < best_score:
             best_score = score
-            best_rect = Rectangle(free_rect.x, free_rect.y, width, height)
+            best_rect = Rectangle(free_rect.x, free_rect.y, rect.w, rect.h)
             in_free_rect = free_rect
             in_free_rect_idx = i
 
@@ -299,12 +298,10 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
     new_rects = []
 
     # 检查左侧是否还有剩余空间
-    if used_rect.x != free_rect.x:
-        new_rects.append(
-            Rectangle(
-                free_rect.x, free_rect.y, used_rect.x - free_rect.x, free_rect.h
-            )
-        )
+    # if used_rect.x != free_rect.x:
+    #     new_rects.append(
+    #         Rectangle(free_rect.x, free_rect.y, used_rect.x - free_rect.x, free_rect.h)
+    #     )
 
     # 检查右侧是否还有剩余空间
     if used_rect.x + used_rect.w != free_rect.x + free_rect.w:
@@ -318,12 +315,10 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
         )
 
     # 检查上方是否还有剩余空间
-    if used_rect.y != free_rect.y:
-        new_rects.append(
-            Rectangle(
-                used_rect.x, free_rect.y, used_rect.w, used_rect.y - free_rect.y
-            )
-        )
+    # if used_rect.y != free_rect.y:
+    #     new_rects.append(
+    #         Rectangle(used_rect.x, free_rect.y, used_rect.w, used_rect.y - free_rect.y)
+    #     )
 
     # 检查下方是否还有剩余空间
     if used_rect.y + used_rect.h != free_rect.y + free_rect.h:
@@ -341,19 +336,18 @@ def split_free_rectangle(free_rectangles, free_rect, used_rect, free_rect_idx):
         free_rectangles[free_rect_idx] = Rectangle(0, 0, 0, 0)
         return
 
-    # 用第一个非空闲区域替换当前空闲区域
     free_rectangles[free_rect_idx] = new_rects[0]
     free_rectangles.extend(new_rects[1:])
 
 
-# def delete_invalid_rectangles(free_rectangles, min_rectangle):
+# def delete_invalid_rectangles(free_rectangles):
 #     removed_idx = set()
 
 #     # 删除过小的空闲区域
 #     for i in range(len(free_rectangles)):
 #         free_rect = free_rectangles[i]
 
-#         if free_rect.w < min_rectangle[1] or free_rect.h < min_rectangle[2]:
+#         if free_rect.w <= 0 or free_rect.h <= 0:
 #             removed_idx.add(i)
 
 #     for idx in sorted(removed_idx, reverse=True):
@@ -374,14 +368,53 @@ def try_merge_rectangles(rect1, rect2):
         Rectangle: 合并后的矩形，如果无法合并则返回None
     """
     # 水平合并：Y坐标和高度相同，且rect1右侧紧邻rect2左侧
-    if rect1.y == rect2.y and rect1.h == rect2.h and rect1.x + rect1.w == rect2.x:
-        return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
+    if rect1.y == rect2.y and rect1.h == rect2.h:
+        if rect1.x + rect1.w == rect2.x:
+            return Rectangle(rect1.x, rect1.y, rect1.w + rect2.w, rect1.h)
+
+        if rect2.x + rect2.w == rect1.x:
+            return Rectangle(rect2.x, rect2.y, rect1.w + rect2.w, rect1.h)
 
     # 垂直合并：X坐标和宽度相同，且rect1下方紧邻rect2上方
-    if rect1.x == rect2.x and rect1.w == rect2.w and rect1.y + rect1.h == rect2.y:
-        return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
+    if rect1.x == rect2.x and rect1.w == rect2.w:
+        if rect1.y + rect1.h == rect2.y:
+            return Rectangle(rect1.x, rect1.y, rect1.w, rect1.h + rect2.h)
+
+        if rect2.y + rect2.h == rect1.y:
+            return Rectangle(rect2.x, rect2.y, rect1.w, rect1.h + rect2.h)
 
     return None
+
+
+def merge_single_free_rect(merged_idx, free_rect, sorted_by_x, x_coords):
+    merged_rect = None
+
+    # 使用二分查找找到可能可以合并的矩形
+    start_idx = bisect_left(x_coords, free_rect.x - free_rect.w)  # 调整搜索范围
+
+    for i in range(start_idx, len(sorted_by_x)):
+        if i in merged_idx:
+            continue
+        other_free_rect = sorted_by_x[i]
+
+        if other_free_rect.x > free_rect.x + free_rect.w:
+            break
+
+        merged_rect = try_merge_rectangles(free_rect, other_free_rect)
+        if not merged_rect:
+            continue
+
+        merged_idx.add(i)
+
+        other_merged_rect = merge_single_free_rect(
+            merged_idx, merged_rect, sorted_by_x, x_coords
+        )
+        if other_merged_rect:
+            merged_rect = other_merged_rect
+
+        break
+
+    return merged_rect
 
 
 def merge_free_rectangles(free_rectangles):
@@ -396,49 +429,29 @@ def merge_free_rectangles(free_rectangles):
     sorted_by_x = sorted(free_rectangles, key=lambda r: r.x)
     x_coords = [r.x for r in sorted_by_x]
 
-    used_idx = set()
+    merged_idx = set()
     merged = []
 
-    for i in range(len(sorted_by_x)):
-        if i in used_idx:
+    for free_rect_idx in range(len(sorted_by_x)):
+        if free_rect_idx in merged_idx:
             continue
 
-        rect = sorted_by_x[i]
+        free_rect = sorted_by_x[free_rect_idx]
 
-        # 使用二分查找找到可能可以合并的矩形
-        start_idx = bisect_left(x_coords, rect.x - rect.w)  # 调整搜索范围
-        found_merge = False
+        merged_rect = merge_single_free_rect(
+            merged_idx, free_rect, sorted_by_x, x_coords
+        )
 
-        for j in range(start_idx, len(sorted_by_x)):
-            if j in used_idx:
-                continue
-
-            s_rect = sorted_by_x[j]
-
-            if s_rect.x > rect.x + rect.w:
-                break
-
-            if s_rect == rect:
-                continue
-
-            merged_rect = try_merge_rectangles(rect, s_rect)
-            if not merged_rect:
-                continue
-
-            # 更新矩形和坐标列表
-            rect = merged_rect
-
-            used_idx.add(j)
-            found_merge = True
-            break
-
-        if not found_merge:
-            merged.append(rect)
+        if merged_rect:
+            merged_idx.add(free_rect_idx)
+            merged.append(merged_rect)
+        else:
+            merged.append(free_rect)
 
     return merged
 
 
-def maxrects_packing(rectangles, width, height):
+def maxrects_packing(rectangles, atlas_size):
     """
     使用MaxRects算法在指定尺寸的画布上排列矩形
 
@@ -451,38 +464,41 @@ def maxrects_packing(rectangles, width, height):
         list: 排列结果列表，格式为[(rect_id, Rectangle), ...]
     """
     border = setting["border"]
-    results = []
+    result_rectangles = []
     # 初始化空闲区域为整个画布（考虑边框）
-    free_rectangles = [Rectangle(border, border, width - border, height - border)]
-
-    # 获取最小的矩形（用于优化判断）
-    # min_rectangle = rectangles[-1]
+    free_rectangles = [
+        Rectangle(border, border, atlas_size.w - border, atlas_size.h - border)
+    ]
 
     # 遍历所有矩形进行排列
-    for rect_id, w, h, rect_name in rectangles:
+    for rect_id, rect_name, rect in rectangles:
         # 寻找最佳放置位置
-        rect_data = find_position(free_rectangles, w, h)
+        rect_data = find_position(free_rectangles, rect)
 
         if rect_data:
-            rect, in_free_rect, free_rect_idx = rect_data
+            used_rect, in_free_rect, free_rect_idx = rect_data
 
-            split_free_rectangle(free_rectangles, in_free_rect, rect, free_rect_idx)
-            # delete_invalid_rectangles(free_rectangles, min_rectangle)
+            split_free_rectangle(
+                free_rectangles, in_free_rect, used_rect, free_rect_idx
+            )
+            # delete_invalid_rectangles(free_rectangles)
             free_rectangles = merge_free_rectangles(free_rectangles)
 
-            for existing_id, existing_rect, _ in results:
-                if rect.other_pos(existing_rect) == ["in"]:
-                    log.warning(f"⚠️  警告: 矩形 {rect_id} 与矩形 {existing_id} 重叠!")
+            for _, existing_name, existing_rect in result_rectangles:
+                if "in" in used_rect.other_position(existing_rect):
+                    log.warning(
+                        f"⚠️  警告: 矩形{existing_name} {repr(used_rect)} 与矩形 {existing_name} {repr(existing_rect)} 重叠!"
+                    )
 
             for free_rect in free_rectangles:
-                if in_free_rect.other_pos(free_rect) == ["in"]:
+                if "in" in in_free_rect.other_position(free_rect):
                     log.warning(
                         f"⚠️  警告: 空闲区域 {in_free_rect} 与空闲区域 {free_rect} 重叠!"
                     )
 
-            results.append((rect_id, rect, rect_name))
+            result_rectangles.append((rect_id, rect_name, used_rect))
 
-    return results, free_rectangles
+    return result_rectangles, free_rectangles
 
 
 def try_move_rect(free_rect, rect):
@@ -492,116 +508,87 @@ def try_move_rect(free_rect, rect):
     :param free_rect: 空闲区域
     :param rect: 矩形
     """
-    if free_rect.w == 0 or free_rect.h == 0:
+    # 检查矩形是否紧邻空闲区域的右侧
+    if rect.x != free_rect.x + free_rect.w:
         return None
 
-    if free_rect.x + free_rect.w != rect.x:
-        return None
-
+    # 检查矩形是否完全在空闲区域的垂直范围内
     if rect.y < free_rect.y or rect.y + rect.h > free_rect.y + free_rect.h:
         return None
 
-    # 左移
-    new_rect = Rectangle(free_rect.x, rect.y, rect.w, rect.h)
-    new_free_rects = {"right": None, "bottom": None}
+    # 检查空闲区域是否能容纳这个矩形（主要是高度）
+    if free_rect.h < rect.h:
+        return None
 
-    if free_rect.h - rect.h != 0:
-        # 上移
-        new_rect.y = free_rect.y
-        new_free_rects["bottom"] = Rectangle(
-            free_rect.x, new_rect.y + rect.h, free_rect.w, free_rect.h - rect.w
+    new_rect = Rectangle(free_rect.x, rect.y, rect.w, rect.h)
+    new_free_rects = []
+
+    # 右侧剩余区域（如果矩形宽度小于空闲区域宽度）
+    if rect.x - new_rect.x > 0:
+        new_free_rects.append(
+            Rectangle(
+                new_rect.x + new_rect.w, new_rect.y, rect.x - new_rect.x, new_rect.h
+            )
         )
 
-    new_free_rects["right"] = Rectangle(
-        free_rect.x + rect.w, rect.y, free_rect.w - rect.w, rect.y
-    )
+    # 下方剩余区域（如果矩形高度小于空闲区域高度）
+    if free_rect.y + free_rect.h > new_rect.y + new_rect.h:
+        new_free_rects.append(
+            Rectangle(
+                new_rect.x, new_rect.y + new_rect.h, free_rect.w, free_rect.h - rect.h
+            )
+        )
 
-    log.info(f"移动 {rect} 到 {new_rect}")
+    log.info(f"移动 {repr(rect)} 到 {repr(new_rect)}")
 
     return new_rect, new_free_rects
 
 
-def try_permute_with_free_rectangle(rectangles, free_rect_data, sorted_by_x, x_coords):
-    free_rect, free_rect_idx, _, free_rect_origin_idx = free_rect_data
-    used_rectangles = set()
-    used_free_rect = False
-    has_new_free_rect = True
+def permute_free_rectangle(
+    rectangles, free_rect, rects_sorted_by_x, rect_x_coords
+):
+    if free_rect.w <= 0 or free_rect.h <= 0:
+        return
+    free_rects_queue = []
 
-    while has_new_free_rect:
-        has_new_free_rect = False
-        if used_free_rect:
-            break
+    while True:
+        start_idx = bisect_right(
+            rect_x_coords, free_rect.x + free_rect.w - 1
+        )  # 调整搜索范围
 
-        start_idx = bisect_right(x_coords, (free_rect.x, TYPE_RECT))
-
-        for rect_idx in range(start_idx, len(sorted_by_x)):
-            if rect_idx in used_rectangles:
-                continue
-
-            rect, rect_type, rect_id, rect_origin_idx = sorted_by_x[rect_idx]
-            if rect_type != TYPE_RECT or free_rect.y != rect.y:
-                continue
+        for rect_idx in range(start_idx, len(rects_sorted_by_x)):
+            rect_id, rect_name, rect, origin_idx = rects_sorted_by_x[rect_idx]
 
             permutation = try_move_rect(free_rect, rect)
             if not permutation:
                 continue
 
             new_rect, new_free_rects = permutation
-            right_free_rect = new_free_rects["right"]
-            bottom_free_rect = new_free_rects["bottom"]
-
-            # 更新原矩形
-            rectangles[rect_origin_idx] = (rect_id, new_rect)
-            used_rectangles.add(rect_idx)
-
-            if right_free_rect:
-                free_rect = right_free_rect
-                has_new_free_rect = True
-
-            if bottom_free_rect:
-                bottom_free_rect_data = (
-                    bottom_free_rect,
-                    TYPE_FREE_RECT,
-                    None,
-                    free_rect_origin_idx,
-                )
-                # 下空闲区域覆盖原空闲区域
-                sorted_by_x[free_rect_idx] = bottom_free_rect_data
-                x_coords[free_rect_idx] = (bottom_free_rect.x, TYPE_FREE_RECT)
-
-                try_permute_with_free_rectangle(
-                    rectangles,
-                    bottom_free_rect_data,
-                    sorted_by_x,
-                    x_coords,
-                )
-
-            used_free_rect = True
+            rects_sorted_by_x[rect_idx] = (rect_id, rect_name, new_rect, origin_idx)
+            rect_x_coords[rect_idx] = new_rect.x
+            rectangles[origin_idx] = (rect_id, rect_name, new_rect)
+            for new_free_rect in reversed(new_free_rects):
+                free_rects_queue.insert(0, new_free_rect)
 
             break
 
+        if not free_rects_queue:
+            return
+
+        free_rect = free_rects_queue.pop(0)
+
 
 def optimize_rectangle_layouts(rectangles, free_rectangles):
-    if not free_rectangles:
+    if not free_rectangles or not rectangles:
         return
 
-    combined = [(r[1], TYPE_RECT, r[0], i) for i, r in enumerate(rectangles)] + [
-        (r, TYPE_FREE_RECT, None, i) for i, r in enumerate(free_rectangles)
-    ]
+    rectangles_data = [(r[0], r[1], r[2], i) for i, r in enumerate(rectangles)]
+    rects_sorted_by_x = sorted(rectangles_data, key=lambda r: r[2].x)
+    rects_x_coords = [r[2].x for r in rects_sorted_by_x]
 
-    sorted_by_x = sorted(combined, key=lambda data: data[0].x)
-    x_coords = [(r[0].x, r[1]) for r in sorted_by_x]
-
-    for free_rect_data in sorted_by_x:
-        rect_type = free_rect_data[1]
-        if rect_type != TYPE_FREE_RECT:
-            continue
-
-        try_permute_with_free_rectangle(
-            rectangles,
-            free_rect_data,
-            sorted_by_x,
-            x_coords,
+    for free_rect in reversed(free_rectangles):
+        permute_free_rectangle(
+            rectangles, free_rect, rects_sorted_by_x, rects_x_coords
         )
 
 
@@ -629,40 +616,38 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         # 计算最优尺寸
         atlas_size = calculate_optimal_size(rectangles)
 
-        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size.w}x{atlas_size.h}")
+        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size}")
 
         # 使用MaxRects算法进行排列
-        results_rectangles, free_rectangles = maxrects_packing(
-            rectangles, atlas_size.w, atlas_size.h
-        )
+        result_rectangles, free_rectangles = maxrects_packing(rectangles, atlas_size)
 
-        # 优化排列
-        optimize_rectangle_layouts(results_rectangles, free_rectangles)
+        # # 优化排列
+        # optimize_rectangle_layouts(result_rectangles, free_rectangles)
 
-        results_rectangles.sort(key=lambda x: x[2])
+        result_rectangles.sort(key=lambda r: r[1])
 
         # 记录打包结果
         final_results.append(
             {
                 "name": atlas_name,
-                "rectangles": results_rectangles,
+                "rectangles": result_rectangles,
                 "atlas_size": atlas_size,
             }
         )
 
         # 更新图片位置信息
-        for rect_id, rect, rect_name in results_rectangles:
+        for rect_id, _, rect in result_rectangles:
             images[rect_id]["pos"] = Point(rect.x, rect.y)
 
         # 计算剩余未打包的矩形
-        packed_ids = set(rect[0] for rect in results_rectangles)
-        remaining_rect = [rect for rect in rectangles if rect[0] not in packed_ids]
+        packed_ids = set(rect[0] for rect in result_rectangles)
+        remaining_rects = [rect for rect in rectangles if rect[0] not in packed_ids]
 
-        if not remaining_rect:
+        if not remaining_rects:
             break
 
-        log.info(f"🔄 还有 {len(remaining_rect)} 个矩形未打包，准备下一轮打包")
-        rectangles = remaining_rect
+        log.info(f"🔄 还有 {len(remaining_rects)} 个矩形未打包，准备下一轮打包")
+        rectangles = remaining_rects
         idx += 1
 
     return final_results
@@ -696,18 +681,28 @@ def write_atlas(images, result):
         if setting["add_white_rect"]:
             draw = ImageDraw.Draw(atlas)
             ww, wh = setting["white_rect_size"]
-            draw.rectangle([0, 0, ww, wh], "white", None, 0)
+            draw.rectangle(list(Rectangle(0, 0, ww, wh)), (255, 255, 255, 255), None)
 
         if not setting["generate_square"]:
             # 裁剪图集到实际内容大小
             bbox = atlas.getbbox()
             if bbox:
+                border = setting["border"]
                 left, top, right, bottom = bbox
 
-                right += 4 - (right % 4)
-                bottom += 4 - (bottom % 4)
+                right_alignment = 4 - (right % 4)
+                bottom_alignment = 4 - (bottom % 4)
+                right += right_alignment
+                bottom += bottom_alignment
 
-                atlas = atlas.crop((left, top, right, bottom))
+                right_border = max(0, border - right_alignment)
+                bottom_border = max(0, border - bottom_alignment)
+                right_border += 4 - (right_border % 4)
+                bottom_border += 4 - (bottom_border % 4)
+
+                atlas = atlas.crop(
+                    (left, top, right + right_border, bottom + bottom_border)
+                )
 
         # 保存PNG文件
         atlas.save(output_file)
@@ -834,10 +829,10 @@ def main():
     # 加载并处理输入图片
     input_subdir = get_input_subdir()
 
-    log.info("所有图片加载完毕\n")
+    log.info("所有图像加载完毕\n")
 
     if not input_subdir:
-        log.info("未找到任何图片")
+        log.error("未找到任何图像")
         return
 
     # 为每个子目录创建图集
@@ -920,7 +915,9 @@ def print_performance_info(all_time):
     log.info(f"\n=====总运行时长: {sum_time:.3f} 秒=====")
 
     for fn_name, s, count in calculated_sum:
-        log.info(f"{fn_name:<25}: {int(s * 1000)} ms, {count:>5} 次 ({s/sum_time*100:<6.2f}%)")
+        log.info(
+            f"{fn_name:<25}: {int(s * 1000)} ms, {count:>5} 次 ({s/sum_time*100:<6.2f}%)"
+        )
 
 
 def performance_monitor(main):

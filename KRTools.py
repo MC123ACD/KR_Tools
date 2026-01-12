@@ -2,27 +2,81 @@ import subprocess, json, traceback
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
-import config, tools
+import config
+
+import Tools.generate_waves as generate_waves
+import Tools.process_images as process_images
+import Tools.sort_table as sort_table
+import Tools.split_atlas as split_atlas
+import Tools.generate_atlas as generate_atlas
+import Tools.measure_anchor as measure_anchor
+import Tools.plist_level_to_lua as plist_level_to_lua
+import Tools.plist_animation_to_lua as plist_animation_to_lua
+
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
+
+
+def get_tools_data():
+    return {
+        "generate_waves": {
+            "name": "生成波次",
+            "module": generate_waves,
+            "has_gui": True,
+        },
+        "process_images": {
+            "name": "处理图像",
+            "module": process_images,
+            "has_gui": True,
+        },
+        "sort_table": {
+            "name": "排序表",
+            "module": sort_table,
+            "has_gui": False,
+        },
+        "split_atlas": {
+            "name": "拆分图集",
+            "module": split_atlas,
+            "has_gui": False,
+        },
+        "generate_atlas": {
+            "name": "合并图集",
+            "module": generate_atlas,
+            "has_gui": False,
+        },
+        "measure_anchor": {
+            "name": "测量锚点",
+            "module": measure_anchor,
+            "has_gui": True,
+        },
+        "plist_level_to_lua": {
+            "name": "四代关卡数据转五代",
+            "module": plist_level_to_lua,
+            "has_gui": False,
+        },
+        "plist_animation_to_lua": {
+            "name": "四代动画数据转五代",
+            "module": plist_animation_to_lua,
+            "has_gui": False,
+        },
+    }
+
 
 class MainApplication:
     def __init__(self, root):
         self.root = root
         self.root.title("KRTools")
-        self.root.geometry("1050x130")
+        self.root.geometry("1050x400")
 
         # 创建界面
         self.create_widgets()
 
     def create_widgets(self):
         """创建界面组件"""
-        buttons_frame = ttk.Frame(self.root)
-        buttons_frame.grid(row=0, column=0, columnspan=2)
-
         # 运行其他模块的按钮
-        self.create_module_buttons(buttons_frame)
+        self.create_module_buttons()
+        self.create_texts()
 
         # 配置网格权重
         self.root.columnconfigure(0, weight=1)
@@ -30,31 +84,91 @@ class MainApplication:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
 
-    def create_module_buttons(self, parent):
+    def create_module_buttons(self):
         """创建运行其他模块的按钮"""
+
+        self.buttons_frame = ttk.Frame(self.root)
+        self.buttons_frame.grid(row=0, column=0)
+
         i = 0
-        for key, value in tools.get_tools_data().items():
+        for key, value in get_tools_data().items():
             name = value["name"]
-            module = value["module"]
-            has_gui = value["has_gui"]
             btn = ttk.Button(
-                parent,
+                self.buttons_frame,
                 text=name,
-                command=lambda m=module, g=has_gui: self.run_module(m, g),
+                command=lambda m=value["module"], g=value["has_gui"]: self.run_module(
+                    m, g
+                ),
             )
             btn.grid(row=0, column=i, pady=5, padx=5, sticky=(tk.W, tk.E))
 
             if config.setting.get(key):
                 setting_btn = ttk.Button(
-                    parent,
+                    self.buttons_frame,
                     text=name + "设置",
                     command=lambda k=key: self.open_setting(k),
                 )
                 setting_btn.grid(row=1, column=i, pady=5, padx=5, sticky=(tk.W, tk.E))
-
             i += 1
         # 配置按钮框架的网格
-        parent.columnconfigure(0, weight=1)
+        self.buttons_frame.columnconfigure(0, weight=1)
+
+    def create_texts(self):
+        self.texts_frame = ttk.Frame(self.root)
+        self.texts_frame.grid(
+            row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=10
+        )
+
+        # 配置网格权重，使Frame可以扩展
+        self.texts_frame.columnconfigure(0, weight=1)
+        self.texts_frame.columnconfigure(1, weight=1)
+        self.texts_frame.rowconfigure(0, weight=1)
+
+        # 第一个文本框（左边）
+        self.readme_text_frame = ttk.LabelFrame(
+            self.texts_frame, text="自述", padding=10
+        )
+        self.readme_text_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        # 创建垂直滚动条
+        self.readme_text_scrollbar = ttk.Scrollbar(self.readme_text_frame)
+        self.readme_text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 创建多行文本框并关联滚动条
+        self.readme_text = tk.Text(
+            self.readme_text_frame,
+            width=40,
+            height=10,
+            font=("Arial", 12),
+            yscrollcommand=self.readme_text_scrollbar.set,
+        )
+        with open("README.md", "r", encoding="utf-8") as f:
+            self.readme_text.insert(tk.END, f.read())
+        self.readme_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.readme_text_scrollbar.config(command=self.readme_text.yview)
+
+        # 第二个文本框（右边）
+        self.about_text_frame = ttk.LabelFrame(
+            self.texts_frame, text="协议", padding=10
+        )
+        self.about_text_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # 创建垂直滚动条
+        self.about_text_scrollbar = ttk.Scrollbar(self.about_text_frame)
+        self.about_text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 创建多行文本框并关联滚动条
+        self.about_text = tk.Text(
+            self.about_text_frame,
+            width=40,
+            height=10,
+            font=("Arial", 12),
+            yscrollcommand=self.about_text_scrollbar.set,
+        )
+        with open("LICENSE.md", "r", encoding="utf-8") as f:
+            self.about_text.insert(tk.END, f.read())
+        self.about_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.about_text_scrollbar.config(command=self.about_text.yview)
 
     def run_module(self, module, has_gui):
         self.root.update()

@@ -430,7 +430,8 @@
             3
         ],
         "max_size": 4096,
-        "generate_square": false
+        "generate_square": false,
+        "algorithm": "maxrects"
     },
     "plist_level_to_lua": {
         "is_kr5": true,

@@ -1,3 +1,0 @@
-by：MC123ACD，Github：https://github.com/MC123ACD/KR_Tools
-
-本程序采用 CC BY-NC-SA 4.0 协议进行许可（详见 LICENSE.md）。您可以自由地分享、修改，但必须署名，且不得用于商业用途，基于本程序的修改也必须采用相同协议共享。

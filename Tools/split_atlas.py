@@ -314,12 +314,10 @@ def gen_png_from_plist(plist_path, plist_data, png_path):
         framename = frame_key.replace(".png", "")
 
         # 解析帧数据
-        sprite_size = Size(str_format=frame_data["spriteSourceSize"]).to_int()
+        sprite_size = Size(frame_data["spriteSourceSize"])
         # 精灵原始尺寸
-        texture_rect = Rectangle(
-            str_format=frame_data["textureRect"]
-        ).to_int()  # 在图集中的位置和尺寸
-        offset = Point(str_format=frame_data["spriteOffset"]).to_int()  # 偏移量
+        texture_rect = Rectangle(frame_data["textureRect"])  # 在图集中的位置和尺寸
+        offset = Point(frame_data["spriteOffset"])  # 偏移量
         texture_rotated = frame_data["textureRotated"]  # 是否旋转
 
         # 计算在图集中的裁剪框
@@ -328,7 +326,7 @@ def gen_png_from_plist(plist_path, plist_data, png_path):
             texture_rect.y,
             texture_rect.x + texture_rect.w,
             texture_rect.y + texture_rect.h,
-        ).to_int()
+        )
 
         # 如果精灵在图集中被旋转，调整裁剪框尺寸
         if texture_rotated:

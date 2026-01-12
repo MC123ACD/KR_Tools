@@ -176,20 +176,42 @@ class FieldMeta(ABCMeta):
 
             # 自动生成__init__方法
             def auto_init(self, *args, **kwargs):
-                str_format = kwargs.get("str_format") if kwargs else None
-                if str_format:
-                    numbers = re.findall(FIND_NUM_REGEX, str_format)
-                    for i, field in enumerate(fields):
-                        if i < len(numbers):
-                            setattr(self, field, float(numbers[i]))
-                else:
-                    for i, field in enumerate(fields):
-                        if i < len(args):
-                            setattr(self, field, args[i])
-                        elif field in kwargs:
-                            setattr(self, field, kwargs[field])
-                        else:
-                            setattr(self, field, None)
+                if not args and not kwargs:
+                    raise TypeError(
+                        f"Cannot instantiate {cls.__name__} without positional arguments. "
+                        f"Please provide required positional parameters."
+                    )
+
+                if args:
+                    first_arg = args[0]
+
+                    if isinstance(first_arg, str):
+                        numbers = re.findall(FIND_NUM_REGEX, first_arg)
+                        for i, field in enumerate(fields):
+                            if i < len(numbers):
+                                setattr(self, field, int(float(numbers[i])))
+
+                        return
+                    elif isinstance(first_arg, (list, tuple)):
+                        first_arg_len = len(first_arg)
+                        fields_len = len(fields)
+                        if first_arg_len != fields_len:
+                            raise TypeError(
+                                f"{cls.__name__}() requires {fields_len} values in the sequence, "
+                                f"but got {first_arg_len}"
+                            )
+                        for i, a in enumerate(first_arg):
+                            setattr(self, fields[i], a)
+                        
+                        return
+
+                for i, field in enumerate(fields):
+                    if i < len(args):
+                        setattr(self, field, args[i])
+                    elif field in kwargs:
+                        setattr(self, field, kwargs[field])
+                    else:
+                        setattr(self, field, None)
 
             attrs["__init__"] = auto_init
         return super().__new__(cls, name, bases, attrs)

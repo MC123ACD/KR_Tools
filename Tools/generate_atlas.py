@@ -496,7 +496,7 @@ def maxrects_packing(rectangles, atlas_size):
 
             result_rectangles.append((rect_id, rect_name, used_rect))
 
-    return result_rectangles, free_rectangles
+    return result_rectangles
 
 
 def try_move_rect(free_rect, rect):
@@ -617,10 +617,7 @@ def create_atlas(baisic_atlas_name, rectangles, images):
         log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size}")
 
         # 使用MaxRects算法进行排列
-        result_rectangles, free_rectangles = maxrects_packing(rectangles, atlas_size)
-
-        # # 优化排列
-        # optimize_rectangle_layouts(result_rectangles, free_rectangles)
+        result_rectangles = maxrects_packing(rectangles, atlas_size)
 
         result_rectangles.sort(key=lambda r: r[1])
 
@@ -661,7 +658,7 @@ def write_atlas(images, result):
     """
     # 创建空白图集
     with Image.new(
-        "RGBA", (result["atlas_size"].w, result["atlas_size"].h), (0, 0, 0, 0)
+        "RGBA", tuple(result["atlas_size"]), (0, 0, 0, 0)
     ) as atlas:
         output_file = config.output_path / f"{result['name']}.png"
 
@@ -672,14 +669,17 @@ def write_atlas(images, result):
             img_pos = img_info["pos"]
 
             if img_pos:
-                position = (img_pos.x, img_pos.y)
-                atlas.paste(img_info["image"], position)
+                atlas.paste(img_info["image"], tuple(img_pos))
 
         # 在左上角添加白色像素（用于特殊用途，如血条占位）
         if setting["add_white_rect"]:
             draw = ImageDraw.Draw(atlas)
-            ww, wh = setting["white_rect_size"]
-            draw.rectangle(list(Rectangle(0, 0, ww, wh)), (255, 255, 255, 255), None)
+            white_rect_size = Size(setting["white_rect_size"])
+            draw.rectangle(
+                list(Rectangle(0, 0, white_rect_size.w, white_rect_size.h)),
+                (255, 255, 255, 255),
+                None,
+            )
 
         if not setting["generate_square"]:
             # 裁剪图集到实际内容大小

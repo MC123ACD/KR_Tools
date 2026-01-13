@@ -7,6 +7,7 @@ import log
 
 log = log.setup_logging(config.log_level, config.log_file)
 
+
 class GeneratorWave:
     def __init__(self, root):
         self.root = root
@@ -626,8 +627,8 @@ class GeneratorWave:
         self.dialog.transient(self.root)
         self.dialog.grab_set()
 
-        monsters_key = [k for k, _ in self.load_monsters().items()]
-        monsters_key[0] = ""
+        monsters_keys = [k for k in self.load_monsters()]
+        monsters_keys[0] = ""
         # 创建表单
         form_frame = tk.Frame(self.dialog, padx=10, pady=10)
         form_frame.pack(fill="both", expand=True)
@@ -638,9 +639,12 @@ class GeneratorWave:
         )
         creep_var = tk.StringVar()
         self.creep_combo = ttk.Combobox(
-            form_frame, textvariable=creep_var, state="readonly", height=20
+            form_frame,
+            textvariable=creep_var,
+            values=monsters_keys,
+            state="readonly",
+            height=20,
         )
-        self.creep_combo["values"] = monsters_key
         self.creep_combo.grid(row=0, column=1, sticky="we", padx=5, pady=5)
 
         tk.Label(form_frame, text="交替怪物:").grid(
@@ -648,9 +652,12 @@ class GeneratorWave:
         )
         creep_aux_var = tk.StringVar()
         self.creep_aux_combo = ttk.Combobox(
-            form_frame, textvariable=creep_aux_var, state="readonly", height=20
+            form_frame,
+            textvariable=creep_aux_var,
+            values=monsters_keys,
+            state="readonly",
+            height=20,
         )
-        self.creep_aux_combo["values"] = monsters_key
         self.creep_aux_combo.grid(row=1, column=1, sticky="we", padx=5, pady=5)
 
         # 参数设置
@@ -750,11 +757,8 @@ class GeneratorWave:
 
         # 填充现有数据（编辑模式）
         if spawn and edit:
-            for k, _ in self.load_monsters(is_all=True).items():
-                if k == spawn["creep"]:
-                    creep_var.set(k)
-                if k == spawn["creep_aux"]:
-                    creep_aux_var.set(k)
+            creep_var.set(spawn["creep"])
+            creep_aux_var.set(spawn["creep_aux"])
 
             self.max_same_var.set(spawn["max_same"])
             self.max_var.set(spawn["max"])

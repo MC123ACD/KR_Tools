@@ -11,6 +11,11 @@ input_path = config.input_path
 output_path = config.output_path
 
 
+# 正则表达式：用于从字符串中提取数字（包括整数、小数和带符号的数字）
+FIND_NUM_REGEX = r"[-+]?\d*\.?\d+"
+
+BASIC_FONT = "Microsoft YaHei"
+
 T = TypeVar("T")
 
 def escape_lua_string(s):
@@ -188,10 +193,6 @@ def is_simple_key(key: str):
     if not key or key[0].isdigit():
         return False
     return all(c.isalnum() or c == "_" for c in key)
-
-
-# 正则表达式：用于从字符串中提取数字（包括整数、小数和带符号的数字）
-FIND_NUM_REGEX = r"[-+]?\d*\.?\d+"
 
 
 class FieldMeta(ABCMeta):

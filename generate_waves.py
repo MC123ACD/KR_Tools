@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import config, traceback
-from utils import run_app, run_decompiler
+from utils import run_app, run_decompiler, BASIC_FONT
 from pathlib import Path
 import log
 
@@ -101,10 +101,10 @@ class GeneratorWave:
             command=self.save_to_lua,
             bg="#27ae60",  # 绿色背景
             fg="white",  # 白色文字
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             relief=tk.RAISED,  # 凸起效果
             padx=15,  # 水平内边距
-            pady=5,  # 垂直内边距
+            pady=2,  # 垂直内边距
         )
         self.save_btn.pack(side="left", padx=5)
 
@@ -118,10 +118,10 @@ class GeneratorWave:
             command=self.load_from_lua,
             bg="#9b59b6",  # 紫色背景
             fg="white",
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             relief=tk.RAISED,
             padx=15,
-            pady=5,
+            pady=2,
         )
         self.load_btn.pack(side="left", padx=5)
 
@@ -161,7 +161,7 @@ class GeneratorWave:
         control_frame = tk.LabelFrame(
             self.root,
             text="波次管理",
-            font=("Arial", 10, "bold"),
+            font=(BASIC_FONT, 10, "bold"),
             bg="#f0f0f0",
             padx=10,
             pady=10,
@@ -177,10 +177,10 @@ class GeneratorWave:
             command=self.add_wave,
             bg="#3498db",  # 蓝色背景
             fg="white",
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             relief=tk.RAISED,
             padx=15,
-            pady=5,
+            pady=2,
         )
         self.add_wave_btn.pack(side="left", padx=5)
 
@@ -193,10 +193,10 @@ class GeneratorWave:
             command=self.delete_wave,
             bg="#e74c3c",  # 红色背景
             fg="white",
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             relief=tk.RAISED,
             padx=15,
-            pady=5,
+            pady=2,
         )
         self.delete_wave_btn.pack(side="left", padx=5)
 
@@ -209,7 +209,7 @@ class GeneratorWave:
 
         # 金币标签
         tk.Label(
-            initial_resource_frame, text="初始金币:", bg="#f0f0f0", font=("Arial", 10)
+            initial_resource_frame, text="初始金币:", bg="#f0f0f0", font=(BASIC_FONT, 10)
         ).pack(side="left", padx=5)
 
         # 金币输入框
@@ -224,7 +224,7 @@ class GeneratorWave:
             initial_resource_frame,
             textvariable=self.cash_var,
             width=15,
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
         )
         self.cash_entry.pack(side="left", padx=5)
 
@@ -253,7 +253,7 @@ class GeneratorWave:
         )
 
         tk.Label(
-            wave_param_frame, text=time_label_text, bg="#f0f0f0", font=("Arial", 10)
+            wave_param_frame, text=time_label_text, bg="#f0f0f0", font=(BASIC_FONT, 10)
         ).pack(side="left", padx=(20, 5))
 
         # 波次到来时间输入框
@@ -265,7 +265,7 @@ class GeneratorWave:
             wave_param_frame,
             textvariable=self.wave_arrive_time_var,
             width=15,
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
         )
         self.wave_arrive_time_entry.pack(side="left", padx=5)
 
@@ -305,7 +305,7 @@ class GeneratorWave:
         group_frame = tk.LabelFrame(
             parent_frame,
             text="出怪组管理",
-            font=("Arial", 10, "bold"),
+            font=(BASIC_FONT, 10, "bold"),
             bg="#f0f0f0",
             padx=10,
             pady=10,
@@ -322,7 +322,7 @@ class GeneratorWave:
             group_frame,
             width=25,
             height=15,
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             bg="white",
             bd=2,
             relief="groove",
@@ -346,7 +346,7 @@ class GeneratorWave:
             command=self.add_group,
             bg="#3498db",
             fg="white",
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             relief=tk.RAISED,
             padx=5,
             pady=3,
@@ -362,7 +362,7 @@ class GeneratorWave:
             command=self.remove_group,
             bg="#e74c3c",
             fg="white",
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             relief=tk.RAISED,
             padx=5,
             pady=3,
@@ -382,7 +382,7 @@ class GeneratorWave:
         spawn_frame = tk.LabelFrame(
             parent_frame,
             text="出怪设置",
-            font=("Arial", 10, "bold"),
+            font=(BASIC_FONT, 10, "bold"),
             bg="#f0f0f0",
             padx=10,
             pady=10,
@@ -427,13 +427,13 @@ class GeneratorWave:
         )
 
         tk.Label(
-            param_frame, text=delay_label_text, bg="#f0f0f0", font=("Arial", 10)
+            param_frame, text=delay_label_text, bg="#f0f0f0", font=(BASIC_FONT, 10)
         ).grid(row=0, column=0, sticky="e", padx=5, pady=5)
 
         # 延迟输入框
         self.delay_var = tk.StringVar()
         self.delay_entry = ttk.Entry(
-            param_frame, textvariable=self.delay_var, width=15, font=("Arial", 10)
+            param_frame, textvariable=self.delay_var, width=15, font=(BASIC_FONT, 10)
         )
         self.delay_entry.grid(row=0, column=1, sticky="w", padx=5, pady=5)
 
@@ -447,14 +447,14 @@ class GeneratorWave:
         self.create_tooltip(self.delay_entry, "当前出怪组相对于波次开始的延迟时间")
 
         # 出怪路径设置
-        tk.Label(param_frame, text="出怪路径:", bg="#f0f0f0", font=("Arial", 10)).grid(
+        tk.Label(param_frame, text="出怪路径:", bg="#f0f0f0", font=(BASIC_FONT, 10)).grid(
             row=0, column=2, sticky="e", padx=5, pady=5
         )
 
         # 路径索引输入框
         self.path_index_var = tk.StringVar()
         self.path_index_entry = ttk.Entry(
-            param_frame, textvariable=self.path_index_var, width=15, font=("Arial", 10)
+            param_frame, textvariable=self.path_index_var, width=15, font=(BASIC_FONT, 10)
         )
         self.path_index_entry.grid(row=0, column=3, sticky="w", padx=5, pady=5)
 
@@ -519,8 +519,8 @@ class GeneratorWave:
 
         # 配置表格样式
         style = ttk.Style()
-        style.configure("Treeview", rowheight=25, font=("Arial", 10))
-        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
+        style.configure("Treeview", rowheight=25, font=(BASIC_FONT, 10))
+        style.configure("Treeview.Heading", font=(BASIC_FONT, 10, "bold"))
 
         # 设置列标题
         self.monster_tree.heading("creep", text="怪物")
@@ -593,10 +593,10 @@ class GeneratorWave:
             command=self.add_monster,
             bg="#3498db",
             fg="white",
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             relief=tk.RAISED,
             padx=10,
-            pady=5,
+            pady=2,
         )
         self.add_monster_btn.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
 
@@ -609,10 +609,10 @@ class GeneratorWave:
             command=self.edit_monster,
             bg="#f39c12",  # 橙色背景
             fg="white",
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             relief=tk.RAISED,
             padx=10,
-            pady=5,
+            pady=2,
         )
         self.edit_monster_btn.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
 
@@ -625,10 +625,10 @@ class GeneratorWave:
             command=self.remove_monster,
             bg="#e74c3c",
             fg="white",
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             relief=tk.RAISED,
             padx=10,
-            pady=5,
+            pady=2,
         )
         self.remove_monster_btn.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
 
@@ -645,7 +645,7 @@ class GeneratorWave:
             anchor="w",  # 左对齐
             bg="#f0f0f0",  # 背景色
             fg="#333333",  # 文字颜色
-            font=("Arial", 9),
+            font=(BASIC_FONT, 9),
             padx=10,  # 水平内边距
         )
         status_bar.pack(side="bottom", fill="x", padx=10, pady=5)
@@ -678,7 +678,7 @@ class GeneratorWave:
             widget.destroy()
 
         # 为每个波次创建按钮
-        for i, group in enumerate(self.wave_data["groups"]):
+        for i, _ in enumerate(self.wave_data["groups"]):
             btn = tk.Button(
                 self.wave_btn_frame,
                 text=f"第{i+1}波",
@@ -687,10 +687,10 @@ class GeneratorWave:
                     "#9b59b6" if i == self.current_wave_index else "#ecf0f1"
                 ),  # 选中状态颜色
                 fg="white" if i == self.current_wave_index else "black",
-                font=("Arial", 10, "bold"),
+                font=(BASIC_FONT, 10, "bold"),
                 relief=tk.RAISED,
                 padx=15,
-                pady=5,
+                pady=2,
             )
             btn.pack(side="left", padx=5, pady=5)
 
@@ -1073,9 +1073,9 @@ class GeneratorWave:
             command=save_command,
             bg="#27ae60",
             fg="white",
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             padx=15,
-            pady=5,
+            pady=2,
         ).pack(side="right", padx=5)
 
         # 取消按钮
@@ -1083,7 +1083,7 @@ class GeneratorWave:
             btn_frame,
             text="取消",
             command=dialog.destroy,
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
             padx=15,
             pady=5,
         ).pack(side="right", padx=5)
@@ -1110,7 +1110,7 @@ class GeneratorWave:
             edit: 是否为编辑模式
         """
         # 标签
-        tk.Label(parent_frame, text=label_text, font=("Arial", 10)).grid(
+        tk.Label(parent_frame, text=label_text, font=(BASIC_FONT, 10)).grid(
             row=row, column=0, sticky="e", padx=5, pady=8
         )
 
@@ -1123,7 +1123,7 @@ class GeneratorWave:
             state="readonly",
             height=10,
             width=20,
-            font=("Arial", 10),
+            font=(BASIC_FONT, 10),
         )
         combo.grid(row=row, column=1, sticky="we", padx=5, pady=8, columnspan=2)
 
@@ -1238,7 +1238,7 @@ class GeneratorWave:
             default_value: 默认值
         """
         # 标签
-        tk.Label(parent_frame, text=label_text, font=("Arial", 10)).grid(
+        tk.Label(parent_frame, text=label_text, font=(BASIC_FONT, 10)).grid(
             row=row, column=0, sticky="e", padx=5, pady=8
         )
 
@@ -1246,7 +1246,7 @@ class GeneratorWave:
         var = tk.StringVar(
             value=spawn.get(key, default_value) if spawn else default_value
         )
-        entry = ttk.Entry(parent_frame, textvariable=var, font=("Arial", 10), width=20)
+        entry = ttk.Entry(parent_frame, textvariable=var, font=(BASIC_FONT, 10), width=20)
         entry.grid(row=row, column=1, sticky="we", padx=5, pady=8, columnspan=2)
 
         # 绑定回车事件

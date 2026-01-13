@@ -2,6 +2,7 @@ import traceback, subprocess, time, config, re
 from pathlib import Path
 from abc import ABC, ABCMeta
 from typing import ClassVar, TypeVar, Generic, Any
+import tkinter as tk
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
@@ -11,6 +12,32 @@ output_path = config.output_path
 
 
 T = TypeVar("T")
+
+def escape_lua_string(s):
+    """
+    转义Lua字符串中的特殊字符
+    """
+    if not isinstance(s, str):
+        return s
+
+    # 转义特殊字符
+    s = s.replace("\\", "\\\\")
+    s = s.replace('"', '\\"')
+    s = s.replace("\n", "\\n")
+    s = s.replace("\r", "\\r")
+    s = s.replace("\t", "\\t")
+    return s
+
+def run_app(root, app):
+    if root:
+        root = tk.Toplevel(root)
+        app = app(root)
+        return
+    else:
+        root = tk.Tk()
+        app = app(root)
+        root.mainloop()
+
 
 def clamp(value, min_value, max_value):
     """

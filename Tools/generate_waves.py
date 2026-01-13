@@ -1,21 +1,17 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import config
+from utils import run_app
 from pathlib import Path
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
-setting = config.setting["generate_waves"]
 
-
-class WaveDataGenerator:
+class GeneratorWave:
     def __init__(self, root):
-        root_window = tk.Toplevel(root)
-        root_window.title("波次生成")
-        root_window.geometry("1100x650")
-        root_window.transient(root)
-        root_window.grab_set()
-        self.root = root_window
+        self.root = root
+        self.root.title("波次生成")
+        self.root.geometry("1100x650")
 
         self.wave_data = {"cash": setting["default_wave_data"]["cash"], "groups": []}
 
@@ -1279,5 +1275,12 @@ class WaveDataGenerator:
         entry.icursor(tk.END)  # 将光标移到末尾
 
 
-def main(root):
-    app = WaveDataGenerator(root)
+def main(root=None):
+    global setting
+    setting = config.setting["generate_waves"]
+
+    run_app(root, GeneratorWave)
+
+
+if __name__ == "__main__":
+    main()

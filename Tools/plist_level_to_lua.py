@@ -3,7 +3,6 @@ from utils import is_simple_key
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
-setting = config.setting["plist_level_to_lua"]
 
 
 class CconvertPlistToLua:
@@ -480,11 +479,7 @@ class CconvertPlistToLua:
                         "max": spawn["cant"],
                         "interval_next": spawn["interval_next_spawn"],
                         "max_same": 0,
-                        "fixed_sub_path": (
-                            0
-                            if spawn["fixed_sub_path"] < 0
-                            else 1
-                        ),
+                        "fixed_sub_path": (0 if spawn["fixed_sub_path"] < 0 else 1),
                         "path": (
                             3
                             if spawn["fixed_sub_path"] < 0
@@ -614,7 +609,9 @@ class CconvertPlistToLua:
                     )
 
                 # 只有找到匹配的point时才生成spawn表
-                spawn_delay = delay + setting["custom_spawners_delay"] if obj != None else delay
+                spawn_delay = (
+                    delay + setting["custom_spawners_delay"] if obj != None else delay
+                )
 
                 for i in range(len(spawns)):
                     # 找出point索引
@@ -1190,6 +1187,9 @@ def get_input_files():
 
 
 def main():
+    global setting
+    setting = config.setting["plist_level_to_lua"]
+
     files = get_input_files()
 
     try:
@@ -1199,3 +1199,9 @@ def main():
         log.info("所有文件转化完毕")
     except Exception as e:
         traceback.print_exc()
+
+
+if __name__ == "__main__":
+    # 执行主函数并返回退出码
+    success = main()
+    exit(0 if success else 1)

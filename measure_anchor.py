@@ -3,7 +3,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import traceback, config, time
 from pathlib import Path
-from utils import clamp, Point, Size, Rectangle, Bounds
+from utils import clamp, Point, Size, Rectangle, Bounds, run_app
 import log
 
 log = log.setup_logging(config.log_level, config.log_file)
@@ -11,14 +11,12 @@ log = log.setup_logging(config.log_level, config.log_file)
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001
 
-setting = config.setting["measure_anchor"]
-
 
 class MeasureAnchor:
     def __init__(self, root):
-        self.root_window = tk.Toplevel(root)
-        self.root_window.title("锚点测量工具")
-        self.root_window.geometry("1200x900")
+        self.root = root
+        self.root.title("锚点测量工具")
+        self.root.geometry("1200x900")
 
         self.redraw_delay = 10
         self.last_time = time.time()
@@ -183,7 +181,7 @@ class MeasureAnchor:
     def create_main_frames(self):
         """创建主框架"""
         # 创建主框架
-        self.main_frame = ttk.Frame(self.root_window)
+        self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 左侧控制面板
@@ -519,7 +517,7 @@ class MeasureAnchor:
         """设置状态栏"""
         self.status_var = tk.StringVar(value="就绪")
         ttk.Label(
-            self.root_window,
+            self.root,
             textvariable=self.status_var,
             relief=tk.SUNKEN,
             anchor=tk.W,
@@ -921,7 +919,7 @@ class MeasureAnchor:
             return
 
         # 创建右键菜单
-        menu = tk.Menu(self.root_window, tearoff=0)
+        menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(
             label="复制图像大小",
             command=lambda: self.copy_to_clipboard(
@@ -958,8 +956,8 @@ class MeasureAnchor:
 
     def copy_to_clipboard(self, text):
         """复制文本到剪贴板"""
-        self.root_window.clipboard_clear()
-        self.root_window.clipboard_append(text)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
         self.status_var.set("已复制到剪贴板")
 
     def switch_canvas_color(self):
@@ -1091,5 +1089,12 @@ class MeasureAnchor:
         self.change_anchor_draw()
 
 
-def main(root):
-    app = MeasureAnchor(root)
+def main(root=None):
+    global setting
+    setting = config.setting["measure_anchor"]
+
+    run_app(root, MeasureAnchor)
+
+
+if __name__ == "__main__":
+    main()

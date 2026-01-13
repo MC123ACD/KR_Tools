@@ -425,7 +425,12 @@
         "delete_temporary_png": true,
         "trigger_several_efficiency": 0.35,
         "add_white_rect": true,
-        "max_size": 4096
+        "white_rect_size": [
+            3,
+            3
+        ],
+        "max_size": 4096,
+        "generate_square": false
     },
     "plist_level_to_lua": {
         "is_kr5": true,
@@ -434,6 +439,7 @@
         "level_name_leading_zero": 2
     },
     "measure_anchor": {
+        "use_light_bg": true,
         "presets": [
             [
                 "左上",
@@ -480,7 +486,6 @@
                 "w",
                 "h"
             ]
-        ],
-        "use_light_bg": true
+        ]
     }
 }

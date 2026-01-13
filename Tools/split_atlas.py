@@ -9,9 +9,6 @@ from utils import Point, Size, Rectangle, Bounds
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging(config.log_level, config.log_file)
 
-# 获取图集拆分的配置设置
-setting = config.setting["split_atlas"]
-
 
 def get_lua_data(file_content):
     """
@@ -479,6 +476,8 @@ def main():
     Returns:
         bool: 处理是否成功（全部成功返回True，否则False）
     """
+    global setting
+    setting = config.setting["split_atlas"]
     log.info("=" * 50)
     log.info("开始图集拆分流程")
     log.info(f"输入目录: {config.input_path}")

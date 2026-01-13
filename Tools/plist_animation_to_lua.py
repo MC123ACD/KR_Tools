@@ -335,3 +335,9 @@ def main():
         log.info("所有文件转化完毕")
     except Exception as e:
         traceback.print_exc()
+
+
+if __name__ == "__main__":
+    # 执行主函数并返回退出码
+    success = main()
+    exit(0 if success else 1)

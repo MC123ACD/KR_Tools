@@ -5,14 +5,7 @@ from pathlib import Path
 import config
 
 # 导入所有工具模块
-import Tools.generate_waves as generate_waves
-import Tools.process_images as process_images
-import Tools.sort_table as sort_table
-import Tools.split_atlas as split_atlas
-import Tools.generate_atlas as generate_atlas
-import measure_anchor
-import Tools.plist_level_to_lua as plist_level_to_lua
-import Tools.plist_animation_to_lua as plist_animation_to_lua
+import generate_waves, process_images, sort_table, split_atlas, generate_atlas, measure_anchor, plist_level_to_lua, plist_animation_to_lua
 
 import log
 

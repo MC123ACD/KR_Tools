@@ -1,5 +1,5 @@
 import re, traceback, config, math, plistlib
-from utils import is_simple_key
+from utils import is_simple_key, WriteLua, key_to_lua, value_to_lua
 import log
 
 # 设置日志记录
@@ -73,7 +73,9 @@ def extract_level_data(level_num, plist_data):
     Returns:
         dict: 包含关卡所有基础数据的字典
     """
-    data = {}
+    data = {
+        "bg_name": f"go_stage{setting["level_name_prefix"]}{str(level_num).zfill(setting["level_name_leading_zero"])}"
+    }
 
     # 计算地形类型（带前缀和补零）
     terrain_type = int(
@@ -183,8 +185,8 @@ def get_obj_holder(i, tower, terrain_type):
         "tower.terrain_style": terrain_type,  # 地形样式
         "pos": position,  # 位置
         "tower.default_rally_pos": tower["rally_point"],  # 默认集结点
-        "ui.nav_mesh_id": str(i),  # 导航网格ID
-        "tower.holder_id": str(i),  # 塔位ID
+        "ui.nav_mesh_id": i,  # 导航网格ID
+        "tower.holder_id": i,  # 塔位ID
     }
 
     return holder_entity
@@ -816,7 +818,7 @@ def get_mega_spawner(spawner_data_name, num_level_mode):
     """
     return {
         "template": "mega_spawner",  # 模板类型
-        "load_file": spawner_data_name,  # 加载的数据文件
+        "load_file": spawner_data_name.replace(".lua", ""),  # 加载的数据文件
         "editor.game_mode": num_level_mode,  # 游戏模式
     }
 
@@ -1020,154 +1022,109 @@ def write_lua_files():
 
     # 遍历每个关卡的数据
     for level_num, datas in main_datas.items():
-        write_level_data_file(datas["level_data"], levels_dir, level_num)
+        write_levels_data_file(datas["level_data"], levels_dir)
         write_paths_data_file(datas["paths_data"], levels_dir)
         write_grids_data_file(datas["grids_data"], levels_dir)
         write_waves_data_file(datas["waves_data"], waves_dir)
         write_spawners_data_file(datas["spawners_data"], levels_dir)
 
 
-def write_level_data_file(level_data, levels_dir, level_num):
+def get_levels_data_lua_content(level_data):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    # 开始整个表
+    a(0, "return {")
+
+    # 基本关卡信息
+    dict_v(1, "level_terrain_type", level_data["terrain_type"], "地形类型")
+    dict_v(1, "locked_hero", False, "是否锁定英雄")
+    dict_v(1, "max_upgrade_level", 5, "最大升级等级")
+
+    # 自定义起始视角
+    start(1, "custom_start_pos", "自定义起始视角")
+    dict_v(2, "zoom", 1.3, "缩放级别")
+    start(2, "pos", "位置")
+    dict_v(3, "x", 512)
+    dict_v(3, "y", 384)
+    end(2)  # 结束pos
+    end(1)  # 结束custom_start_pos
+
+    dict_v(1, "level_mode_overrides", {}, "关卡模式覆盖")
+
+    # 英雄起始位置
+    start(1, "custom_spawn_pos")
+    for pos in level_data["hero_positions"]:
+        start(2)
+        start(3, "pos")
+        dict_v(4, "x", pos.get("x", 0))
+        dict_v(4, "y", pos.get("y", 0))
+        end(3)  # 结束pos
+        end(2)  # 结束一个位置
+    end(1)  # 结束custom_spawn_pos
+
+    # 实体列表
+    start(1, "entities_list")
+    for entity in level_data["entities_list"]:
+        start(2)
+        for key, value in entity.items():
+            if isinstance(value, dict):
+                # 位置等字典类型
+                start(3, key)
+                dict_v(4, "x", value.get("x", 0))
+                dict_v(4, "y", value.get("y", 0))
+                end(3)
+            else:
+                # 其他类型
+                dict_v(3, key, value)
+        end(2)  # 结束一个实体
+    end(1)  # 结束entities_list
+
+    # 导航网格
+    start(1, "nav_mesh")
+    for mesh in level_data["nav_mesh"]:
+        start(2)
+        for v in mesh:
+            list_v(3, v)
+        end(2)  # 结束一个网格
+    end(1)  # 结束nav_mesh
+
+    # 无效路径范围
+    if level_data["invalid_path_ranges"]:
+        start(1, "invalid_path_ranges")
+        for invalid_range in level_data["invalid_path_ranges"]:
+            start(2)
+            dict_v(3, "from", invalid_range["from"])
+            dict_v(3, "to", invalid_range["to"])
+            dict_v(3, "path_id", invalid_range["path_id"])
+            end(2)
+        end(1)  # 结束invalid_path_ranges
+    else:
+        dict_v(1, "invalid_path_ranges", {}, "无效路径范围")
+
+    # 资源
+    dict_v(1, "required_exoskeletons", {}, "加载的骨骼")
+    dict_v(1, "required_sounds", {}, "加载的音效")
+
+    start(1, "required_textures", "加载的纹理")
+    # 增加背景纹理
+    list_v(2, level_data["bg_name"])
+    end(1)  # 结束required_textures
+
+    end(0, False)  # 结束整个表
+
+    return writer.get_content()
+
+
+def write_levels_data_file(level_data, levels_dir):
     """
     写入关卡数据文件
 
     Args:
         level_data (dict): 关卡数据
         levels_dir (Path): 输出目录
-        level_num (str): 关卡编号
     """
-    hero_positions = level_data["hero_positions"]
-    terrain = level_data["terrain_type"]
-    entities_list = level_data["entities_list"]
-    nav_mesh = level_data["nav_mesh"]
-    invalid_path_ranges = level_data["invalid_path_ranges"]
-
-    content = [
-        "return {",
-        f"\tlevel_terrain_type = {terrain},  -- 地形类型",
-        "\tlocked_hero = false,  -- 是否锁定英雄",
-        "\tmax_upgrade_level = 5,  -- 最大升级等级",
-        "\tcustom_start_pos = {  -- 自定义起始视角",
-        "\t\tzoom = 1.3,  -- 缩放级别",
-        "\t\tpos = {  -- 位置",
-        "\t\t\tx = 512,",
-        "\t\t\ty = 384",
-        "\t\t}",
-        "\t},",
-        "\tlevel_mode_overrides = {},  -- 关卡模式覆盖",
-    ]
-
-    def a(str):
-        """辅助函数：添加一行内容"""
-        content.append(str)
-
-    # 英雄起始位置
-    a("\tcustom_spawn_pos = {")
-    for i, pos in enumerate(hero_positions):
-        a("\t\t{")
-        a("\t\t\tpos = {")
-        a(f"\t\t\t\tx = {pos.get("x", 0)},")
-        a(f"\t\t\t\ty = {pos.get("y", 0)}")
-        a("\t\t\t}")
-        if i < len(hero_positions) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t},")
-
-    # 实体列表
-    a("\tentities_list = {")
-    for i, entity in enumerate(entities_list):
-        a("\t\t{")
-        j = 0
-        for key, value in entity.items():
-            # 处理键名（是否需要引号）
-            formatted_key = f'["{key}"]' if not is_simple_key(key) else key
-
-            if isinstance(value, dict):
-                # 位置等字典类型
-                a(f"\t\t\t{formatted_key} = {{")
-                a(f"\t\t\t\tx = {value.get("x", 0)},")
-                a(f"\t\t\t\ty = {value.get("y", 0)}")
-                if j < len(entity) - 1:
-                    a("\t\t\t},")
-                else:
-                    a("\t\t\t}")
-            else:
-                # 其他类型
-                value_str = (
-                    "nil"
-                    if value is None
-                    else (
-                        "true"
-                        if value is True
-                        else (
-                            "false"
-                            if value is False
-                            else (
-                                f'"{value}"'
-                                if isinstance(value, str)
-                                and value not in ["Z_DECALS", "Z_OBJECTS"]
-                                else str(value)
-                            )
-                        )
-                    )
-                )
-                if j < len(entity) - 1:
-                    a(f"\t\t\t{formatted_key} = {value_str},")
-                else:
-                    a(f"\t\t\t{formatted_key} = {value_str}")
-
-            j += 1
-        if i < len(entities_list) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t},")
-
-    # 导航网格
-    a("\tnav_mesh = {")
-    for i, mesh in enumerate(nav_mesh):
-        a("\t\t{")
-        for j, v in enumerate(mesh):
-            if j < len(mesh) - 1:
-                a(f"\t\t\t{v},")
-            else:
-                a(f"\t\t\t{v}")
-        if i < len(nav_mesh) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t},")
-
-    # 无效路径范围
-    if invalid_path_ranges:
-        a("\tinvalid_path_ranges = {")
-        for i, invalid_range in enumerate(invalid_path_ranges):
-            a("\t\t{")
-            a(f"\t\t\tfrom = {invalid_range["from"]},")
-            a(f"\t\t\tto = {invalid_range["to"]},")
-            a(f"\t\t\tpath_id = {invalid_range["path_id"]}")
-            if i < len(invalid_path_ranges) - 1:
-                a("\t\t},")
-            else:
-                a("\t\t}")
-        a("\t},")
-    else:
-        a("\tinvalid_path_ranges = {},")
-
-    # 其他必要资源
-    a("\trequired_exoskeletons = {},")
-    a("\trequired_sounds = {},")
-    a("\trequired_textures = {")
-    a(
-        f'\t\t"go_stage{setting["level_name_prefix"]}{str(level_num).zfill(setting["level_name_leading_zero"])}"'
-    )
-    a("\t}")
-
-    a("}")
-
-    lua_content = "\n".join(content)
+    lua_content = get_levels_data_lua_content(level_data)
     file = level_data["name"]
 
     log.info(f"写入关卡数据{file}...")
@@ -1176,85 +1133,71 @@ def write_level_data_file(level_data, levels_dir, level_num):
         f.write(lua_content)
 
 
+def get_paths_data_lua_content(paths_data):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    # 开始整个表
+    a(0, "return {")
+
+    # 活动路径
+    start(1, "active")
+    for active in paths_data["active_paths"]:
+        list_v(2, active)
+    end(1)  # 结束active
+
+    dict_v(1, "connections", {}, "连接关系")
+
+    # 路径数据
+    start(1, "paths")
+    for path in paths_data["paths"]:
+        start(2)
+        for subpath in path:
+            start(3)
+            for point in subpath:
+                start(4)
+                dict_v(5, "x", point["x"])
+                dict_v(5, "y", point["y"])
+                end(4)
+            end(3)
+        end(2)
+    end(1)  # 结束paths
+
+    # 路径曲线
+    start(1, "curves")
+    for curve in paths_data["curves"]:
+        start(2)
+        # 节点
+        start(3, "nodes")
+        for node in curve["nodes"]:
+            start(4)
+            dict_v(5, "x", node["x"])
+            dict_v(5, "y", node["y"])
+            end(4)
+        end(3)  # 结束nodes
+
+        # 宽度
+        start(3, "widths")
+        for w in curve["widths"]:
+            list_v(4, w)
+        end(3)  # 结束widths
+        end(2)
+    end(1)  # 结束curves
+
+    end(0, False)  # 结束整个表
+
+    return writer.get_content()
+
+
 def write_paths_data_file(paths_data, levels_dir):
     """
     写入路径数据文件
 
     Args:
-        level_data (dict): 关卡数据
+        paths_data (dict): 路径数据
         levels_dir (Path): 输出目录
     """
-    active_paths = paths_data["active_paths"]
-
-    content = ["return {"]
-
-    def a(str):
-        content.append(str)
-
-    # 活动路径
-    a("\tactive = {")
-    for i, active in enumerate(active_paths):
-        if i < len(active_paths) - 1:
-            a(f"\t\t{str(active).lower()},")
-        else:
-            a(f"\t\t{str(active).lower()}")
-    a("\t},")
-
-    a("\tconnections = {},")
-
-    # 路径节点
-    a("\tpaths = {")
-    for i, path in enumerate(paths_data["paths"]):
-        a("\t\t{")
-        for j, subpath in enumerate(path):
-            a("\t\t\t{")
-            for ii, point in enumerate(subpath):
-                a("\t\t\t\t{")
-                a(f"\t\t\t\t\tx = {point["x"]},")
-                a(f"\t\t\t\t\ty = {point["y"]}")
-                if ii < len(subpath) - 1:
-                    a("\t\t\t\t},")
-                else:
-                    a("\t\t\t\t}")
-            if j < len(path) - 1:
-                a("\t\t\t},")
-            else:
-                a("\t\t\t}")
-        if i < len(paths_data["paths"]) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t},")
-
-    # 路径曲线
-    a("\tcurves = {")
-    for i, curve in enumerate(paths_data["curves"]):
-        a("\t\t{")
-        a("\t\t\tnodes = {")
-        for j, node in enumerate(curve["nodes"]):
-            a("\t\t\t\t{")
-            a(f"\t\t\t\t\tx = {node["x"]},")
-            a(f"\t\t\t\t\ty = {node["y"]}")
-            if j < len(curve["nodes"]) - 1:
-                a("\t\t\t\t},")
-            else:
-                a("\t\t\t\t}")
-        a("\t\t\t},")
-        a("\t\t\twidths = {")
-        for j, w in enumerate(curve["widths"]):
-            if j < len(curve["widths"]) - 1:
-                a(f"\t\t\t\t{w},")
-            else:
-                a(f"\t\t\t\t{w}")
-        a("\t\t\t}")
-        if i < len(paths_data["curves"]) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t}")
-    a("}")
-
-    lua_content = "\n".join(content)
+    lua_content = get_paths_data_lua_content(paths_data)
     file = paths_data["name"]
 
     log.info(f"写入路径数据{file}...")
@@ -1263,41 +1206,40 @@ def write_paths_data_file(paths_data, levels_dir):
         f.write(lua_content)
 
 
+def get_grids_data_lua_content(grids_data):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    # 开始整个表
+    a(0, "return {")
+
+    # 网格基本信息
+    dict_v(1, "ox", grids_data["ox"], "网格原点X")
+    dict_v(1, "oy", grids_data["oy"], "网格原点Y")
+    dict_v(1, "cell_size", grids_data["cell_size"], "单元格大小")
+
+    # 网格数据
+    start(1, "grid")
+    for column in grids_data["grid"]:
+        start(2)
+        for row_d in column:
+            list_v(3, row_d)
+        end(2)
+    end(1)  # 结束grid
+    end(0, False)  # 结束整个表
+
+    return writer.get_content()
+
+
 def write_grids_data_file(grids_data, levels_dir):
     """
     写入网格数据文件
 
     Args:
-        grids_data (dict): 关卡数据
+        grids_data (dict): 网格数据
         levels_dir (Path): 输出目录
     """
-    content = [
-        "return {",
-        f"\tox = {grids_data["ox"]},  -- 网格原点X",
-        f"\toy = {grids_data["oy"]},  -- 网格原点Y",
-        f"\tcell_size = {grids_data["cell_size"]},  -- 单元格大小",
-    ]
-
-    def a(str):
-        content.append(str)
-
-    # 网格数据
-    a("\tgrid = {")
-    for i, column in enumerate(grids_data["grid"]):
-        a("\t\t{")
-        for j, row_d in enumerate(column):
-            if j < len(column) - 1:
-                a(f"\t\t\t{row_d},")
-            else:
-                a(f"\t\t\t{row_d}")
-        if i < len(grids_data["grid"]) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-    a("\t}")
-    a("}")
-
-    lua_content = "\n".join(content)
+    lua_content = get_grids_data_lua_content(grids_data)
     file = grids_data["name"]
 
     log.info(f"写入网格数据{file}...")
@@ -1306,7 +1248,61 @@ def write_grids_data_file(grids_data, levels_dir):
         f.write(lua_content)
 
 
-def write_waves_data_file(waves_datas, waves_dir):
+def get_waves_data_lua_content(waves_data):
+    writer = WriteLua()
+    a, start, end, dict_v, _ = writer.get_helpers()
+
+    # 开始整个表
+    a(0, "return {")
+    dict_v(1, "cash", waves_data["cash"], "初始金币")
+
+    # 开始波次组
+    start(1, "groups", "波次组")
+
+    # 遍历每个波次
+    for wave in waves_data["waves"]:
+        start(2)  # 开始一个波次
+        dict_v(3, "interval", wave["interval"], "波次间隔")
+
+        # 开始出怪组
+        start(3, "waves", "出怪组")
+
+        # 遍历每个出怪组
+        for group in wave["groups"]:
+            start(4)  # 开始一个出怪组
+            dict_v(5, "delay", group["delay"], "延迟")
+            dict_v(5, "path_index", group["path_index"], "路径索引")
+
+            # 开始怪物列表
+            start(5, "spawns", "怪物列表")
+
+            # 遍历每个怪物生成配置
+            for spawn in group["spawns"]:
+                start(6)  # 开始一个怪物配置
+                dict_v(7, "interval", spawn["interval"], "生成间隔")
+                dict_v(7, "creep", spawn["creep"], "怪物类型")
+                dict_v(7, "max", spawn["max"], "总数")
+                dict_v(7, "max_same", spawn["max_same"], "交替数量")
+                dict_v(7, "fixed_sub_path", spawn["fixed_sub_path"], "是否随机子路径")
+                dict_v(7, "path", spawn["path"], "子路径")
+                dict_v(
+                    7,
+                    "interval_next",
+                    spawn["interval_next"],
+                    "下一批间隔",
+                )
+                end(6)  # 结束怪物配置
+            end(5)  # 结束怪物列表
+            end(4)  # 结束出怪组
+        end(3)  # 结束出怪组
+        end(2)  # 结束一个波次
+    end(1)  # 结束波次组
+    end(0, False)  # 结束整个表
+
+    return writer.get_content()
+
+
+def write_waves_data_file(waves_data, waves_dir):
     """
     写入波次数据文件
 
@@ -1314,67 +1310,83 @@ def write_waves_data_file(waves_datas, waves_dir):
         waves_datas (list): 波次数据列表
         waves_dir (Path): 输出目录
     """
-    for waves_data in waves_datas:
+    for waves_data in waves_data:
         if not waves_data:
             continue
 
-        content = ["return {", f"\tcash = {waves_data["cash"]},", "\tgroups = {"]
+        lua_content = get_waves_data_lua_content(waves_data)
 
-        def a(str):
-            content.append(str)
-
-        # 波次组
-        for i, wave in enumerate(waves_data["waves"]):
-            a("\t\t{")
-            a(f"\t\t\tinterval = {wave["interval"]},  -- 波次间隔")
-            a("\t\t\twaves = {  -- 出怪组")
-
-            for j, group in enumerate(wave["groups"]):
-                a("\t\t\t\t{")
-                a(f"\t\t\t\t\tdelay = {group["delay"]},  -- 延迟")
-                a(f"\t\t\t\t\tpath_index = {group["path_index"]},  -- 路径索引")
-                a("\t\t\t\t\tspawns = {  -- 怪物列表")
-
-                for ii, spawn in enumerate(group["spawns"]):
-                    a("\t\t\t\t\t\t{")
-                    a(f"\t\t\t\t\t\t\tinterval = {spawn["interval"]},  -- 生成间隔")
-                    a(f'\t\t\t\t\t\t\tcreep = "{spawn["creep"]}",  -- 怪物类型')
-                    a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},  -- 总数")
-                    a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
-                    a(
-                        f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 是否随机子路径"
-                    )
-                    a(f"\t\t\t\t\t\t\tpath = {spawn["path"]},  -- 子路径")
-                    a(
-                        f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"]}  -- 下一批间隔"
-                    )
-                    if ii < len(group["spawns"]) - 1:
-                        a("\t\t\t\t\t\t},")
-                    else:
-                        a("\t\t\t\t\t\t}")
-                a("\t\t\t\t\t}")
-                if j < len(wave["groups"]) - 1:
-                    a("\t\t\t\t},")
-                else:
-                    a("\t\t\t\t}")
-            a("\t\t\t}")
-            if i < len(waves_data["waves"]) - 1:
-                a("\t\t},")
-            else:
-                a("\t\t}")
-        a("\t}")
-        a("}")
-
-        lua_content = "\n".join(content)
         file = waves_data["name"]
-
         log.info(f"写入波次数据{file}...")
 
         with open(waves_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
 
 
-def write_spawners_data_file(spawners_datas, levels_dir):
+def get_spawners_data_lua_content(spawners_data):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    # 开始整个表
+    a(0, "return {")
+
+    # 刷怪点组
+    start(1, "groups")
+    for group in spawners_data["groups"]:
+        if isinstance(group, dict):
+            # 命名组 {som1: ["object1"]}
+            group_name = next(iter(group))
+            start(2, group_name)
+            for name in group[group_name]:
+                list_v(3, name)
+            end(2)
+        else:
+            # 数字组 {1}
+            start(2)
+            list_v(3, group[0])
+            end(2)
+    end(1)  # 结束groups
+
+    # 刷怪点位置
+    start(1, "points")
+    for point in spawners_data["points"]:
+        start(2)
+        dict_v(3, "path", point["path"], "路径")
+
+        start(3, "from", "起始点")
+        dict_v(4, "x", point["from"]["x"])
+        dict_v(4, "y", point["from"]["y"])
+        end(3)  # 结束from
+
+        start(3, "to", "结束点")
+        dict_v(4, "x", point["to"]["x"])
+        dict_v(4, "y", point["to"]["y"])
+        end(3)  # 结束to
+
+        end(2)
+    end(1)  # 结束points
+
+    # 波次数据
+    start(1, "waves")
+    start(2)
+    for wave_idx, wave_data in spawners_data["waves"].items():
+        start(3, f"{wave_idx}", f"第{wave_idx}波")
+
+        for entries in wave_data:
+            start(4)
+            for entrie in entries:
+                list_v(5, entrie)
+            end(4)
+        end(3)
+    end(2)  # 结束内部表
+    end(1)  # 结束waves
+
+    end(0, False)  # 结束整个表
+
+    return writer.get_content()
+
+
+def write_spawners_data_file(spawners_data, levels_dir):
     """
     写入刷怪点数据文件
 
@@ -1382,98 +1394,11 @@ def write_spawners_data_file(spawners_datas, levels_dir):
         spawners_datas (list): 刷怪点数据列表
         levels_dir (Path): 输出目录
     """
-    for spawners_data in spawners_datas:
+    for spawners_data in spawners_data:
         if not spawners_data:
             continue
 
-        groups = spawners_data["groups"]
-        points = spawners_data["points"]
-        waves = spawners_data["waves"]
-
-        content = ["return {", "\tgroups = {"]
-
-        def a(str):
-            content.append(str)
-
-        # 刷怪点组
-        for i, group in enumerate(groups):
-            if isinstance(group, dict):
-                # 命名组 {som1: ["object1"]}
-                group_name = next(iter(group))
-                a(f"\t\t{group_name} = {{")
-                for name in group[group_name]:
-                    a(f'\t\t\t"{name}",')
-            else:
-                # 数字组 {1}
-                a("\t\t{")
-                key = group[0]
-                a(f"\t\t\t{key}")
-            if i < len(groups) - 1:
-                a("\t\t},")
-            else:
-                a("\t\t}")
-        a("\t},")
-
-        # 刷怪点位置
-        a("\tpoints = {")
-        for i, point in enumerate(points):
-            a("\t\t{")
-            a(f"\t\t\tpath = {point["path"]},  -- 路径")
-            a("\t\t\tfrom = {  -- 起始点")
-            a(f"\t\t\t\tx = {point["from"]["x"]},")
-            a(f"\t\t\t\ty = {point["from"]["y"]}")
-            a("\t\t\t},")
-            a("\t\t\tto = {  -- 结束点")
-            a(f"\t\t\t\tx = {point["to"]["x"]},")
-            a(f"\t\t\t\ty = {point["to"]["y"]}")
-            a("\t\t\t}")
-            if i < len(points) - 1:
-                a("\t\t},")
-            else:
-                a("\t\t}")
-        a("\t},")
-
-        # 波次数据
-        a("\twaves = {")
-        a("\t\t{")
-        i = 0
-        for wave_idx, wave_data in waves.items():
-            a(f"\t\t\t[{wave_idx}] = {{    -- 第{wave_idx}波")
-            for j, entries in enumerate(wave_data):
-                a("\t\t\t\t{")
-                for ii, item in enumerate(entries):
-                    if ii < len(entries) - 1:
-                        if item is None:
-                            a("\t\t\t\t\tnil,")
-                        elif isinstance(item, bool):
-                            a(f"\t\t\t\t\t{item and "true" or "false"},")
-                        elif isinstance(item, str):
-                            a(f'\t\t\t\t\t"{item}",')
-                        else:
-                            a(f"\t\t\t\t\t{item},")
-                    else:
-                        if item is None:
-                            a("\t\t\t\t\tnil")
-                        elif isinstance(item, bool):
-                            a(f"\t\t\t\t\t{item and "true" or "false"}")
-                        elif isinstance(item, str):
-                            a(f'\t\t\t\t\t"{item}"')
-                        else:
-                            a(f"\t\t\t\t\t{item}")
-                if j < len(entries) - 1:
-                    a("\t\t\t\t},")
-                else:
-                    a("\t\t\t\t}")
-            if i < len(waves) - 1:
-                a("\t\t\t},")
-            else:
-                a("\t\t\t}")
-            i += 1
-        a("\t\t}")
-        a("\t}")
-        a("}")
-
-        lua_content = "\n".join(content)
+        lua_content = get_spawners_data_lua_content(spawners_data)
         file = spawners_data["name"]
 
         log.info(f"写入特殊出怪数据{file}...")

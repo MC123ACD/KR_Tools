@@ -18,6 +18,90 @@ BASIC_FONT = "Microsoft YaHei"
 
 T = TypeVar("T")
 
+class WriteLua:
+    def __init__(self, init_content=None):
+        self.content_list = init_content if init_content is not None else []
+        self.indent_char = "\t"
+
+    def add_line(self, indent_level=0, content="", comment=""):
+        """添加一行内容"""
+        line = self.indent_char * indent_level + str(content)
+        if comment:
+            line += f"  -- {comment}"
+        self.content_list.append(line)
+        return self  # 支持链式调用
+
+    def add_start(self, indent_level=0, key=None, comment=""):
+        """添加开始"""
+        if key:
+            self.add_line(indent_level, f"{key_to_lua(key)} = {{", comment)
+        else:
+            self.add_line(indent_level, "{", comment)
+        return self
+
+    def add_end(self, indent_level=0, with_comma=True):
+        """添加结束"""
+        self.content_list[-1] = re.sub(r",$", "", self.content_list[-1])
+        line = "}" + ("," if with_comma else "")
+
+        self.add_line(indent_level, line)
+        return self
+
+    def add_dict_v(
+        self, indent_level=0, key=None, value=None, comment=""
+    ):
+        """添加键值对"""
+        line = f"{key_to_lua(key)} = {value_to_lua(value)}" + ","
+        self.add_line(indent_level, line, comment)
+        return self
+
+    def add_list_v(self, indent_level=0, value=None, comment=""):
+        """添加值"""
+        line = value_to_lua(value) + ","
+        self.add_line(indent_level, line, comment)
+        return self
+
+    def get_content(self):
+        """获取完整内容"""
+        return "\n".join(self.content_list)
+
+    def clear(self):
+        """清空内容"""
+        self.content_list.clear()
+        return self
+
+    def get_helpers(self):
+        """返回一组辅助函数"""
+        return [
+            self.add_line,
+            self.add_start,
+            self.add_end,
+            self.add_dict_v,
+            self.add_list_v,
+        ]
+
+
+def indent(level):
+    """
+    生成指定层级的缩进字符串
+
+    使用制表符(\t)进行缩进，每个层级一个制表符。
+
+    Args:
+        level (int): 缩进层级，0表示无缩进
+
+    Returns:
+        str: 对应层级的缩进字符串
+
+    Examples:
+        >>> indent(2)
+        '\t\t'
+        >>> indent(0)
+        ''
+    """
+    return "\t" * level
+
+
 def escape_lua_string(s):
     """
     转义Lua字符串中的特殊字符
@@ -32,6 +116,7 @@ def escape_lua_string(s):
     s = s.replace("\r", "\\r")
     s = s.replace("\t", "\\t")
     return s
+
 
 def run_app(root, app):
     if root:
@@ -164,6 +249,23 @@ def save_to_dds(target_file, output_path, bc, delete_temporary_png=False):
 
     return result
 
+def key_to_lua(key):
+    if key.isdigit():
+        return f"[{key}]"
+
+    return f'["{key}"]' if not is_simple_key(key) else key
+
+def value_to_lua(value):
+    if value is None or value == "nil":
+        formatted_value = "nil"
+    elif isinstance(value, bool):
+        formatted_value = str(value).lower()
+    elif isinstance(value, str) and value not in ["Z_DECALS", "Z_OBJECTS"]:
+        formatted_value = f'"{value}"'
+    else:
+        formatted_value = str(value)
+
+    return formatted_value
 
 def is_simple_key(key: str):
     """
@@ -230,7 +332,7 @@ class FieldMeta(ABCMeta):
                             )
                         for i, a in enumerate(first_arg):
                             setattr(self, fields[i], a)
-                        
+
                         return
 
                 for i, field in enumerate(fields):
@@ -290,7 +392,9 @@ class GeometryBase(ABC, metaclass=FieldMeta):
 
     def to_float(self):
         """当调用 int(size_obj) 时调用"""
-        return type(self)(**{field: float(getattr(self, field)) for field in self.fields})
+        return type(self)(
+            **{field: float(getattr(self, field)) for field in self.fields}
+        )
 
     def copy(self):
         """创建副本"""

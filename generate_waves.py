@@ -1541,25 +1541,20 @@ class GeneratorWave:
 
         for group_idx, group in enumerate(groups):
             a("\t\t{  -- 出怪组" + str(group_idx + 1))
-
             if group["some_flying"] == True:
                 a("\t\t\tsome_flying = true,  -- 包含飞行怪物")
-
             a(f"\t\t\tdelay = {group["delay"]},  -- 出怪延迟")
             a(f"\t\t\tpath_index = {group["path_index"]},  -- 出怪路径")
             a("\t\t\tspawns = {  -- 怪物列表")
-
             for spawn_idx, spawn in enumerate(group["spawns"]):
                 a("\t\t\t\t{  -- 怪物" + str(spawn_idx + 1))
                 a(
                     f'\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
                 )
-
                 if spawn["creep_aux"]:
                     a(
                         f'\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
                     )
-
                 a(f"\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
                 a(f"\t\t\t\t\tmax = {spawn["max"]},  -- 总数量")
                 a(f"\t\t\t\t\tinterval = {spawn["interval"]},  -- 出怪间隔")
@@ -1579,7 +1574,7 @@ class GeneratorWave:
             a("\t\t}," if group_idx < len(groups) - 1 else "\t\t}")
 
         a("\t},")
-        a("\trequired_textures = {  -- 所需纹理")
+        a("\trequired_textures = {  -- 加载的纹理")
 
         for i, v in enumerate(setting["default_criket"]["required_textures"]):
             a(
@@ -1589,7 +1584,7 @@ class GeneratorWave:
             )
 
         a("\t},")
-        a("\trequired_sounds = {  -- 所需音效")
+        a("\trequired_sounds = {  -- 加载的音效")
 
         for i, v in enumerate(setting["default_criket"]["required_sounds"]):
             a(

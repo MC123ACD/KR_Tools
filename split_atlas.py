@@ -4,7 +4,7 @@ from utils import run_decompiler
 from plistlib import load as load_plist
 from pathlib import Path
 import log
-from utils import Point, Size, Rectangle, Bounds
+from utils import Point, Size, Rectangle, Bounds, indent
 
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging(config.log_level, config.log_file)
@@ -110,28 +110,6 @@ def get_lua_data(file_content):
                 current_atlas[a] = image_data  # 别名指向相同的数据对象
 
     return atlases
-
-
-def indent(level):
-    """
-    生成指定层级的缩进字符串
-
-    使用制表符(\t)进行缩进，每个层级一个制表符。
-
-    Args:
-        level (int): 缩进层级，0表示无缩进
-
-    Returns:
-        str: 对应层级的缩进字符串
-
-    Examples:
-        >>> indent(2)
-        '\t\t'
-        >>> indent(0)
-        ''
-    """
-    return "\t" * level
-
 
 def to_xml(value, level):
     """

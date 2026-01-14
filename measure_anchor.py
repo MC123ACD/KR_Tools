@@ -1,10 +1,12 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
-import traceback, config, time
+import traceback
 from pathlib import Path
-from utils import clamp, Point, Size, Rectangle, Bounds, run_app
-import log
+import lib.config as config, time
+from lib.utils import clamp, run_app
+from lib.classes import Point, Rectangle, Bounds
+import lib.log as log
 
 log = log.setup_logging(config.log_level, config.log_file)
 

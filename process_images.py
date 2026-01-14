@@ -1,10 +1,12 @@
-import traceback, config
+import traceback
 from pathlib import Path
 from PIL import Image, ImageFilter, ImageEnhance
 import tkinter as tk
 from tkinter import ttk
-from utils import save_to_dds, run_app, Size
-import log
+import lib.config as config
+from lib.utils import save_to_dds, run_app
+from lib.classes import Size
+import lib.log as log
 
 log = log.setup_logging(config.log_level, config.log_file)
 

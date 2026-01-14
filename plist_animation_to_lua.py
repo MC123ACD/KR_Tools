@@ -1,6 +1,7 @@
-import re, traceback, config, plistlib, math
-from utils import is_simple_key
-import log
+import re, traceback, plistlib, math
+import lib.config as config
+from lib.classes import WriteLua
+import lib.log as log
 
 log = log.setup_logging(config.log_level, config.log_file)
 
@@ -106,13 +107,14 @@ def get_animations_data(plist_data):
                     "from": anim_data["fromIndex"],
                     "is_layer": True,
                 }
-            else:
-                animations_data[re.sub(r"^Stage_\d+_", "", anim_name)] = {
-                    "prefix": anim_data["prefix"],
-                    "to": anim_data["toIndex"],
-                    "from": anim_data["fromIndex"],
-                    "is_layer": False,
-                }
+                continue
+
+            animations_data[re.sub(r"^Stage_\d+_", "", anim_name)] = {
+                "prefix": anim_data["prefix"],
+                "to": anim_data["toIndex"],
+                "from": anim_data["fromIndex"],
+                "is_layer": False,
+            }
 
         return animations_data, False
     elif isinstance(animations, list):
@@ -158,42 +160,37 @@ def get_animations_data(plist_data):
         return exoskeletons_data, True
 
 
-def write_common_animations_data(data, filename):
-    content = [
-        "return {",
-    ]
-
-    def a(str):
-        content.append(str)
-
+def gen_common_animations_data_lua_content(data):
     is_layer = False
 
-    i = 0
+    # 创建Lua写入器实例
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    a(0, "return {")
+
     for anim_name, anim_data in data.items():
-        if is_simple_key(anim_name):
-            a(f"\t{anim_name} = {{")
-        else:
-            a(f'\t["{anim_name}"] = {{')
+        start(1, anim_name)
 
         if anim_data["is_layer"]:
-            a(f'\t\tlayer_prefix = "{anim_data["layer_prefix"]}",')
-            a(f"\t\tlayer_to = {anim_data["layer_to"]},")
-            a(f"\t\tlayer_from = {anim_data["layer_from"]},")
+            dict_v(2, "layer_prefix", anim_data["layer_prefix"])
+            dict_v(2, "layer_to", anim_data["layer_to"])
+            dict_v(2, "layer_from", anim_data["layer_from"])
             is_layer = True
         else:
-            a(f'\t\tprefix = "{anim_data["prefix"]}",')
-        a(f"\t\tto = {anim_data["to"]},")
-        a(f"\t\tfrom = {anim_data["from"]}")
-        if i < len(data) - 1:
-            a("\t},")
-        else:
-            a("\t}")
+            dict_v(2, "prefix", anim_data["prefix"])
 
-        i += 1
+        dict_v(2, "to", anim_data["to"])
+        dict_v(2, "from", anim_data["from"])
+        end(1)
 
-    a("}")
+    end(0, False)
 
-    lua_content = "\n".join(content)
+    return writer.get_content(), is_layer
+
+
+def write_common_animations_data(data, filename):
+    lua_content, is_layer = gen_common_animations_data_lua_content()
     file = f"{filename}.lua"
 
     if is_layer and not re.search(r"layer_animations", filename):
@@ -208,89 +205,69 @@ def write_common_animations_data(data, filename):
         f.write(lua_content)
 
 
-def write_exos_data(data, filename):
+def gen_exos_data_lua_content(exos_data):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+
+    a(0, "return {")
+
+    dict_v(1, "fps", exos_data["fps"])
+    dict_v(1, "partScaleCompensation", exos_data["partScaleCompensation"])
+
+    # 写入animations
+    start(1, "animations")
+    for anim in exos_data["animations"]:
+        start(2)
+
+        dict_v(3, "name", anim["name"])
+        start(3, "frames")
+        for af in anim["frames"]:
+            start(4)
+
+            start(5, "parts")
+            for p in af["parts"]:
+                start(6)
+
+                dict_v(7, "name", p["name"])
+                if p["alpha"]:
+                    dict_v(7, "alpha", p["alpha"])
+                start(7, "xform")
+
+                xform = p["xform"]
+                dict_v(8, "sx", xform["sx"])
+                dict_v(8, "sy", xform["sy"])
+                dict_v(8, "kx", xform["kx"])
+                dict_v(8, "ky", xform["ky"])
+                dict_v(8, "r", xform["r"])
+                dict_v(8, "x", xform["x"])
+                dict_v(8, "y", xform["y"])
+                end(7)
+                end(6)
+            end(5)
+            end(4)
+        end(3)
+        end(2)
+    end(1)
+    start(1, "parts")
+
+    # 写入parts
+    for name, part in exos_data["parts"].items():
+        start(2, name)
+        dict_v(3, "name", part["name"])
+        dict_v(3, "offsetX", part["offsetX"])
+        dict_v(3, "offsetY", part["offsetY"])
+        end(2)
+    end(1)
+    end(0, False)
+
+    return writer.get_content()
+
+
+def write_exos_data(exos_data, filename):
     """
     保存为Lua格式文件
     """
-    content = [
-        "return {",
-    ]
-
-    def a(str):
-        content.append(str)
-
-    a(f'\tfps = {data["fps"]},')
-    a(f'\tpartScaleCompensation = {data["partScaleCompensation"]},')
-
-    # 写入animations
-    a("\tanimations = {")
-    for i, anim in enumerate(data["animations"]):
-        a("\t\t{")
-        a(f'\t\t\tname = "{anim["name"]}",')
-        a("\t\t\tframes = {")
-
-        for j, af in enumerate(anim["frames"]):
-            a("\t\t\t\t{")
-            a("\t\t\t\t\tparts = {")
-            for ii, p in enumerate(af["parts"]):
-                a("\t\t\t\t\t\t{")
-                a(f'\t\t\t\t\t\t\tname = "{p["name"]}",')
-                if p["alpha"]:
-                    a(f'\t\t\t\t\t\t\talpha = "{p["alpha"]}",')
-                a("\t\t\t\t\t\t\txform = {")
-
-                xform = p["xform"]
-                a(f"\t\t\t\t\t\t\t\tsx = {xform["sx"]},")
-                a(f"\t\t\t\t\t\t\t\tsy = {xform["sy"]},")
-                a(f"\t\t\t\t\t\t\t\tkx = {xform["kx"]},")
-                a(f"\t\t\t\t\t\t\t\tky = {xform["ky"]},")
-                a(f"\t\t\t\t\t\t\t\tr = {xform["r"]},")
-                a(f"\t\t\t\t\t\t\t\tx = {xform["x"]},")
-                a(f"\t\t\t\t\t\t\t\ty = {xform["y"]}")
-                a("\t\t\t\t\t\t\t}")
-
-                if ii < len(af["parts"]) - 1:
-                    a("\t\t\t\t\t\t},")
-                else:
-                    a("\t\t\t\t\t\t}")
-
-            a("\t\t\t\t\t}")
-
-            if j < len(anim["frames"]) - 1:
-                a("\t\t\t\t},")
-            else:
-                a("\t\t\t\t}")
-
-        a("\t\t\t}")
-        if i < len(data["animations"]) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-
-    a("\t},")
-    a("\tparts = {")
-
-    # 写入parts
-    i = 0
-    for name, part in data["parts"].items():
-        if is_simple_key(name):
-            a(f"\t\t{name} = {{")
-        else:
-            a(f'\t\t["{name}"] = {{')
-
-        a(f'\t\t\tname = "{part["name"]}",')
-        a(f"\t\t\toffsetX = {part["offsetX"]},")
-        a(f"\t\t\toffsetY = {part["offsetY"]}")
-        if i < len(data["parts"]) - 1:
-            a("\t\t},")
-        else:
-            a("\t\t}")
-        i += 1
-
-    a("\t}")
-    a("}")
-
-    lua_content = "\n".join(content)
+    lua_content = gen_exos_data_lua_content(exos_data)
     file = f"{filename}.lua"
 
     output_dir = config.output_path / "exoskeletons"
@@ -307,15 +284,16 @@ def get_input_files():
 
     for file in config.input_path.iterdir():
         match = re.search(r"layer_animations|animations", file.stem)
-        if match:
-            with open(file, "rb") as f:
-                plist_data = plistlib.load(f)
+        if not match or not match.group():
+            continue
 
-                if match.group():
-                    log.info(f"📖 读取文件: {file.name}")
-                    file_data = (file.stem, plist_data)
+        with open(file, "rb") as f:
+            plist_data = plistlib.load(f)
 
-                    files.append(file_data)
+        log.info(f"📖 读取文件: {file.name}")
+        file_data = (file.stem, plist_data)
+
+        files.append(file_data)
 
     return files
 
@@ -329,8 +307,9 @@ def main():
 
             if is_exo:
                 write_exos_data(ani_data, name)
-            else:
-                write_common_animations_data(ani_data, name)
+                continue
+
+            write_common_animations_data(ani_data, name)
 
         log.info("所有文件转化完毕")
     except Exception as e:

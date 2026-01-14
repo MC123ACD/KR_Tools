@@ -1,9 +1,13 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import config, traceback
-from utils import run_app, run_decompiler, BASIC_FONT
+from jinja2 import Template
+import traceback
 from pathlib import Path
-import log
+import lib.config as config
+from lib.utils import run_app, run_decompiler
+from lib.classes import WriteLua
+from lib.constants import BASIC_FONT
+import lib.log as log
 
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
@@ -209,7 +213,10 @@ class GeneratorWave:
 
         # 金币标签
         tk.Label(
-            initial_resource_frame, text="初始金币:", bg="#f0f0f0", font=(BASIC_FONT, 10)
+            initial_resource_frame,
+            text="初始金币:",
+            bg="#f0f0f0",
+            font=(BASIC_FONT, 10),
         ).pack(side="left", padx=5)
 
         # 金币输入框
@@ -447,14 +454,17 @@ class GeneratorWave:
         self.create_tooltip(self.delay_entry, "当前出怪组相对于波次开始的延迟时间")
 
         # 出怪路径设置
-        tk.Label(param_frame, text="出怪路径:", bg="#f0f0f0", font=(BASIC_FONT, 10)).grid(
-            row=0, column=2, sticky="e", padx=5, pady=5
-        )
+        tk.Label(
+            param_frame, text="出怪路径:", bg="#f0f0f0", font=(BASIC_FONT, 10)
+        ).grid(row=0, column=2, sticky="e", padx=5, pady=5)
 
         # 路径索引输入框
         self.path_index_var = tk.StringVar()
         self.path_index_entry = ttk.Entry(
-            param_frame, textvariable=self.path_index_var, width=15, font=(BASIC_FONT, 10)
+            param_frame,
+            textvariable=self.path_index_var,
+            width=15,
+            font=(BASIC_FONT, 10),
         )
         self.path_index_entry.grid(row=0, column=3, sticky="w", padx=5, pady=5)
 
@@ -481,9 +491,7 @@ class GeneratorWave:
             row=0, column=4, columnspan=2, sticky=tk.W, pady=5, padx=10
         )
 
-        self.create_tooltip(
-            self.is_flying_check, "勾选表示本出怪组包含飞行怪物"
-        )
+        self.create_tooltip(self.is_flying_check, "勾选表示本出怪组包含飞行怪物")
 
     def create_monster_list(self, parent_frame):
         """
@@ -1246,7 +1254,9 @@ class GeneratorWave:
         var = tk.StringVar(
             value=spawn.get(key, default_value) if spawn else default_value
         )
-        entry = ttk.Entry(parent_frame, textvariable=var, font=(BASIC_FONT, 10), width=20)
+        entry = ttk.Entry(
+            parent_frame, textvariable=var, font=(BASIC_FONT, 10), width=20
+        )
         entry.grid(row=row, column=1, sticky="we", padx=5, pady=8, columnspan=2)
 
         # 绑定回车事件
@@ -1421,9 +1431,9 @@ class GeneratorWave:
         try:
             # 根据模式选择不同的保存方式
             if not setting["Dove_spawn_criket"]:
-                self.write_common_spawns(file_path, monsters)
+                write_common_spawns(self.wave_data, file_path, monsters)
             else:
-                self.write_dove_spawns_criket(file_path, monsters)
+                write_dove_spawns_criket(self.wave_data, file_path, monsters)
 
             # 显示成功消息
             self.status_var.set(f"文件已保存: {file_path.name}")
@@ -1434,172 +1444,6 @@ class GeneratorWave:
         except Exception as e:
             messagebox.showerror("错误", f"保存文件时出错:\n{str(e)}")
             log.error(f"保存文件失败: {traceback.print_exc()}")
-
-    def write_common_spawns(self, file_path, monsters):
-        """
-        写入普通波次模式的Lua文件
-
-        Args:
-            file_path: 文件路径
-            monsters: 怪物映射数据
-        """
-        content = [
-            "return {",
-            f"\tcash = {self.wave_data["cash"]},  -- 初始金币",
-            "\tgroups = {  -- 波次组",
-        ]
-
-        def a(str):
-            """辅助函数：添加一行到内容"""
-            content.append(str)
-
-        for group_idx, group in enumerate(self.wave_data["groups"]):
-            a("\t\t{  -- 第" + str(group_idx + 1) + "波")
-            a(
-                f"\t\t\tinterval = {group["wave_arrive_time"] * 30 if setting["time_to_s"] else group["wave_arrive_time"]},  -- 波次到来时间"
-            )
-            a("\t\t\twaves = {  -- 出怪组")
-
-            for wave_idx, wave in enumerate(group["waves"]):
-                a("\t\t\t\t{  -- 出怪组" + str(wave_idx + 1))
-
-                if wave["some_flying"] == True:
-                    a("\t\t\t\t\tsome_flying = true,  -- 包含飞行怪物")
-
-                a(
-                    f"\t\t\t\t\tdelay = {wave["delay"] * 30 if setting["time_to_s"] else wave["delay"]},  -- 出怪延迟"
-                )
-                a(f"\t\t\t\t\tpath_index = {wave["path_index"]},  -- 出怪路径")
-                a("\t\t\t\t\tspawns = {  -- 怪物列表")
-
-                for spawn_idx, spawn in enumerate(wave["spawns"]):
-                    a("\t\t\t\t\t\t{  -- 怪物" + str(spawn_idx + 1))
-                    a(
-                        f'\t\t\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
-                    )
-
-                    if spawn["creep_aux"]:
-                        a(
-                            f'\t\t\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
-                        )
-
-                    a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
-                    a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},  -- 总数量")
-                    a(
-                        f"\t\t\t\t\t\t\tinterval = {spawn["interval"] * 30 if setting["time_to_s"] else spawn["interval"]},  -- 出怪间隔"
-                    )
-                    a(
-                        f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 出怪子路径"
-                    )
-                    a(
-                        f"\t\t\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 实际使用路径"
-                    )
-                    a(
-                        f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"] * 30 if setting["time_to_s"] else spawn["interval_next"]}  -- 下一出怪延迟"
-                    )
-
-                    a(
-                        "\t\t\t\t\t\t},"
-                        if spawn_idx < len(wave["spawns"]) - 1
-                        else "\t\t\t\t\t\t}"
-                    )
-
-                a("\t\t\t\t\t}")
-                a("\t\t\t\t}," if wave_idx < len(group["waves"]) - 1 else "\t\t\t\t}")
-
-            a("\t\t\t}")
-            a("\t\t}," if group_idx < len(self.wave_data["groups"]) - 1 else "\t\t}")
-
-        a("\t}")
-        a("}")
-
-        lua_content = "\n".join(content)
-
-        # 写入文件
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(lua_content)
-
-    def write_dove_spawns_criket(self, file_path, monsters):
-        """
-        写入斗蛐蛐波次模式的Lua文件
-
-        Args:
-            file_path: 文件路径
-            monsters: 怪物映射数据
-        """
-        groups = self.wave_data["groups"][0]["waves"]
-
-        content = [
-            "return {",
-            "\ton = true,  -- 是否启用",
-            f"\tcash = {self.wave_data["cash"]},  -- 初始金币",
-            "\tgroups = {  -- 出怪组",
-        ]
-
-        def a(str):
-            content.append(str)
-
-        for group_idx, group in enumerate(groups):
-            a("\t\t{  -- 出怪组" + str(group_idx + 1))
-            if group["some_flying"] == True:
-                a("\t\t\tsome_flying = true,  -- 包含飞行怪物")
-            a(f"\t\t\tdelay = {group["delay"]},  -- 出怪延迟")
-            a(f"\t\t\tpath_index = {group["path_index"]},  -- 出怪路径")
-            a("\t\t\tspawns = {  -- 怪物列表")
-            for spawn_idx, spawn in enumerate(group["spawns"]):
-                a("\t\t\t\t{  -- 怪物" + str(spawn_idx + 1))
-                a(
-                    f'\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
-                )
-                if spawn["creep_aux"]:
-                    a(
-                        f'\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
-                    )
-                a(f"\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
-                a(f"\t\t\t\t\tmax = {spawn["max"]},  -- 总数量")
-                a(f"\t\t\t\t\tinterval = {spawn["interval"]},  -- 出怪间隔")
-                a(
-                    f"\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 是否随机子路径"
-                )
-                a(
-                    f"\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 子路径"
-                )
-                a(
-                    f"\t\t\t\t\tinterval_next = {spawn["interval_next"]}  -- 下一出怪延迟"
-                )
-
-                a("\t\t\t\t}," if spawn_idx < len(group["spawns"]) - 1 else "\t\t\t\t}")
-
-            a("\t\t\t}")
-            a("\t\t}," if group_idx < len(groups) - 1 else "\t\t}")
-
-        a("\t},")
-        a("\trequired_textures = {  -- 加载的纹理")
-
-        for i, v in enumerate(setting["default_criket"]["required_textures"]):
-            a(
-                f'\t\t"{v}",'
-                if i < len(setting["default_criket"]["required_textures"]) - 1
-                else f'\t\t"{v}"'
-            )
-
-        a("\t},")
-        a("\trequired_sounds = {  -- 加载的音效")
-
-        for i, v in enumerate(setting["default_criket"]["required_sounds"]):
-            a(
-                f'\t\t"{v}",'
-                if i < len(setting["default_criket"]["required_sounds"]) - 1
-                else f'\t\t"{v}"'
-            )
-
-        a("\t}")
-        a("}")
-
-        lua_content = "\n".join(content)
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(lua_content)
 
     def load_from_lua(self):
         """从Lua文件加载配置"""
@@ -1953,6 +1797,179 @@ class GeneratorWave:
         """
         entry.select_range(0, tk.END)
         entry.icursor(tk.END)  # 将光标移到末尾
+
+
+def gen_common_spawns_lua_content(wave_data, monsters):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+    a(0, "return {")
+
+    dict_v(1, "cash", wave_data["cash"], "初始金币")
+    start(1, "group", "波次组")
+
+    for group in wave_data["groups"]:
+        start(2)
+        dict_v(
+            3,
+            "interval",
+            {
+                (
+                    group["wave_arrive_time"] * 30
+                    if setting["time_to_s"]
+                    else group["wave_arrive_time"]
+                )
+            },
+            "波次间隔",
+        )
+        start(3, "waves")
+        for wave in group["waves"]:
+            start(4)
+
+            if wave["some_flying"]:
+                dict_v(5, "some_flying", True, "是否包含飞行怪物")
+            dict_v(
+                5,
+                "delay",
+                wave["delay"] * 30 if setting["time_to_s"] else wave["delay"],
+                "出怪延迟",
+            )
+            a(f"\t\t\t\t\tpath_index = {wave["path_index"]},  -- 路径")
+            a("\t\t\t\t\tspawns = {")
+
+            for spawn in enumerate(wave["spawns"]):
+                start(6)
+                a(
+                    f'\t\t\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
+                )
+
+                if spawn["creep_aux"]:
+                    a(
+                        f'\t\t\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
+                    )
+
+                a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
+                a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},  -- 总数")
+                a(
+                    f"\t\t\t\t\t\t\tinterval = {spawn["interval"] * 30 if setting["time_to_s"] else spawn["interval"]},  -- 间隔"
+                )
+                a(
+                    f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 子路径"
+                )
+                a(
+                    f"\t\t\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 实际使用路径"
+                )
+                a(
+                    f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"] * 30 if setting["time_to_s"] else spawn["interval_next"]}  -- 下一批间隔"
+                )
+                end(6)
+            end(5)
+            end(4)
+        end(3)
+        end(2)
+    end(1)
+    end(0, False)
+
+
+def write_common_spawns(wave_data, file_path, monsters):
+    """
+    写入普通波次模式的Lua文件
+
+    Args:
+        file_path: 文件路径
+        monsters: 怪物映射数据
+    """
+    lua_content = gen_common_spawns_lua_content(wave_data, monsters)
+
+    # 写入文件
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(lua_content)
+
+
+def gen_dove_spawns_criket_lua_content(wave_data, monsters):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+    a(0, "return {")
+
+
+def write_dove_spawns_criket(wave_data, file_path, monsters):
+    """
+    写入斗蛐蛐波次模式的Lua文件
+
+    Args:
+        file_path: 文件路径
+        monsters: 怪物映射数据
+    """
+    groups = wave_data["groups"][0]["waves"]
+
+    content = [
+        "return {",
+        "\ton = true,  -- 是否启用",
+        f"\tcash = {wave_data["cash"]},  -- 初始金币",
+        "\tgroups = {  -- 出怪组",
+    ]
+
+    def a(str):
+        content.append(str)
+
+    for group_idx, group in enumerate(groups):
+        a("\t\t{  -- 出怪组" + str(group_idx + 1))
+        if group["some_flying"] == True:
+            a("\t\t\tsome_flying = true,  -- 包含飞行怪物")
+        a(f"\t\t\tdelay = {group["delay"]},  -- 出怪延迟")
+        a(f"\t\t\tpath_index = {group["path_index"]},  -- 出怪路径")
+        a("\t\t\tspawns = {  -- 怪物列表")
+        for spawn_idx, spawn in enumerate(group["spawns"]):
+            a("\t\t\t\t{  -- 怪物" + str(spawn_idx + 1))
+            a(
+                f'\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
+            )
+            if spawn["creep_aux"]:
+                a(
+                    f'\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
+                )
+            a(f"\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
+            a(f"\t\t\t\t\tmax = {spawn["max"]},  -- 总数量")
+            a(f"\t\t\t\t\tinterval = {spawn["interval"]},  -- 出怪间隔")
+            a(
+                f"\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 是否随机子路径"
+            )
+            a(
+                f"\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 子路径"
+            )
+            a(f"\t\t\t\t\tinterval_next = {spawn["interval_next"]}  -- 下一出怪延迟")
+
+            a("\t\t\t\t}," if spawn_idx < len(group["spawns"]) - 1 else "\t\t\t\t}")
+
+        a("\t\t\t}")
+        a("\t\t}," if group_idx < len(groups) - 1 else "\t\t}")
+
+    a("\t},")
+    a("\trequired_textures = {  -- 加载的纹理")
+
+    for i, v in enumerate(setting["default_criket"]["required_textures"]):
+        a(
+            f'\t\t"{v}",'
+            if i < len(setting["default_criket"]["required_textures"]) - 1
+            else f'\t\t"{v}"'
+        )
+
+    a("\t},")
+    a("\trequired_sounds = {  -- 加载的音效")
+
+    for i, v in enumerate(setting["default_criket"]["required_sounds"]):
+        a(
+            f'\t\t"{v}",'
+            if i < len(setting["default_criket"]["required_sounds"]) - 1
+            else f'\t\t"{v}"'
+        )
+
+    a("\t}")
+    a("}")
+
+    lua_content = gen_dove_spawns_criket_lua_content(wave_data, monsters)
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(lua_content)
 
 
 def main(root=None):

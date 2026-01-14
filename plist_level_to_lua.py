@@ -1,13 +1,12 @@
-import re, traceback, config, math, plistlib
-from utils import is_simple_key, WriteLua, key_to_lua, value_to_lua
-import log
+import re, traceback, math, plistlib
+import lib.config as config
+from lib.classes import WriteLua
+import lib.log as log
 
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
 
-main_datas = (
-    {}
-)  # 格式：{关卡号: {"level_data": {}, "waves_data": [], "spawners_data": []}}
+main_datas = {}
 
 
 def get_lua_data(level_num, level_mode, plist_data):
@@ -1029,7 +1028,7 @@ def write_lua_files():
         write_spawners_data_file(datas["spawners_data"], levels_dir)
 
 
-def get_levels_data_lua_content(level_data):
+def gen_levels_data_lua_content(level_data):
     writer = WriteLua()
     a, start, end, dict_v, list_v = writer.get_helpers()
 
@@ -1124,7 +1123,7 @@ def write_levels_data_file(level_data, levels_dir):
         level_data (dict): 关卡数据
         levels_dir (Path): 输出目录
     """
-    lua_content = get_levels_data_lua_content(level_data)
+    lua_content = gen_levels_data_lua_content(level_data)
     file = level_data["name"]
 
     log.info(f"写入关卡数据{file}...")
@@ -1133,7 +1132,7 @@ def write_levels_data_file(level_data, levels_dir):
         f.write(lua_content)
 
 
-def get_paths_data_lua_content(paths_data):
+def gen_paths_data_lua_content(paths_data):
     writer = WriteLua()
     a, start, end, dict_v, list_v = writer.get_helpers()
 
@@ -1197,7 +1196,7 @@ def write_paths_data_file(paths_data, levels_dir):
         paths_data (dict): 路径数据
         levels_dir (Path): 输出目录
     """
-    lua_content = get_paths_data_lua_content(paths_data)
+    lua_content = gen_paths_data_lua_content(paths_data)
     file = paths_data["name"]
 
     log.info(f"写入路径数据{file}...")
@@ -1206,7 +1205,7 @@ def write_paths_data_file(paths_data, levels_dir):
         f.write(lua_content)
 
 
-def get_grids_data_lua_content(grids_data):
+def gen_grids_data_lua_content(grids_data):
     writer = WriteLua()
     a, start, end, dict_v, list_v = writer.get_helpers()
 
@@ -1239,7 +1238,7 @@ def write_grids_data_file(grids_data, levels_dir):
         grids_data (dict): 网格数据
         levels_dir (Path): 输出目录
     """
-    lua_content = get_grids_data_lua_content(grids_data)
+    lua_content = gen_grids_data_lua_content(grids_data)
     file = grids_data["name"]
 
     log.info(f"写入网格数据{file}...")
@@ -1248,7 +1247,7 @@ def write_grids_data_file(grids_data, levels_dir):
         f.write(lua_content)
 
 
-def get_waves_data_lua_content(waves_data):
+def gen_waves_data_lua_content(waves_data):
     writer = WriteLua()
     a, start, end, dict_v, _ = writer.get_helpers()
 
@@ -1314,7 +1313,7 @@ def write_waves_data_file(waves_data, waves_dir):
         if not waves_data:
             continue
 
-        lua_content = get_waves_data_lua_content(waves_data)
+        lua_content = gen_waves_data_lua_content(waves_data)
 
         file = waves_data["name"]
         log.info(f"写入波次数据{file}...")
@@ -1323,7 +1322,7 @@ def write_waves_data_file(waves_data, waves_dir):
             f.write(lua_content)
 
 
-def get_spawners_data_lua_content(spawners_data):
+def gen_spawners_data_lua_content(spawners_data):
     writer = WriteLua()
     a, start, end, dict_v, list_v = writer.get_helpers()
 
@@ -1398,7 +1397,7 @@ def write_spawners_data_file(spawners_data, levels_dir):
         if not spawners_data:
             continue
 
-        lua_content = get_spawners_data_lua_content(spawners_data)
+        lua_content = gen_spawners_data_lua_content(spawners_data)
         file = spawners_data["name"]
 
         log.info(f"写入特殊出怪数据{file}...")

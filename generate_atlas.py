@@ -1,11 +1,13 @@
-import traceback, config, hashlib, time, concurrent.futures, os, sys
+import traceback, hashlib, time, concurrent.futures, os
 from PIL import Image, ImageDraw
-from utils import is_simple_key, save_to_dds, Point, Size, Rectangle, Bounds, run_app
 from functools import wraps
 from bisect import bisect_left, bisect_right
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
-import log
+import lib.config as config
+from lib.utils import run_app, save_to_dds
+from lib.classes import WriteLua, Point, Size, Rectangle, Bounds
+import lib.log as log
 
 log = log.setup_logging(config.log_level, config.log_file)
 
@@ -133,7 +135,7 @@ class AtlasGeneratorApp:
             "padding_var": self.padding_var.get(),
             "max_size_var": self.max_size_var.get(),
             "add_white_var": self.add_white_var.get(),
-            "delete_temp_var": self.delete_temp_var.get()
+            "delete_temp_var": self.delete_temp_var.get(),
         }
 
     def start_generation(self):
@@ -254,8 +256,7 @@ def process_single_image(image_file, hash_groups):
         img_data = {
             "name": image_file_name,
             "image": new_img,
-            "origin_width": img.width,
-            "origin_height": img.height,
+            "origin_size": Size(img.width, img.height),
             "samed_img": [],  # 相同图片列表
             "trim": trim,  # 裁剪信息
             "file_size": file_size,
@@ -740,6 +741,75 @@ def write_atlas(images, result):
         return Size(atlas.width, atlas.height)
 
 
+def gen_lua_content(images, results):
+    writer = WriteLua()
+    a, start, end, dict_v, list_v = writer.get_helpers()
+    a(0, "return {")
+
+    # 遍历所有打包结果
+    for result in results:
+        for rect in result["rectangles"]:
+            img = images[rect[0]]
+
+            start(1, img["name"])
+
+            # 图集文件名
+            dict_v(
+                2,
+                "a_name",
+                result["name"]
+                + (".png" if setting_var["format_var"] == "png" else ".dds"),
+            )
+
+            # 原始尺寸
+            origin_size = img["origin_size"]
+            start(2, "size")
+            list_v(3, origin_size.w)
+            list_v(3, origin_size.h)
+            end(2)
+
+            tleft, ttop, tright, tbottom = img["trim"]
+            # 裁剪信息
+            start(2, "trim")
+            list_v(3, tleft)
+            list_v(3, ttop)
+            list_v(3, tright)
+            list_v(3, tbottom)
+            end(2)
+
+            # 图集尺寸
+            atlas_size = result["atlas_size"]
+            start(2, "a_size")
+            list_v(3, atlas_size.w)
+            list_v(3, atlas_size.h)
+            end(2)
+
+            # 在图集中的位置和尺寸
+            pos = img["pos"]
+            start(2, "f_quad")
+            list_v(3, pos.x)
+            list_v(3, pos.y)
+            list_v(3, img["image"].width)
+            list_v(3, img["image"].height)
+            end(2)
+
+            # 相同图片别名
+            samed_img = img["samed_img"]
+            if len(samed_img) > 0:
+                start(2, "alias")
+                for name in samed_img:
+                    list_v(3, name)
+                end(2)
+            else:
+                a(2, "alias = {}")
+
+            # 结束当前图片数据
+            end(1)
+    end(0, False)
+
+    return writer.get_content()
+
+
 def write_lua_data(images, results, atlas_name):
     """
     生成Lua格式的图集数据文件
@@ -751,86 +821,12 @@ def write_lua_data(images, results, atlas_name):
         results: 打包结果列表
         atlas_name: 图集名称
     """
-    content = ["return {"]
+    lua_content = gen_lua_content(images, results)
 
-    def a(str):
-        content.append(str)
+    file = config.output_path / f"{atlas_name}.lua"
+    log.info(f"写入图集数据 {file}")
 
-    # 遍历所有打包结果
-    for i, result in enumerate(results):
-        for j, rect in enumerate(result["rectangles"]):
-            img_id = rect[0]
-            img = images[img_id]
-            pos = img["pos"]
-            trim = img["trim"]
-
-            # 写入图片数据
-            if is_simple_key(img["name"]):
-                a(f"\t{img['name']} = {{")
-            else:
-                a(f'\t["{img["name"]}"] = {{')
-
-            # 图集文件名
-            if setting_var["format_var"] == "png":
-                a(f'\t\ta_name = "{result["name"]}.png",')
-            else:
-                a(f'\t\ta_name = "{result["name"]}.dds",')
-
-            # 原始尺寸
-            a(f"\t\tsize = {{")
-            a(f"\t\t\t{img['origin_width']},")
-            a(f"\t\t\t{img['origin_height']}")
-            a("\t\t},")
-
-            tleft, ttop, tright, tbottom = trim
-
-            # 裁剪信息
-            a("\t\ttrim = {")
-            a(f"\t\t\t{tleft},")
-            a(f"\t\t\t{ttop},")
-            a(f"\t\t\t{tright},")
-            a(f"\t\t\t{tbottom}")
-            a("\t\t},")
-
-            # 图集尺寸
-            a("\t\ta_size = {")
-            a(f"\t\t\t{result['atlas_size'].w},")
-            a(f"\t\t\t{result['atlas_size'].h}")
-            a("\t\t},")
-
-            # 在图集中的位置和尺寸
-            a("\t\tf_quad = {")
-            a(f"\t\t\t{pos.x},")
-            a(f"\t\t\t{pos.y},")
-            a(f"\t\t\t{img['image'].width},")
-            a(f"\t\t\t{img['image'].height}")
-            a("\t\t},")
-
-            # 相同图片别名
-            if len(img["samed_img"]) > 0:
-                a("\t\talias = {")
-                for ii, name in enumerate(img["samed_img"]):
-                    if ii < len(img["samed_img"]) - 1:
-                        a(f'\t\t\t"{name}",')
-                    else:
-                        a(f'\t\t\t"{name}"')
-                a("\t\t}")
-            else:
-                a("\t\talias = {}")
-
-            # 结束当前图片数据
-            if i < len(results) - 1 or j < len(result["rectangles"]) - 1:
-                a("\t},")
-            else:
-                a("\t}")
-
-    a("}")
-
-    filepath = config.output_path / f"{atlas_name}.lua"
-
-    lua_content = "\n".join(content)
-
-    with open(filepath, "w", encoding="utf-8") as f:
+    with open(file, "w", encoding="utf-8") as f:
         f.write(lua_content)
 
 

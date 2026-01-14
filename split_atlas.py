@@ -1,10 +1,11 @@
-import re, traceback, subprocess, math, config
+import re, traceback, subprocess, math
+import lib.config as config
 from PIL import Image
-from utils import run_decompiler
 from plistlib import load as load_plist
 from pathlib import Path
-import log
-from utils import Point, Size, Rectangle, Bounds, indent
+import lib.log as log
+from lib.classes import Point, Size, Rectangle, Bounds
+from lib.utils import run_decompiler, indent
 
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging(config.log_level, config.log_file)
@@ -110,6 +111,7 @@ def get_lua_data(file_content):
                 current_atlas[a] = image_data  # 别名指向相同的数据对象
 
     return atlases
+
 
 def to_xml(value, level):
     """

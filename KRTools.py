@@ -6,7 +6,7 @@ import lib.log as log
 import lib.config as config
 
 # 导入所有工具模块
-import generate_waves, process_images, sort_table, split_atlas, generate_atlas, measure_anchor, plist_level_to_lua, plist_animation_to_lua
+from tools import generate_waves, process_images, sort_table, split_atlas, generate_atlas, measure_anchor, plist_level_to_lua, plist_animation_to_lua
 
 # 初始化日志系统，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging(config.log_level, config.log_file)

@@ -161,12 +161,12 @@ class GeneratorWave:
     def get_selected_spawns(self):
         idx = self.spawns_listbox.curselection()[0]
         return self.get_current_wave("spawns")[idx]
-    
+
     def get_selected_monster_id(self):
         selected_monster_id = self.monster_tree.selection()
-        
+
         return selected_monster_id
-    
+
     def get_selected_monster_idx(self):
         id = self.get_selected_monster_id()[0]
 
@@ -368,7 +368,10 @@ class GeneratorWave:
         )
 
         tk.Label(
-            wave_param_frame, text=wave_interval_label_text, bg="#f0f0f0", font=(BASIC_FONT, 10)
+            wave_param_frame,
+            text=wave_interval_label_text,
+            bg="#f0f0f0",
+            font=(BASIC_FONT, 10),
         ).pack(side="left", padx=(20, 5))
 
         # 波次间隔输入框
@@ -644,11 +647,11 @@ class GeneratorWave:
         interval_text = "间隔(秒)" if check_frames_to_seconds() else "间隔"
         self.monster_tree.heading("interval", text=interval_text)
 
-        self.monster_tree.heading("subpath", text="出怪子路径")
+        self.monster_tree.heading("subpath", text="子路径")
 
         # 根据配置显示不同的延迟标题
         interval_next_text = (
-            "下一出怪延迟(秒)" if check_frames_to_seconds() else "下一出怪延迟"
+            "下一批间隔(秒)" if check_frames_to_seconds() else "下一批间隔"
         )
         self.monster_tree.heading("interval_next", text=interval_next_text)
 
@@ -658,9 +661,7 @@ class GeneratorWave:
         self.monster_tree.column("max_same", width=80, anchor="center", minwidth=60)
         self.monster_tree.column("max", width=80, anchor="center", minwidth=60)
         self.monster_tree.column("interval", width=80, anchor="center", minwidth=60)
-        self.monster_tree.column(
-            "subpath", width=100, anchor="center", minwidth=80
-        )
+        self.monster_tree.column("subpath", width=100, anchor="center", minwidth=80)
         self.monster_tree.column(
             "interval_next", width=120, anchor="center", minwidth=80
         )
@@ -993,9 +994,7 @@ class GeneratorWave:
         # 更新UI状态
         self.status_var.set(f"已移除出怪组 {selected_index+1}")
         self.delay_var.set(setting["default_waves_data"]["spawns"]["delay"])
-        self.path_index_var.set(
-            setting["default_waves_data"]["spawns"]["path_index"]
-        )
+        self.path_index_var.set(setting["default_waves_data"]["spawns"]["path_index"])
 
         # 恢复选择
         if self.spawns_listbox.size() > 0:
@@ -1146,9 +1145,7 @@ class GeneratorWave:
         # 保存按钮
         save_text = "保存" if not edit else "更新"
         save_command = lambda: (
-            self.save_monster(dialog)
-            if not edit
-            else lambda: self.edit_update_monster(dialog)
+            (self.edit_update_monster(dialog) if edit else self.save_monster(dialog))
         )
 
         tk.Button(
@@ -1336,7 +1333,7 @@ class GeneratorWave:
 
         # 添加工具提示
         tooltips = {
-            "max_same": "每次交替出怪的数量（0表示不交替）",
+            "max_same": "每次交替出怪的数量",
             "max": "总共要出的怪物数量",
             "interval": "每个怪物生成的时间间隔",
             "subpath": "怪物行走的子路径（0表示使用随机路径）",
@@ -1405,16 +1402,15 @@ class GeneratorWave:
 
     def edit_update_monster(self, dialog=None):
         """更新编辑的怪物"""
-        selected_monster = self.get_selected_spawns_idx()
+        selected_monster = self.get_selected_monster_id()
         if not selected_monster:
             if dialog:
                 dialog.destroy()
             return
 
-        spawns_index = selected_monster[0]
-        monster_index = self.monster_tree.index(spawns_index)
+        monster_index = self.get_selected_monster_idx()
 
-        wave_group = self.get_current_wave("spawns")[spawns_index]
+        wave_group = self.get_current_wave("spawns")[monster_index]
 
         # 获取表单数据
         new_spawn = self.load_monster_data()
@@ -1458,11 +1454,7 @@ class GeneratorWave:
                 "interval": int(
                     self.interval_var.get() if self.interval_var.get() else 0
                 ),
-                "subpath": int(
-                    self.subpath_var.get()
-                    if self.subpath_var.get()
-                    else 0
-                ),
+                "subpath": int(self.subpath_var.get() if self.subpath_var.get() else 0),
                 "interval_next": int(
                     self.interval_next_var.get() if self.interval_next_var.get() else 0
                 ),

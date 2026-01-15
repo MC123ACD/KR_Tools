@@ -31,7 +31,7 @@ write_waves_data_template = env.from_string(
                             interval = {{spawn["interval"]}},
                             max = {{spawn["max"]}},
                             max_same = {{spawn["max_same"]}},
-                            fixed_sub_path = {{ 1 if spawn["subpath"] != 0 else 0 }},
+                            fixed_sub_path = {{ 1 if spawn["subpath"] else 0 }},
                             path = {{spawn["subpath"]}}
                             interval_next = {{spawn["interval_next"]}}
                         }{{add_comma(loop.last)}}

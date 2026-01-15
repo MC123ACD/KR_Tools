@@ -1,0 +1,31 @@
+{% macro add_comma(is_last=false) -%}
+{%- if not is_last %},{% endif -%}
+{%- endmacro %}
+
+{%- macro add_spawns(wave) -%}
+  {%- for spawns in wave -%}
+  {
+    {%- if spawns.get("some_flying") %}
+    some_flying = spawns["some_flying"],
+    {%- endif %}
+    delay = {{ spawns["delay"] }},
+    path_index = {{ spawns["path_index"] }},
+    spawns = {
+      {%- for spawn in spawns["spawns"] %}
+      {
+        {%- if spawn.get("creep_aux") %}
+        creep_aux = spawn["creep_aux"],
+        {%- endif %}
+        creep = "{{ spawn["creep"] }}",
+        interval = {{ spawn["interval"] }},
+        max = {{ spawn["max"] }},
+        max_same = {{ spawn["max_same"] }},
+        fixed_sub_path = {{ spawn["fixed_sub_path"] }},
+        path = {{ spawn["path"] }},
+        interval_next = {{ spawn["interval_next"] }}
+      }{{ add_comma(loop.last) }}
+      {%- endfor %}
+    }
+  }{{ add_comma(loop.last) }}
+  {%- endfor %}
+{%- endmacro %}

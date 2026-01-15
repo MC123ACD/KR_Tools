@@ -228,7 +228,7 @@ class MeasureAnchor:
 
         # 锚点X坐标
         ttk.Label(self.anchor_frame, text="锚点 X:").grid(row=0, column=0, sticky=tk.W)
-        self.anchor_x_var = tk.StringVar(value="0")
+        self.anchor_x_var = tk.IntVar(value=0)
         self.anchor_x_spinbox = ttk.Spinbox(
             self.anchor_frame,
             from_=0,
@@ -241,7 +241,7 @@ class MeasureAnchor:
 
         # 锚点Y坐标
         ttk.Label(self.anchor_frame, text="锚点 Y:").grid(row=1, column=0, sticky=tk.W)
-        self.anchor_y_var = tk.StringVar(value="0")
+        self.anchor_y_var = tk.IntVar(value=0)
         self.anchor_y_spinbox = ttk.Spinbox(
             self.anchor_frame,
             from_=0,
@@ -264,7 +264,7 @@ class MeasureAnchor:
         ttk.Label(self.anchor_frame, text="锚点 X(%):").grid(
             row=2, column=0, sticky=tk.W
         )
-        self.percent_anchor_x_var = tk.StringVar(value="0")
+        self.percent_anchor_x_var = tk.DoubleVar(value=0.0)
         self.percent_anchor_x_spinbox = ttk.Spinbox(
             self.anchor_frame,
             increment=0.01,
@@ -280,7 +280,7 @@ class MeasureAnchor:
         ttk.Label(self.anchor_frame, text="锚点 Y(%):").grid(
             row=3, column=0, sticky=tk.W
         )
-        self.percent_anchor_y_var = tk.StringVar(value="0")
+        self.percent_anchor_y_var = tk.DoubleVar(value=0.0)
         self.percent_anchor_y_spinbox = ttk.Spinbox(
             self.anchor_frame,
             increment=0.01,
@@ -329,7 +329,7 @@ class MeasureAnchor:
 
         # 参考点X坐标
         ttk.Label(self.ref_frame, text="参考点 X:").grid(row=0, column=0, sticky=tk.W)
-        self.ref_x_var = tk.StringVar(value="0")
+        self.ref_x_var = tk.IntVar(value=0)
         self.ref_x_spinbox = ttk.Spinbox(
             self.ref_frame,
             from_=0,
@@ -342,7 +342,7 @@ class MeasureAnchor:
 
         # 参考点Y坐标
         ttk.Label(self.ref_frame, text="参考点 Y:").grid(row=1, column=0, sticky=tk.W)
-        self.ref_y_var = tk.StringVar(value="0")
+        self.ref_y_var = tk.IntVar(value=0)
         self.ref_y_spinbox = ttk.Spinbox(
             self.ref_frame,
             from_=0,
@@ -380,7 +380,7 @@ class MeasureAnchor:
         ttk.Label(self.rect_frame, text="矩形位置 X:").grid(
             row=1, column=0, sticky=tk.W
         )
-        self.rect_pos_x_var = tk.StringVar(value="0")
+        self.rect_pos_x_var = tk.IntVar(value=0)
         self.rect_pos_x_spinbox = ttk.Spinbox(
             self.rect_frame,
             from_=0,
@@ -395,7 +395,7 @@ class MeasureAnchor:
         ttk.Label(self.rect_frame, text="矩形位置 Y:").grid(
             row=2, column=0, sticky=tk.W
         )
-        self.rect_pos_y_var = tk.StringVar(value="0")
+        self.rect_pos_y_var = tk.IntVar(value=0)
         self.rect_pos_y_spinbox = ttk.Spinbox(
             self.rect_frame,
             from_=0,
@@ -408,7 +408,7 @@ class MeasureAnchor:
 
         # 矩形宽度
         ttk.Label(self.rect_frame, text="矩形长 W:").grid(row=3, column=0, sticky=tk.W)
-        self.rect_size_w_var = tk.StringVar(value="0")
+        self.rect_size_w_var = tk.IntVar(value=0)
         self.rect_size_w_spinbox = ttk.Spinbox(
             self.rect_frame,
             from_=0,
@@ -421,7 +421,7 @@ class MeasureAnchor:
 
         # 矩形高度
         ttk.Label(self.rect_frame, text="矩形高 H:").grid(row=4, column=0, sticky=tk.W)
-        self.rect_size_h_var = tk.StringVar(value="0")
+        self.rect_size_h_var = tk.IntVar(value=0)
         self.rect_size_h_spinbox = ttk.Spinbox(
             self.rect_frame,
             from_=0,

@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 import lib.log as log
 import lib.config as config
+from lib.constants import BASIC_FONT
 
 # 导入所有工具模块
 from tools import generate_waves, process_images, sort_table, split_atlas, generate_atlas, measure_anchor, plist_level_to_lua, plist_animation_to_lua
@@ -64,12 +65,12 @@ def get_tools_data():
             "has_gui": True,
         },
         "plist_level_to_lua": {
-            "name": "四代关卡数据转五代",
+            "name": "四代关卡数据转换",
             "module": plist_level_to_lua,
             "has_gui": False,
         },
         "plist_animation_to_lua": {
-            "name": "四代动画数据转五代",
+            "name": "四代动画数据转换",
             "module": plist_animation_to_lua,
             "has_gui": False,
         },
@@ -207,7 +208,7 @@ class MainApplication:
         text_widget = tk.Text(
             parent_frame,
             wrap=tk.WORD,  # 自动换行
-            font=("Arial", 12),
+            font=(BASIC_FONT, 12),
             undo=True,  # 启用撤销功能
             maxundo=-1,  # 无限撤销步数
             spacing1=5,  # 行前间距

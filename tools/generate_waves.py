@@ -1,16 +1,84 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from jinja2 import Template
 import traceback
 from pathlib import Path
 import lib.config as config
 from lib.utils import run_app, run_decompiler
 from lib.classes import WriteLua
 from lib.constants import BASIC_FONT
+from lib.templates import (
+    write_waves_data_template,
+    write_dove_spawns_criket_data_template,
+)
 import lib.log as log
 
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
+
+
+def get_value_with_setting(default, criket):
+    if setting["dove_spawn_cricket"]:
+        return criket
+
+    return default
+
+
+def check_frames_to_seconds():
+    if setting["frames_to_seconds"] or check_cricket_open():
+        return True
+
+    return False
+
+
+def check_cricket_open():
+    if setting["dove_spawn_cricket"]:
+        return True
+
+    return False
+
+
+def get_default_setting(key=None):
+    default_cricket_data = setting["default_cricket_data"]
+
+    if key:
+        if check_cricket_open() and default_cricket_data.get(key):
+            return default_cricket_data[key]
+
+        return setting["default_wave_data"][key]
+
+    if default_cricket_data:
+        return default_cricket_data
+
+    return setting["default_wave_data"]
+
+
+def get_monsters_dict(get_id=False, get_all=False):
+    """
+    加载怪物映射数据
+
+    Args:
+        is_all: 是否加载所有怪物类型
+
+    Returns:
+        dict: 怪物映射字典，包含正向和反向映射
+    """
+    monsters = {}
+
+    # 遍历配置中的怪物类型
+    for key, value in setting["monsters"].items():
+        # 检查是否启用该怪物类型
+        if not get_all and not setting.get("enabled_" + key):
+            continue
+
+        for k, v in value.items():
+            if get_id:
+                # 添加反向映射（名称 -> id）
+                monsters[k] = v
+            else:
+                # 添加正向映射（id -> 名称）
+                monsters[v] = k
+
+    return monsters
 
 
 class GeneratorWave:
@@ -42,8 +110,8 @@ class GeneratorWave:
         self.root.geometry("1100x650")  # 窗口初始大小
 
         # 初始化波次数据结构
-        self.wave_data = {
-            "cash": setting["default_wave_data"]["cash"],  # 初始金币
+        self.waves_data = {
+            "cash": get_default_setting("cash"),  # 初始金币
             "groups": [],  # 波次列表
         }
 
@@ -51,9 +119,10 @@ class GeneratorWave:
         self.current_wave_index = 0  # 当前选中的波次索引
         self.last_listbox_selected = ""  # 上次选中的出怪组索引
         # 根据配置确定要加载的Lua文件名
-        self.load_luafile = (
-            "criket" if setting["Dove_spawn_criket"] else "level01_waves_campaign"
-        )
+        self.load_luafile = get_value_with_setting("level01_waves_campaign", "cricket")
+
+        self.monsters_id = get_monsters_dict(True)
+        self.monsters_name = get_monsters_dict()
 
         # 创建UI组件
         self.create_widgets()
@@ -64,19 +133,64 @@ class GeneratorWave:
         # 延迟设置焦点到金币输入框
         self.root.after(10, self.entry_focus, self.cash_entry)
 
+    def get_groups(self):
+        return self.waves_data["groups"]
+
+    def get_current_wave(self, key=None):
+        wave = self.waves_data["groups"][self.current_wave_index]
+
+        if key:
+            return wave[key]
+
+        return wave
+
+    def set_current_wave(self, new_wave):
+        self.waves_data["groups"][self.current_wave_index] = new_wave
+
+    def get_monsters_id(self, monster_name):
+        return self.monsters_id.get(monster_name, monster_name)
+
+    def get_monsters_name(self, monster_id):
+        return self.monsters_name.get(monster_id, monster_id)
+
+    def get_selected_spawns_idx(self):
+        curselection = self.spawns_listbox.curselection()
+
+        return curselection
+
+    def get_selected_spawns(self):
+        idx = self.spawns_listbox.curselection()[0]
+        return self.get_current_wave("spawns")[idx]
+    
+    def get_selected_monster_id(self):
+        selected_monster_id = self.monster_tree.selection()
+        
+        return selected_monster_id
+    
+    def get_selected_monster_idx(self):
+        id = self.get_selected_monster_id()[0]
+
+        return self.monster_tree.index(id)
+
+    def get_selected_monster(self):
+        idx = self.get_selected_monster_idx()
+        spawns = self.get_selected_spawns()
+
+        return spawns["spawns"][idx]
+
     def create_widgets(self):
         """创建所有UI组件"""
         # 创建控制按钮区域
         self.create_control_buttons()
 
         # 如果不是斗蛐蛐模式，创建波次控制区域
-        if not setting["Dove_spawn_criket"]:
+        if not check_cricket_open():
             self.create_wave_control()
 
         # 创建初始资源设置区域
         self.create_initial_resource_frame()
 
-        if not setting["Dove_spawn_criket"]:
+        if not check_cricket_open():
             # 创建波次按钮区域（用于切换波次）
             self.create_wave_buttons_frame()
 
@@ -90,7 +204,7 @@ class GeneratorWave:
         self.create_status_bar()
 
         # 如果不是斗蛐蛐模式，初始化波次按钮
-        if not setting["Dove_spawn_criket"]:
+        if not check_cricket_open():
             self.update_wave_buttons()
 
     def create_control_buttons(self):
@@ -220,12 +334,8 @@ class GeneratorWave:
         ).pack(side="left", padx=5)
 
         # 金币输入框
-        cash_value = (
-            setting["default_criket"]["cash"]
-            if setting["Dove_spawn_criket"]
-            else setting["default_wave_data"]["cash"]
-        )
-        self.cash_var = tk.StringVar(value=str(cash_value))
+        cash_value = get_default_setting("cash")
+        self.cash_var = tk.IntVar(value=cash_value)
 
         self.cash_entry = ttk.Entry(
             initial_resource_frame,
@@ -252,38 +362,34 @@ class GeneratorWave:
         wave_param_frame = tk.Frame(self.root, bg="#f0f0f0")
         wave_param_frame.pack(fill="x", padx=10, pady=5)
 
-        # 波次到来时间标签（根据配置显示不同的文本）
-        time_label_text = (
-            "波次到来时间(秒):"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "波次到来时间:"
+        # 波次间隔标签（根据配置显示不同的文本）
+        wave_interval_label_text = (
+            "波次间隔(秒):" if check_frames_to_seconds() else "波次间隔:"
         )
 
         tk.Label(
-            wave_param_frame, text=time_label_text, bg="#f0f0f0", font=(BASIC_FONT, 10)
+            wave_param_frame, text=wave_interval_label_text, bg="#f0f0f0", font=(BASIC_FONT, 10)
         ).pack(side="left", padx=(20, 5))
 
-        # 波次到来时间输入框
-        self.wave_arrive_time_var = tk.StringVar(
-            value=str(setting["default_wave_data"]["groups"]["wave_arrive_time"])
+        # 波次间隔输入框
+        self.wave_interval_var = tk.IntVar(
+            value=get_default_setting("waves")["wave_interval"]
         )
 
-        self.wave_arrive_time_entry = ttk.Entry(
+        self.wave_interval_entry = ttk.Entry(
             wave_param_frame,
-            textvariable=self.wave_arrive_time_var,
+            textvariable=self.wave_interval_var,
             width=15,
             font=(BASIC_FONT, 10),
         )
-        self.wave_arrive_time_entry.pack(side="left", padx=5)
+        self.wave_interval_entry.pack(side="left", padx=5)
 
         # 绑定回车事件
-        self.wave_arrive_time_entry.bind(
+        self.wave_interval_entry.bind(
             "<Return>", lambda e, nw="spawn", i=1: self.on_enter(e, nw, i)
         )
 
-        self.create_tooltip(
-            self.wave_arrive_time_entry, "当前波次开始的时间（秒或帧数）"
-        )
+        self.create_tooltip(self.wave_interval_entry, "当前波次开始的时间（秒或帧数）")
 
     def create_edit_area(self):
         """创建主编辑区域（包含出怪组管理和出怪设置）"""
@@ -325,7 +431,7 @@ class GeneratorWave:
         group_frame.rowconfigure(1, weight=0)
 
         # 出怪组列表（Listbox）
-        self.group_listbox = tk.Listbox(
+        self.spawns_listbox = tk.Listbox(
             group_frame,
             width=25,
             height=15,
@@ -337,20 +443,20 @@ class GeneratorWave:
             selectbackground="#3498db",  # 选中背景色
             selectforeground="white",  # 选中文字颜色
         )
-        self.group_listbox.pack(fill="both", expand=True, pady=(0, 10))
+        self.spawns_listbox.pack(fill="both", expand=True, pady=(0, 10))
 
         # 绑定选择事件
-        self.group_listbox.bind("<<ListboxSelect>>", self.on_group_select)
+        self.spawns_listbox.bind("<<ListboxSelect>>", self.on_spawns_select)
 
         # 出怪组操作按钮框架
         btn_frame = tk.Frame(group_frame, bg="#f0f0f0")
         btn_frame.pack(fill="x")
 
         # 添加出怪组按钮
-        self.add_group_btn = tk.Button(
+        self.add_spawns_btn = tk.Button(
             btn_frame,
             text="添加出怪组",
-            command=self.add_group,
+            command=self.add_spawns,
             bg="#3498db",
             fg="white",
             font=(BASIC_FONT, 9),
@@ -358,9 +464,9 @@ class GeneratorWave:
             padx=5,
             pady=3,
         )
-        self.add_group_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.add_spawns_btn.pack(side="left", fill="x", expand=True, padx=2)
 
-        self.create_tooltip(self.add_group_btn, "在当前波次中添加一个新的出怪组")
+        self.create_tooltip(self.add_spawns_btn, "在当前波次中添加一个新的出怪组")
 
         # 移除出怪组按钮
         self.remove_group_btn = tk.Button(
@@ -426,11 +532,9 @@ class GeneratorWave:
         param_frame.columnconfigure(3, weight=1)  # 输入框列
         param_frame.columnconfigure(4, weight=0)  # 复选框列
 
-        # 当前出怪组延迟设置
+        # 出怪组延迟设置
         delay_label_text = (
-            "当前出怪组延迟(秒):"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "当前出怪组延迟:"
+            "出怪组延迟(秒):" if setting["frames_to_seconds"] else "出怪组延迟:"
         )
 
         tk.Label(
@@ -438,14 +542,14 @@ class GeneratorWave:
         ).grid(row=0, column=0, sticky="e", padx=5, pady=5)
 
         # 延迟输入框
-        self.delay_var = tk.StringVar()
+        self.delay_var = tk.IntVar()
         self.delay_entry = ttk.Entry(
             param_frame, textvariable=self.delay_var, width=15, font=(BASIC_FONT, 10)
         )
         self.delay_entry.grid(row=0, column=1, sticky="w", padx=5, pady=5)
 
         # 绑定回车事件
-        delay_i = 1 if setting["Dove_spawn_criket"] else 2
+        delay_i = get_value_with_setting(2, 1)
         self.delay_entry.bind(
             "<Return>",
             lambda e, nw="spawn", i=delay_i: self.on_enter(e, nw, i),
@@ -459,7 +563,7 @@ class GeneratorWave:
         ).grid(row=0, column=2, sticky="e", padx=5, pady=5)
 
         # 路径索引输入框
-        self.path_index_var = tk.StringVar()
+        self.path_index_var = tk.IntVar()
         self.path_index_entry = ttk.Entry(
             param_frame,
             textvariable=self.path_index_var,
@@ -469,7 +573,7 @@ class GeneratorWave:
         self.path_index_entry.grid(row=0, column=3, sticky="w", padx=5, pady=5)
 
         # 绑定回车事件
-        path_i = 2 if setting["Dove_spawn_criket"] else 3
+        path_i = get_value_with_setting(3, 2)
         self.path_index_entry.bind(
             "<Return>",
             lambda e, nw="spawn", i=path_i: self.on_enter(e, nw, i),
@@ -482,7 +586,7 @@ class GeneratorWave:
 
         self.is_flying_check = ttk.Checkbutton(
             param_frame,
-            text="本组是否有飞行怪物",
+            text="是否有飞行怪物",
             variable=self.is_flying_check_var,
             command=self.on_checkbox_toggle,
             style="TCheckbutton",
@@ -512,8 +616,8 @@ class GeneratorWave:
             "max_same",  # 交替数量
             "max",  # 总数量
             "interval",  # 生成间隔
-            "fixed_sub_path",  # 是否随机子路径
-            "interval_next",  # 下一出怪延迟
+            "subpath",  # 是否随机子路径
+            "interval_next",  # 下一批延迟
         )
 
         # 创建Treeview表格
@@ -537,20 +641,14 @@ class GeneratorWave:
         self.monster_tree.heading("max", text="总数量")
 
         # 根据配置显示不同的间隔标题
-        interval_text = (
-            "间隔(秒)"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "间隔"
-        )
+        interval_text = "间隔(秒)" if check_frames_to_seconds() else "间隔"
         self.monster_tree.heading("interval", text=interval_text)
 
-        self.monster_tree.heading("fixed_sub_path", text="出怪子路径")
+        self.monster_tree.heading("subpath", text="出怪子路径")
 
         # 根据配置显示不同的延迟标题
         interval_next_text = (
-            "下一出怪延迟(秒)"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "下一出怪延迟"
+            "下一出怪延迟(秒)" if check_frames_to_seconds() else "下一出怪延迟"
         )
         self.monster_tree.heading("interval_next", text=interval_next_text)
 
@@ -561,7 +659,7 @@ class GeneratorWave:
         self.monster_tree.column("max", width=80, anchor="center", minwidth=60)
         self.monster_tree.column("interval", width=80, anchor="center", minwidth=60)
         self.monster_tree.column(
-            "fixed_sub_path", width=100, anchor="center", minwidth=80
+            "subpath", width=100, anchor="center", minwidth=80
         )
         self.monster_tree.column(
             "interval_next", width=120, anchor="center", minwidth=80
@@ -660,13 +758,13 @@ class GeneratorWave:
 
     def on_checkbox_toggle(self):
         """当飞行怪物复选框状态变化时调用"""
-        selected = self.group_listbox.curselection()
+        selected = self.get_selected_spawns_idx()
         if not selected:
             return
 
         # 获取当前选中的出怪组
-        group_index = selected[0]
-        group = self.wave_data["groups"][self.current_wave_index]["waves"][group_index]
+        selected_index = selected[0]
+        group = self.get_current_wave("spawns")[selected_index]
 
         # 更新出怪组的飞行怪物标志
         if self.is_flying_check_var.get():
@@ -686,7 +784,7 @@ class GeneratorWave:
             widget.destroy()
 
         # 为每个波次创建按钮
-        for i, _ in enumerate(self.wave_data["groups"]):
+        for i in range(len(self.get_groups())):
             btn = tk.Button(
                 self.wave_btn_frame,
                 text=f"第{i+1}波",
@@ -706,7 +804,7 @@ class GeneratorWave:
 
     def add_wave(self):
         """添加一个新波次"""
-        if not setting["Dove_spawn_criket"]:
+        if not check_cricket_open():
             # 保存当前状态
             self.last_listbox_selected = ""
             self.save_initial_resource()
@@ -714,29 +812,27 @@ class GeneratorWave:
 
         # 创建新的波次数据结构
         new_wave = {
-            "wave_arrive_time": setting["default_wave_data"]["groups"][
-                "wave_arrive_time"
-            ],
-            "waves": [],
+            "wave_interval": get_default_setting("waves")["wave_interval"],
+            "spawns": [],
         }
 
-        # 添加到波次列表
-        self.wave_data["groups"].append(new_wave)
-        self.current_wave_index = len(self.wave_data["groups"]) - 1
+        groups = self.get_groups()
 
-        if not setting["Dove_spawn_criket"]:
+        # 添加到波次列表
+        groups.append(new_wave)
+        self.current_wave_index = len(groups) - 1
+
+        if not check_cricket_open():
             # 更新UI
-            self.wave_arrive_time_var.set(
-                self.wave_data["groups"][self.current_wave_index]["wave_arrive_time"]
-            )
+            self.wave_interval_var.set(self.get_current_wave("wave_interval"))
             self.update_wave_buttons()
-            self.clear_group_list()
+            self.clear_spawns_list()
 
             # 设置焦点到波次到来时间输入框
-            self.root.after(3, self.entry_focus, self.wave_arrive_time_entry)
+            self.root.after(3, self.entry_focus, self.wave_interval_entry)
 
         # 自动添加一个出怪组到新波次
-        self.add_group()
+        self.add_spawns()
 
         # 更新状态栏
         self.status_var.set(f"已添加第{self.current_wave_index+1}波")
@@ -745,17 +841,19 @@ class GeneratorWave:
 
     def delete_wave(self):
         """删除当前波次"""
-        if len(self.wave_data["groups"]) <= 1:
+        groups = self.get_groups()
+
+        if len(groups) <= 1:
             messagebox.showwarning("警告", "至少需要保留一个波次")
             return
 
-        if len(self.wave_data["groups"]):
+        if len(groups):
             # 保存当前状态
             self.last_listbox_selected = ""
             self.save_initial_resource()
 
             # 删除当前波次
-            del self.wave_data["groups"][self.current_wave_index]
+            del groups[self.current_wave_index]
             self.current_wave_index = max(0, self.current_wave_index - 1)
 
             # 更新UI
@@ -763,14 +861,14 @@ class GeneratorWave:
             self.load_current_wave()
 
             # 恢复选择
-            if self.group_listbox.size() > 0:
-                self.group_listbox.selection_clear(0, tk.END)
-                self.group_listbox.selection_set(0)
-                self.on_group_select()
+            if self.spawns_listbox.size() > 0:
+                self.spawns_listbox.selection_clear(0, tk.END)
+                self.spawns_listbox.selection_set(0)
+                self.on_spawns_select()
 
             # 设置焦点
-            if not setting["Dove_spawn_criket"]:
-                self.entry_focus(self.wave_arrive_time_entry)
+            if not check_cricket_open():
+                self.entry_focus(self.wave_interval_entry)
 
             # 更新状态栏
             self.status_var.set(f"已删除第{self.current_wave_index+1}波")
@@ -779,7 +877,7 @@ class GeneratorWave:
 
     def select_wave(self, index):
         """选择指定索引的波次"""
-        if index < 0 or index >= len(self.wave_data["groups"]):
+        if index < 0 or index >= len(self.get_groups()):
             return
 
         # 保存当前状态
@@ -789,20 +887,18 @@ class GeneratorWave:
 
         # 切换到新波次
         self.current_wave_index = index
-        if not setting["Dove_spawn_criket"]:
-            self.wave_arrive_time_var.set(
-                self.wave_data["groups"][self.current_wave_index]["wave_arrive_time"]
-            )
+        if not check_cricket_open():
+            self.wave_interval_var.set(self.get_current_wave("wave_interval"))
 
         # 更新UI
         self.update_wave_buttons()
         self.load_current_wave()
 
         # 恢复选择
-        if self.group_listbox.size() > 0:
-            self.group_listbox.selection_clear(0, tk.END)
-            self.group_listbox.selection_set(0)
-            self.on_group_select()
+        if self.spawns_listbox.size() > 0:
+            self.spawns_listbox.selection_clear(0, tk.END)
+            self.spawns_listbox.selection_set(0)
+            self.on_spawns_select()
 
         # 设置焦点
         self.entry_focus(self.delay_entry)
@@ -815,23 +911,23 @@ class GeneratorWave:
     def load_current_wave(self):
         """加载当前波次的数据到UI"""
         if self.current_wave_index < 0 or self.current_wave_index >= len(
-            self.wave_data["groups"]
+            self.get_groups()
         ):
             return
 
-        wave = self.wave_data["groups"][self.current_wave_index]
+        wave = self.get_current_wave()
 
         # 加载出怪组列表
-        self.group_listbox.delete(0, tk.END)
-        for i, _ in enumerate(wave["waves"]):
-            self.group_listbox.insert(tk.END, f"出怪组 {i+1}")
+        self.spawns_listbox.delete(0, tk.END)
+        for i, _ in enumerate(wave["spawns"]):
+            self.spawns_listbox.insert(tk.END, f"出怪组 {i+1}")
 
         # 清空怪物列表
         self.clear_monster_tree()
 
-    def clear_group_list(self):
+    def clear_spawns_list(self):
         """清空出怪组列表"""
-        self.group_listbox.delete(0, tk.END)
+        self.spawns_listbox.delete(0, tk.END)
         self.clear_monster_tree()
 
     def clear_monster_tree(self):
@@ -839,44 +935,36 @@ class GeneratorWave:
         for item in self.monster_tree.get_children():
             self.monster_tree.delete(item)
 
-    def add_group(self):
+    def add_spawns(self):
         """在当前波次中添加一个新的出怪组"""
         if self.current_wave_index < 0:
             messagebox.showwarning("警告", "请先选择或添加一个波次")
             return
 
         # 创建新的出怪组数据结构
-        new_group = {
-            "some_flying": setting["default_wave_data"]["waves"]["some_flying"],
-            "delay": (
-                setting["default_criket"]["waves"]["delay"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["waves"]["delay"]
-            ),
-            "path_index": (
-                setting["default_criket"]["waves"]["path_index"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["waves"]["path_index"]
-            ),
+        new_spawns = {
+            "some_flying": get_default_setting("spawns")["some_flying"],
+            "delay": (get_default_setting("spawns")["delay"]),
+            "path_index": (get_default_setting("spawns")["path_index"]),
             "spawns": [],
         }
 
+        spawns = self.get_current_wave("spawns")
+
         # 添加到当前波次
-        self.wave_data["groups"][self.current_wave_index]["waves"].append(new_group)
-        group_index = (
-            len(self.wave_data["groups"][self.current_wave_index]["waves"]) - 1
-        )
+        spawns.append(new_spawns)
+        selected_index = len(spawns) - 1
 
         # 更新UI
-        self.group_listbox.insert(tk.END, f"出怪组 {group_index+1}")
-        self.group_listbox.selection_clear(0, tk.END)
-        self.group_listbox.selection_set(group_index)
-        self.on_group_select()
+        self.spawns_listbox.insert(tk.END, f"出怪组 {selected_index+1}")
+        self.spawns_listbox.selection_clear(0, tk.END)
+        self.spawns_listbox.selection_set(selected_index)
+        self.on_spawns_select()
 
         # 更新状态栏
-        self.status_var.set(f"已添加出怪组 {group_index+1}")
+        self.status_var.set(f"已添加出怪组 {selected_index+1}")
 
-        log.info(f"在第{self.current_wave_index+1}波次中添加出怪组{group_index+1}")
+        log.info(f"在第{self.current_wave_index+1}波次中添加出怪组{selected_index+1}")
 
     def remove_group(self):
         """移除当前选中的出怪组"""
@@ -884,64 +972,61 @@ class GeneratorWave:
         if self.current_wave_index < 0:
             return
 
-        selected = self.group_listbox.curselection()
-        if not selected:
+        selected_index = self.get_selected_spawns_idx()
+
+        if not selected_index:
             messagebox.showwarning("警告", "请先选择一个出怪组")
             return
 
-        index = selected[0]
-
         # 确认删除
-        if not messagebox.askyesno("确认", f"确定要删除出怪组 {index+1} 吗？"):
+        if not messagebox.askyesno("确认", f"确定要删除出怪组 {selected_index+1} 吗？"):
             return
 
         # 删除出怪组
-        self.wave_data["groups"][self.current_wave_index]["waves"].pop(index)
-        self.group_listbox.delete(index)
+        self.get_current_wave("spawns").pop(selected_index)
+        self.spawns_listbox.delete(selected_index)
         self.clear_monster_tree()
 
         # 重新编号所有出怪组
         self.renumber_all_groups()
 
         # 更新UI状态
-        self.status_var.set(f"已移除出怪组 {index+1}")
-        self.delay_var.set(str(setting["default_wave_data"]["waves"]["delay"]))
+        self.status_var.set(f"已移除出怪组 {selected_index+1}")
+        self.delay_var.set(setting["default_waves_data"]["spawns"]["delay"])
         self.path_index_var.set(
-            str(setting["default_wave_data"]["waves"]["path_index"])
+            setting["default_waves_data"]["spawns"]["path_index"]
         )
 
         # 恢复选择
-        if self.group_listbox.size() > 0:
-            new_selection = min(index, self.group_listbox.size() - 1)
-            self.group_listbox.selection_clear(0, tk.END)
-            self.group_listbox.selection_set(new_selection)
-            self.on_group_select()
+        if self.spawns_listbox.size() > 0:
+            new_selection = min(selected_index, self.spawns_listbox.size() - 1)
+            self.spawns_listbox.selection_clear(0, tk.END)
+            self.spawns_listbox.selection_set(new_selection)
+            self.on_spawns_select()
 
-        log.info(f"移除第{self.current_wave_index+1}波次的出怪组{index+1}")
+        log.info(f"移除第{self.current_wave_index+1}波次的出怪组{selected_index+1}")
 
     def renumber_all_groups(self):
         """重新编号所有出怪组显示名称"""
-        self.group_listbox.delete(0, tk.END)
-        for i in range(len(self.wave_data["groups"][self.current_wave_index]["waves"])):
-            self.group_listbox.insert(tk.END, f"出怪组 {i+1}")
+        self.spawns_listbox.delete(0, tk.END)
+        for i in range(len(self.get_current_wave("spawns"))):
+            self.spawns_listbox.insert(tk.END, f"出怪组 {i+1}")
 
-    def on_group_select(self, event=None):
+    def on_spawns_select(self, event=None):
         """当出怪组选择变化时调用"""
-        selected = self.group_listbox.curselection()
+        selected = self.get_selected_spawns_idx()
         if not selected:
             return
 
         # 保存当前出怪组数据
         self.save_wave()
 
+        selected_index = selected[0]
         # 记录当前选择
-        self.last_listbox_selected = selected[0]
+        self.last_listbox_selected = selected_index
 
         # 获取选中的出怪组数据
-        group_index = selected[0]
-        wave_group = self.wave_data["groups"][self.current_wave_index]["waves"][
-            group_index
-        ]
+        wave_group = self.get_current_wave("spawns")[selected_index]
 
         # 设置焦点到延迟输入框
         self.root.after(1, self.entry_focus, self.delay_entry)
@@ -950,14 +1035,12 @@ class GeneratorWave:
         self.clear_monster_tree()
         for spawn in wave_group["spawns"]:
             # 提取怪物数据并显示
-            m = []
-            for _, v in spawn.items():
-                m.append(v)
+            m = [m for m in spawn.values()]
             self.monster_tree.insert("", "end", values=(m))
 
     def add_monster(self):
         """添加怪物到当前出怪组"""
-        if not self.group_listbox.curselection():
+        if not self.get_selected_spawns_idx():
             messagebox.showwarning("警告", "请先选择一个出怪组")
             return
 
@@ -966,34 +1049,29 @@ class GeneratorWave:
 
     def edit_monster(self):
         """编辑当前选中的怪物"""
-        selected_group = self.group_listbox.curselection()
-        if not selected_group:
+        selected_spawns = self.get_selected_spawns_idx()
+        if not selected_spawns:
             messagebox.showwarning("警告", "请先选择一个出怪组")
             return
 
-        selected_monster = self.monster_tree.selection()
+        selected_monster = self.get_selected_monster_id()
         if not selected_monster:
             messagebox.showwarning("警告", "请先选择一个怪物")
             return
 
         # 获取怪物数据
-        group_index = selected_group[0]
-        monster_index = self.monster_tree.index(selected_monster[0])
-        wave_group = self.wave_data["groups"][self.current_wave_index]["waves"][
-            group_index
-        ]
-        spawn = wave_group["spawns"][monster_index]
+        spawn = self.get_selected_monster()
 
         # 创建编辑怪物对话框
-        self.add_monster_dialog(monster_index, spawn, edit=True)
+        self.add_monster_dialog(selected_spawns[0], spawn, edit=True)
 
     def remove_monster(self):
         """移除当前选中的怪物"""
-        selected_group = self.group_listbox.curselection()
-        if not selected_group:
+        selected = self.get_selected_spawns_idx()
+        if not selected:
             return
 
-        selected_monster = self.monster_tree.selection()
+        selected_monster = self.get_selected_monster_id()
         if not selected_monster:
             return
 
@@ -1002,12 +1080,10 @@ class GeneratorWave:
             return
 
         # 删除怪物数据
-        group_index = selected_group[0]
+        selected_index = selected[0]
         monster_index = self.monster_tree.index(selected_monster[0])
 
-        wave_group = self.wave_data["groups"][self.current_wave_index]["waves"][
-            group_index
-        ]
+        wave_group = self.get_current_wave("spawns")[selected_index]
         wave_group["spawns"].pop(monster_index)
 
         # 从表格中移除
@@ -1015,7 +1091,7 @@ class GeneratorWave:
         self.status_var.set(f"已移除怪物")
 
         log.info(
-            f"移除第{self.current_wave_index+1}波次出怪组{group_index+1}的第{monster_index+1}个怪物"
+            f"移除第{self.current_wave_index+1}波次出怪组{selected_index+1}的第{monster_index+1}个怪物"
         )
 
     def add_monster_dialog(self, monster_index=None, spawn=None, edit=None):
@@ -1046,9 +1122,9 @@ class GeneratorWave:
         form_frame.pack(fill="both", expand=True)
 
         # 获取怪物列表
-        monsters_keys = [k for k in self.load_monsters()]
+        monsters_keys = [k for k in get_monsters_dict(True)]
         if monsters_keys:
-            monsters_keys[0] = ""  # 第一个选项为空
+            monsters_keys.insert(0, "")  # 第一个选项为空
 
         # 怪物类型选择
         self.create_monster_form_field(
@@ -1093,7 +1169,7 @@ class GeneratorWave:
             command=dialog.destroy,
             font=(BASIC_FONT, 10),
             padx=15,
-            pady=5,
+            pady=2,
         ).pack(side="right", padx=5)
 
         # 设置焦点
@@ -1158,11 +1234,7 @@ class GeneratorWave:
             "交替出怪数量:",
             "max_same",
             spawn,
-            (
-                setting["default_criket"]["spawns"]["max_same"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["spawns"]["max_same"]
-            ),
+            (get_default_setting("spawn")["max_same"]),
         )
 
         # 总出怪数量
@@ -1172,30 +1244,18 @@ class GeneratorWave:
             "总出怪数量:",
             "max",
             spawn,
-            (
-                setting["default_criket"]["spawns"]["max"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["spawns"]["max"]
-            ),
+            (get_default_setting("spawn")["max"]),
         )
 
         # 出怪间隔
-        interval_label = (
-            "间隔(秒):"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "间隔:"
-        )
+        interval_label = "间隔(秒):" if check_frames_to_seconds() else "间隔:"
         self.create_param_field(
             parent_frame,
             4,
             interval_label,
             "interval",
             spawn,
-            (
-                setting["default_criket"]["spawns"]["interval"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["spawns"]["interval"]
-            ),
+            (get_default_setting("spawn")["interval"]),
         )
 
         # 出怪子路径
@@ -1203,20 +1263,14 @@ class GeneratorWave:
             parent_frame,
             5,
             "出怪子路径:",
-            "fixed_sub_path",
+            "subpath",
             spawn,
-            (
-                setting["default_criket"]["spawns"]["fixed_sub_path"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["spawns"]["fixed_sub_path"]
-            ),
+            (get_default_setting("spawn")["subpath"]),
         )
 
         # 下一出怪延迟
         interval_next_label = (
-            "下一出怪延迟(秒):"
-            if setting["time_to_s"] or setting["Dove_spawn_criket"]
-            else "下一出怪延迟:"
+            "下一出怪延迟(秒):" if check_frames_to_seconds() else "下一出怪延迟:"
         )
         self.create_param_field(
             parent_frame,
@@ -1224,11 +1278,7 @@ class GeneratorWave:
             interval_next_label,
             "interval_next",
             spawn,
-            (
-                setting["default_criket"]["spawns"]["interval_next"]
-                if setting["Dove_spawn_criket"]
-                else setting["default_wave_data"]["spawns"]["interval_next"]
-            ),
+            (get_default_setting("spawn")["interval_next"]),
         )
 
     def create_param_field(
@@ -1289,7 +1339,7 @@ class GeneratorWave:
             "max_same": "每次交替出怪的数量（0表示不交替）",
             "max": "总共要出的怪物数量",
             "interval": "每个怪物生成的时间间隔",
-            "fixed_sub_path": "怪物行走的子路径（0表示使用随机路径）",
+            "subpath": "怪物行走的子路径（0表示使用随机路径）",
             "interval_next": "出完当前批次后，等待多久再出下一批",
         }
         if key in tooltips:
@@ -1297,17 +1347,15 @@ class GeneratorWave:
 
     def save_monster(self, dialog=None):
         """保存新添加的怪物"""
-        selected_group = self.group_listbox.curselection()
-        if not selected_group:
+        selected_index = self.get_selected_spawns_idx()
+        if not selected_index:
             if dialog:
                 dialog.destroy()
             return
 
-        group_index = selected_group[0]
+        index = selected_index[0]
 
-        wave_group = self.wave_data["groups"][self.current_wave_index]["waves"][
-            group_index
-        ]
+        spawns = self.get_current_wave("spawns")[index]
 
         # 获取表单数据
         new_spawn = self.load_monster_data()
@@ -1318,11 +1366,11 @@ class GeneratorWave:
             return
 
         # 添加新怪物
-        wave_group["spawns"].append(new_spawn)
+        spawns["spawns"].append(new_spawn)
 
         # 更新表格显示
         m = []
-        for _, v in new_spawn.items():
+        for v in new_spawn.values():
             m.append(v)
         self.monster_tree.insert("", "end", values=(m))
         self.status_var.set("已添加怪物")
@@ -1333,26 +1381,40 @@ class GeneratorWave:
         if dialog:
             dialog.destroy()
 
+    # def copy_monster(self):
+    #     """复制怪物"""
+    #     selected = self.get_selected_spawns_idx()
+    #     if not selected:
+    #         return
+
+    #     spawns_index = selected[0]
+
+    #     wave_group = self.get_current_wave("spawns")[spawns_index]
+
+    #     # 添加新怪物
+    #     wave_group["spawns"].append(self.get_selected_spawns())
+
+    #     # 更新表格显示
+    #     m = []
+    #     for v in new_spawn.values():
+    #         m.append(v)
+    #     self.monster_tree.insert("", "end", values=(m))
+    #     self.status_var.set("已复制怪物")
+
+    #     log.info(f"复制怪物: {new_spawn['creep']}")
+
     def edit_update_monster(self, dialog=None):
         """更新编辑的怪物"""
-        selected_group = self.group_listbox.curselection()
-        if not selected_group:
-            if dialog:
-                dialog.destroy()
-            return
-
-        selected_monster = self.monster_tree.selection()
+        selected_monster = self.get_selected_spawns_idx()
         if not selected_monster:
             if dialog:
                 dialog.destroy()
             return
 
-        group_index = selected_group[0]
-        monster_index = self.monster_tree.index(selected_monster[0])
+        spawns_index = selected_monster[0]
+        monster_index = self.monster_tree.index(spawns_index)
 
-        wave_group = self.wave_data["groups"][self.current_wave_index]["waves"][
-            group_index
-        ]
+        wave_group = self.get_current_wave("spawns")[spawns_index]
 
         # 获取表单数据
         new_spawn = self.load_monster_data()
@@ -1366,9 +1428,7 @@ class GeneratorWave:
         wave_group["spawns"][monster_index] = new_spawn
 
         # 更新表格显示
-        m = []
-        for _, v in new_spawn.items():
-            m.append(v)
+        m = [m for m in new_spawn.values()]
         self.monster_tree.item(
             self.monster_tree.get_children()[monster_index], values=(m)
         )
@@ -1395,15 +1455,15 @@ class GeneratorWave:
                     self.max_same_var.get() if self.max_same_var.get() else 0
                 ),
                 "max": int(self.max_var.get() if self.max_var.get() else 0),
-                "interval": float(
+                "interval": int(
                     self.interval_var.get() if self.interval_var.get() else 0
                 ),
-                "fixed_sub_path": int(
-                    self.fixed_sub_path_var.get()
-                    if self.fixed_sub_path_var.get()
+                "subpath": int(
+                    self.subpath_var.get()
+                    if self.subpath_var.get()
                     else 0
                 ),
-                "interval_next": float(
+                "interval_next": int(
                     self.interval_next_var.get() if self.interval_next_var.get() else 0
                 ),
             }
@@ -1419,21 +1479,18 @@ class GeneratorWave:
 
         # 保存当前数据
         self.save_initial_resource()
-        if self.group_listbox.curselection():
+        if self.get_selected_spawns_idx():
             self.save_wave()
-
-        # 获取怪物映射数据
-        monsters = self.load_monsters(is_all=True)
 
         if not file_path:
             return
 
         try:
             # 根据模式选择不同的保存方式
-            if not setting["Dove_spawn_criket"]:
-                write_common_spawns(self.wave_data, file_path, monsters)
+            if not check_cricket_open():
+                write_common_spawns(self.waves_data, file_path)
             else:
-                write_dove_spawns_criket(self.wave_data, file_path, monsters)
+                write_dove_spawns_criket(self.waves_data, file_path)
 
             # 显示成功消息
             self.status_var.set(f"文件已保存: {file_path.name}")
@@ -1463,43 +1520,39 @@ class GeneratorWave:
 
             # 读取并执行Lua文件
             with open(file_path, "r", encoding="utf-8-sig") as f:
-                lua_return = config.lupa.execute(f.read())
-
-            # 解析数据
-            data = {"cash": lua_return["cash"], "groups": lua_return["groups"]}
+                lua_data = config.lupa.execute(f.read())
 
             # 获取怪物映射
-            monsters = self.load_monsters(is_all=True)
+            monsters = get_monsters_dict(True, is_all=True)
 
             # 重置当前数据
-            self.wave_data["cash"] = data["cash"]
+            self.waves_data["cash"] = lua_data["cash"]
 
             # 根据模式加载数据
-            if not setting["Dove_spawn_criket"]:
-                self.load_common_spawns(data, monsters)
+            if not check_cricket_open():
+                self.load_common_spawns(lua_data, monsters)
             else:
-                self.dove_spawns_criket(data, monsters)
+                self.dove_spawns_criket(lua_data, monsters)
 
             # 更新UI状态
             self.current_wave_index = 0
-            self.cash_var.set(str(data["cash"]))
+            self.cash_var.set(lua_data["cash"])
 
-            if not setting["Dove_spawn_criket"]:
+            if not check_cricket_open():
+                groups = self.get_groups()
                 self.update_wave_buttons()
-                if self.wave_data["groups"]:
-                    self.wave_arrive_time_var.set(
-                        str(self.wave_data["groups"][0]["wave_arrive_time"])
-                    )
+                if groups:
+                    self.wave_interval_var.set(groups[0]["wave_interval"])
 
             # 加载数据到UI
             self.load_current_wave()
-            if self.group_listbox.size() > 0:
-                self.group_listbox.selection_clear(0, tk.END)
-                self.group_listbox.selection_set(0)
-                self.on_group_select()
+            if self.spawns_listbox.size() > 0:
+                self.spawns_listbox.selection_clear(0, tk.END)
+                self.spawns_listbox.selection_set(0)
+                self.on_spawns_select()
 
             # 更新加载的文件名
-            if not setting["Dove_spawn_criket"]:
+            if not check_cricket_open():
                 self.load_luafile = file_path.name.replace(".lua", "")
 
             # 显示成功消息
@@ -1520,63 +1573,55 @@ class GeneratorWave:
             data: 从Lua文件解析的数据
             monsters: 怪物映射数据
         """
-        wave_data = self.wave_data
-        wave_data["cash"] = data["cash"]
+        waves_data = self.waves_data
+        waves_data["cash"] = data["cash"]
 
-        wave_data["groups"] = []
+        waves_data["groups"] = []
 
         # 遍历所有波次
-        for group in data["groups"].values():
+        for wave in data["groups"].values():
             new_wave_data = {
-                "wave_arrive_time": group["interval"],
-                "waves": [],
+                "wave_interval": wave["interval"],
+                "spawns": [],
             }
 
             # 时间单位转换
-            if setting["time_to_s"]:
-                new_wave_data["wave_arrive_time"] = round(
-                    new_wave_data["wave_arrive_time"] / 30, 2
+            if setting["frames_to_seconds"]:
+                new_wave_data["wave_interval"] = round(
+                    new_wave_data["wave_interval"] / 30, 2
                 )
 
             # 遍历出怪组
-            for wave in group["waves"].values():
-                new_group_data = {
-                    "some_flying": (
-                        True
-                        if "some_flying" in wave and wave["some_flying"] == True
-                        else False
-                    ),
-                    "delay": wave["delay"],
-                    "path_index": wave["path_index"],
+            for spawns in wave["waves"].values():
+                new_spawns_data = {
+                    "some_flying": (True if spawns.get("some_flying") else False),
+                    "delay": spawns["delay"],
+                    "path_index": spawns["path_index"],
                     "spawns": [],
                 }
 
                 # 时间单位转换
-                if setting["time_to_s"]:
-                    new_group_data["delay"] = round(new_group_data["delay"] / 30, 2)
+                if setting["frames_to_seconds"]:
+                    new_spawns_data["delay"] = round(new_spawns_data["delay"] / 30, 2)
 
                 # 遍历怪物
-                for spawn in wave["spawns"].values():
+                for spawn in spawns["spawns"].values():
                     new_spawn_data = {
-                        "creep": monsters["reversal"].get(
-                            spawn["creep"], spawn["creep"]
-                        ),
+                        "creep": monsters.get(spawn["creep"], spawn["creep"]),
                         "creep_aux": (
-                            monsters["reversal"].get(
-                                spawn["creep_aux"], spawn["creep_aux"]
-                            )
-                            if spawn["creep_aux"]
+                            monsters.get(spawn["creep_aux"], spawn["creep_aux"])
+                            if spawn.get("creep_aux")
                             else ""
                         ),
                         "max_same": (spawn["max_same"] if spawn["max_same"] else 0),
                         "max": spawn["max"],
                         "interval": spawn["interval"],
-                        "fixed_sub_path": spawn["fixed_sub_path"],
+                        "subpath": spawn["subpath"],
                         "interval_next": spawn["interval_next"],
                     }
 
                     # 时间单位转换
-                    if setting["time_to_s"]:
+                    if setting["frames_to_seconds"]:
                         new_spawn_data["interval"] = round(
                             new_spawn_data["interval"] / 30, 2
                         )
@@ -1584,11 +1629,9 @@ class GeneratorWave:
                             new_spawn_data["interval_next"] / 30, 2
                         )
 
-                    new_group_data["spawns"].append(new_spawn_data)
-
-                new_wave_data["waves"].append(new_group_data)
-
-            wave_data["groups"].append(new_wave_data)
+                    new_spawns_data["spawns"].append(new_spawn_data)
+                new_wave_data["spawns"].append(new_spawns_data)
+            waves_data["groups"].append(new_wave_data)
 
     def dove_spawns_criket(self, data, monsters):
         """
@@ -1598,19 +1641,15 @@ class GeneratorWave:
             data: 从Lua文件解析的数据
             monsters: 怪物映射数据
         """
-        wave_data = self.wave_data
-        wave_data["cash"] = data["cash"]
+        waves_data = self.waves_data
+        waves_data["cash"] = data["cash"]
 
-        wave_data["groups"] = [{"wave_arrive_time": 0, "waves": []}]
+        waves_data["groups"] = [{"wave_interval": 0, "spawns": []}]
 
         # 遍历出怪组
         for group in data["groups"].values():
             new_group_data = {
-                "some_flying": (
-                    True
-                    if "some_flying" in group and group["some_flying"] == True
-                    else False
-                ),
+                "some_flying": (True if group.get("some_flying") else False),
                 "delay": group["delay"],
                 "path_index": group["path_index"],
                 "spawns": [],
@@ -1619,45 +1658,45 @@ class GeneratorWave:
             # 遍历怪物
             for spawn in group["spawns"].values():
                 new_spawn_data = {
-                    "creep": monsters["reversal"][spawn["creep"]],
+                    "creep": monsters.get(spawn["creep"], spawn["creep"]),
                     "creep_aux": (
-                        monsters["reversal"][spawn["creep_aux"]]
-                        if spawn["creep_aux"]
+                        monsters.get(spawn["creep_aux"], spawn["creep"])
+                        if spawn.get("creep_aux")
                         else ""
                     ),
                     "max_same": (spawn["max_same"] if spawn["max_same"] else 0),
                     "max": spawn["max"],
                     "interval": spawn["interval"],
-                    "fixed_sub_path": spawn["fixed_sub_path"],
+                    "subpath": spawn["subpath"],
                     "interval_next": spawn["interval_next"],
                 }
 
                 new_group_data["spawns"].append(new_spawn_data)
 
-            wave_data["groups"][0]["waves"].append(new_group_data)
+            waves_data["groups"][0]["waves"].append(new_group_data)
 
     def save_initial_resource(self):
         """保存初始资源设置"""
-        wave_data = self.wave_data
-        group = wave_data["groups"]
+        waves_data = self.waves_data
+        group = waves_data["groups"]
 
         if group:
             wave = group[self.current_wave_index]
 
             # 保存金币
             try:
-                wave_data["cash"] = int(self.cash_var.get())
+                waves_data["cash"] = int(self.cash_var.get())
             except ValueError:
-                wave_data["cash"] = 0
-                self.cash_var.set("0")
+                waves_data["cash"] = 0
+                self.cash_var.set(0)
 
-            # 保存波次到来时间（非斗蛐蛐模式）
-            if not setting["Dove_spawn_criket"]:
+            # 保存波次间隔（非斗蛐蛐模式）
+            if not check_cricket_open():
                 try:
-                    wave["wave_arrive_time"] = float(self.wave_arrive_time_var.get())
+                    wave["wave_interval"] = self.wave_interval_var.get()
                 except ValueError:
-                    wave["wave_arrive_time"] = 0.0
-                    self.wave_arrive_time_var.set("0.0")
+                    wave["wave_interval"] = 0
+                    self.wave_interval_var.set(0)
 
     def save_wave(self, set_origin=True):
         """
@@ -1666,65 +1705,44 @@ class GeneratorWave:
         Args:
             set_origin: 是否从UI加载数据到数据结构
         """
-        group = self.wave_data["groups"]
-        if group:
-            wave = group[self.current_wave_index]
-            waves = wave["waves"]
+        if self.get_groups():
+            wave = self.get_current_wave()
+            spawns = wave["spawns"]
 
-            if waves:
+            if spawns:
                 # 保存上次选择的出怪组数据
                 if set_origin and self.last_listbox_selected != "":
                     try:
-                        groups = waves[self.last_listbox_selected]
-                        groups["delay"] = float(self.delay_var.get())
-                        groups["path_index"] = int(self.path_index_var.get())
+                        last_spawns = spawns[self.last_listbox_selected]
+                        last_spawns["delay"] = int(self.delay_var.get())
+                        last_spawns["path_index"] = int(self.path_index_var.get())
                     except ValueError:
                         pass  # 保持原值
 
+                selected_spawns = self.get_selected_spawns_idx()
+
                 # 更新当前选择的出怪组
-                if self.group_listbox.curselection():
-                    wave_group = waves[self.group_listbox.curselection()[0]]
+                if selected_spawns:
+                    selected_spawn = self.get_selected_spawns()
 
                     if set_origin:
                         # 从数据结构更新UI
-                        self.is_flying_check_var.set(wave_group["some_flying"])
-                        self.delay_var.set(str(wave_group["delay"]))
-                        self.path_index_var.set(str(wave_group["path_index"]))
+                        self.is_flying_check_var.set(selected_spawn["some_flying"])
+                        self.delay_var.set(selected_spawn["delay"])
+                        self.path_index_var.set(selected_spawn["path_index"])
                     else:
                         # 从UI更新数据结构
                         try:
-                            wave_group["delay"] = float(self.delay_var.get())
-                            wave_group["path_index"] = int(self.path_index_var.get())
+                            selected_spawn["delay"] = float(self.delay_var.get())
+                            selected_spawn["path_index"] = int(
+                                self.path_index_var.get()
+                            )
                         except ValueError:
                             pass  # 保持原值
 
                         # 清空UI（用于切换时）
                         self.delay_var.set("")
                         self.path_index_var.set("")
-
-    def load_monsters(self, is_all=False):
-        """
-        加载怪物映射数据
-
-        Args:
-            is_all: 是否加载所有怪物类型
-
-        Returns:
-            dict: 怪物映射字典，包含正向和反向映射
-        """
-        m = {"reversal": {}}
-
-        # 遍历配置中的怪物类型
-        for key, value in setting["monsters"].items():
-            # 检查是否启用该怪物类型
-            if is_all or setting.get("enabled_" + key, False):
-                # 添加正向映射（内部名称 -> 游戏内名称）
-                for k, v in value.items():
-                    m[k] = v
-                    # 添加反向映射（游戏内名称 -> 内部名称）
-                    m["reversal"][v] = k
-
-        return m
 
     def on_enter(self, event, next_widget, index):
         """
@@ -1739,10 +1757,10 @@ class GeneratorWave:
 
         if next_widget == "spawn":
             # 出怪组参数控件顺序
-            if not setting["Dove_spawn_criket"]:
+            if not check_cricket_open():
                 widget_mapping["spawn"] = [
                     self.cash_entry,
-                    self.wave_arrive_time_entry,
+                    self.wave_interval_entry,
                     self.delay_entry,
                     self.path_index_entry,
                 ]
@@ -1764,7 +1782,7 @@ class GeneratorWave:
                 self.max_same_entry,
                 self.max_entry,
                 self.interval_entry,
-                self.fixed_sub_path_entry,
+                self.subpath_entry,
                 self.interval_next_entry,
             ]
 
@@ -1799,78 +1817,7 @@ class GeneratorWave:
         entry.icursor(tk.END)  # 将光标移到末尾
 
 
-def gen_common_spawns_lua_content(wave_data, monsters):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-    a(0, "return {")
-
-    dict_v(1, "cash", wave_data["cash"], "初始金币")
-    start(1, "group", "波次组")
-
-    for group in wave_data["groups"]:
-        start(2)
-        dict_v(
-            3,
-            "interval",
-            {
-                (
-                    group["wave_arrive_time"] * 30
-                    if setting["time_to_s"]
-                    else group["wave_arrive_time"]
-                )
-            },
-            "波次间隔",
-        )
-        start(3, "waves")
-        for wave in group["waves"]:
-            start(4)
-
-            if wave["some_flying"]:
-                dict_v(5, "some_flying", True, "是否包含飞行怪物")
-            dict_v(
-                5,
-                "delay",
-                wave["delay"] * 30 if setting["time_to_s"] else wave["delay"],
-                "出怪延迟",
-            )
-            a(f"\t\t\t\t\tpath_index = {wave["path_index"]},  -- 路径")
-            a("\t\t\t\t\tspawns = {")
-
-            for spawn in enumerate(wave["spawns"]):
-                start(6)
-                a(
-                    f'\t\t\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
-                )
-
-                if spawn["creep_aux"]:
-                    a(
-                        f'\t\t\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
-                    )
-
-                a(f"\t\t\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
-                a(f"\t\t\t\t\t\t\tmax = {spawn["max"]},  -- 总数")
-                a(
-                    f"\t\t\t\t\t\t\tinterval = {spawn["interval"] * 30 if setting["time_to_s"] else spawn["interval"]},  -- 间隔"
-                )
-                a(
-                    f"\t\t\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 子路径"
-                )
-                a(
-                    f"\t\t\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 实际使用路径"
-                )
-                a(
-                    f"\t\t\t\t\t\t\tinterval_next = {spawn["interval_next"] * 30 if setting["time_to_s"] else spawn["interval_next"]}  -- 下一批间隔"
-                )
-                end(6)
-            end(5)
-            end(4)
-        end(3)
-        end(2)
-    end(1)
-    end(0, False)
-
-
-def write_common_spawns(wave_data, file_path, monsters):
+def write_common_spawns(waves_data, file_path):
     """
     写入普通波次模式的Lua文件
 
@@ -1878,20 +1825,14 @@ def write_common_spawns(wave_data, file_path, monsters):
         file_path: 文件路径
         monsters: 怪物映射数据
     """
-    lua_content = gen_common_spawns_lua_content(wave_data, monsters)
+    lua_content = write_waves_data_template.render(waves_data)
 
     # 写入文件
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(lua_content)
 
 
-def gen_dove_spawns_criket_lua_content(wave_data, monsters):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-    a(0, "return {")
-
-
-def write_dove_spawns_criket(wave_data, file_path, monsters):
+def write_dove_spawns_criket(waves_data, file_path):
     """
     写入斗蛐蛐波次模式的Lua文件
 
@@ -1899,75 +1840,9 @@ def write_dove_spawns_criket(wave_data, file_path, monsters):
         file_path: 文件路径
         monsters: 怪物映射数据
     """
-    groups = wave_data["groups"][0]["waves"]
+    groups = waves_data["groups"][0]["waves"]
 
-    content = [
-        "return {",
-        "\ton = true,  -- 是否启用",
-        f"\tcash = {wave_data["cash"]},  -- 初始金币",
-        "\tgroups = {  -- 出怪组",
-    ]
-
-    def a(str):
-        content.append(str)
-
-    for group_idx, group in enumerate(groups):
-        a("\t\t{  -- 出怪组" + str(group_idx + 1))
-        if group["some_flying"] == True:
-            a("\t\t\tsome_flying = true,  -- 包含飞行怪物")
-        a(f"\t\t\tdelay = {group["delay"]},  -- 出怪延迟")
-        a(f"\t\t\tpath_index = {group["path_index"]},  -- 出怪路径")
-        a("\t\t\tspawns = {  -- 怪物列表")
-        for spawn_idx, spawn in enumerate(group["spawns"]):
-            a("\t\t\t\t{  -- 怪物" + str(spawn_idx + 1))
-            a(
-                f'\t\t\t\t\tcreep = "{monsters.get(spawn["creep"], spawn["creep"])}",  -- 怪物类型'
-            )
-            if spawn["creep_aux"]:
-                a(
-                    f'\t\t\t\t\tcreep_aux = "{monsters.get(spawn["creep_aux"], spawn["creep_aux"])}",  -- 交替怪物'
-                )
-            a(f"\t\t\t\t\tmax_same = {spawn["max_same"]},  -- 交替数量")
-            a(f"\t\t\t\t\tmax = {spawn["max"]},  -- 总数量")
-            a(f"\t\t\t\t\tinterval = {spawn["interval"]},  -- 出怪间隔")
-            a(
-                f"\t\t\t\t\tfixed_sub_path = {spawn["fixed_sub_path"]},  -- 是否随机子路径"
-            )
-            a(
-                f"\t\t\t\t\tpath = {3 if spawn["fixed_sub_path"] <= 0 else spawn["fixed_sub_path"]},  -- 子路径"
-            )
-            a(f"\t\t\t\t\tinterval_next = {spawn["interval_next"]}  -- 下一出怪延迟")
-
-            a("\t\t\t\t}," if spawn_idx < len(group["spawns"]) - 1 else "\t\t\t\t}")
-
-        a("\t\t\t}")
-        a("\t\t}," if group_idx < len(groups) - 1 else "\t\t}")
-
-    a("\t},")
-    a("\trequired_textures = {  -- 加载的纹理")
-
-    for i, v in enumerate(setting["default_criket"]["required_textures"]):
-        a(
-            f'\t\t"{v}",'
-            if i < len(setting["default_criket"]["required_textures"]) - 1
-            else f'\t\t"{v}"'
-        )
-
-    a("\t},")
-    a("\trequired_sounds = {  -- 加载的音效")
-
-    for i, v in enumerate(setting["default_criket"]["required_sounds"]):
-        a(
-            f'\t\t"{v}",'
-            if i < len(setting["default_criket"]["required_sounds"]) - 1
-            else f'\t\t"{v}"'
-        )
-
-    a("\t}")
-    a("}")
-
-    lua_content = gen_dove_spawns_criket_lua_content(wave_data, monsters)
-
+    lua_content = write_dove_spawns_criket_data_template.render(groups)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(lua_content)
 

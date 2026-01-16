@@ -53,21 +53,22 @@ def get_lua_data(level_num, level_mode, plist_data):
         log.error(f"请放入level{level_num}_data.lua 文件")
         return
 
-    num_level_mode = get_num_level_mode(level_mode) - 1  # 转换为0-based索引
+    num_level_mode = get_num_level_mode(level_mode)
     waves_data = main_data["waves_data"]
     waves_data[num_level_mode] = extract_waves_data(plist_data)
     waves_data[num_level_mode]["name"] = f"{base_name}_waves_{level_mode}.lua"
 
     # 如果有自定义刷怪点，提取刷怪点数据
-    if plist_data["custom_spawners"]["events"]:
-        spawners_data = main_data["spawners_data"]
+    if not plist_data["custom_spawners"]["events"]:
+        return
+    
+    spawners_data = main_data["spawners_data"]
+    spawner_data_name = f"{base_name}_spawner_{level_mode}.lua"
 
-        spawner_data_name = f"{base_name}_spawner_{level_mode}.lua"
-
-        spawners_data[num_level_mode] = extract_spawners_data(
-            spawner_data_name, plist_data, main_data, num_level_mode
-        )
-        spawners_data[num_level_mode]["name"] = spawner_data_name
+    spawners_data[num_level_mode] = extract_spawners_data(
+        spawner_data_name, plist_data, main_data, num_level_mode
+    )
+    spawners_data[num_level_mode]["name"] = spawner_data_name
 
 
 def extract_level_data(level_num, plist_data):
@@ -728,20 +729,20 @@ def extract_spawners_data(spawner_data_name, plist_data, main_data, num_level_mo
 
 def get_num_level_mode(level_mode):
     """
-    将关卡模式名称转换为数字代号
+    将关卡模式名称转换为数字代号，0-based索引
 
     Returns:
         int: 关卡模式对应的数字
-            1 - campaign（战役模式）
-            2 - heroic（英雄模式）
-            3 - iron（铁拳模式）
+            0 - campaign（战役模式）
+            1 - heroic（英雄模式）
+            2 - iron（铁拳模式）
     """
     if level_mode == "campaign":
-        return 1
+        return 0
     if level_mode == "heroic":
-        return 2
+        return 1
     if level_mode == "iron":
-        return 3
+        return 2
 
 
 def handle_spawners_entities(plist_data, main_data, spawner_data_name, num_level_mode):
@@ -754,6 +755,7 @@ def handle_spawners_entities(plist_data, main_data, spawner_data_name, num_level
     Returns:
         dict: 按类型分组的实体数据
     """
+    num_level_mode = num_level_mode + 1
     level_data_entities = main_data["level_data"]["entities_list"]
 
     entities = {"spawners": [], "repeat_forever": [], "else": []}
@@ -788,7 +790,7 @@ def handle_spawners_entities(plist_data, main_data, spawner_data_name, num_level
     return entities
 
 
-def get_custom_spawners_entity(i, obj, game_mode):
+def get_custom_spawners_entity(i, obj, num_level_mode):
     """
     创建自定义刷怪点实体
 
@@ -804,7 +806,7 @@ def get_custom_spawners_entity(i, obj, game_mode):
         "template": obj["type"],  # 实体模板
         "pos": obj["position"],  # 位置
         "spawner.name": f"object{i}",  # 刷怪点名称
-        "editor.game_mode": game_mode,  # 游戏模式
+        "editor.game_mode": num_level_mode,  # 游戏模式
     }
 
     return entity
@@ -905,11 +907,11 @@ def get_spawners_groups(points, entities):
 
     # 1. 为每个点创建数字组 {1}, {2}...
     for i in range(1, len(points) + 1):
-        groups.append({f"{i}": [i]})
+        groups.append([f"{i}", [i]])
 
     # 2. 为每个刷怪点实体创建命名组 {som1: ["object1"]}, ...
     for i, entity in enumerate(spawner_entities, 1):
-        groups.append({f"som{i}": [entity["spawner.name"]]})
+        groups.append([f"som{i}", [entity["spawner.name"]]])
 
     return groups
 

@@ -601,15 +601,15 @@ def guillotine_packing(rectangles, atlas_size):
         # 寻找最佳放置位置
         rect_data = find_position(free_rectangles, rect)
 
-        if rect_data:
-            used_rect, in_free_rect, free_rect_idx = rect_data
+        if not rect_data:
+            continue
 
-            split_free_rectangle(
-                free_rectangles, in_free_rect, used_rect, free_rect_idx
-            )
-            free_rectangles = merge_free_rectangles(free_rectangles)
+        used_rect, in_free_rect, free_rect_idx = rect_data
 
-            result_rectangles.append((rect_id, rect_name, used_rect))
+        split_free_rectangle(free_rectangles, in_free_rect, used_rect, free_rect_idx)
+        free_rectangles = merge_free_rectangles(free_rectangles)
+
+        result_rectangles.append((rect_id, rect_name, used_rect))
 
     return result_rectangles
 

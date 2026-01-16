@@ -96,13 +96,11 @@ write_spawners_data_template = env.from_string(
 """return {
     groups = {
         {%- for group in groups %}
-        {%- for key, value in group.items() %}
-        {{key_to_lua(key)}} = {
-            {%- for i in value %}
+        {{key_to_lua(group[0])}} = {
+            {%- for i in group[1] %}
             {{value_to_lua(i)}}{%- if not loop.last %},{% endif -%}
             {%- endfor %}
         }{%- if not loop.last %},{% endif -%}
-        {%- endfor %}
         {%- endfor %}
     },
     points = {
@@ -236,7 +234,7 @@ write_level_data_template = env.from_string(
             {{key_to_lua(key)}} = {
                 x = {{value.get("x", 0)}},
                 y = {{value.get("y", 0)}}
-            }
+            }{%- if not loop.last %},{% endif -%}
             {%- else %}
             {{key_to_lua(key)}} = {{value_to_lua(value)}}{%- if not loop.last %},{% endif -%}
             {% endif -%}

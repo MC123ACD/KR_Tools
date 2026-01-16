@@ -15,6 +15,9 @@ import lib.log as log
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
 
+setting = config.setting["generate_waves"]
+
+
 DISABLED_MONSTER_KEY = set(["creep", "creep_aux"])
 
 
@@ -67,9 +70,9 @@ def get_monsters_dict(get_id=False, get_all=False):
     monsters = {}
 
     # 遍历配置中的怪物类型
-    for key, value in config.setting["generate_waves"]["monsters"].items():
+    for key, value in setting["monsters"].items():
         # 检查是否启用该怪物类型
-        if not get_all and not config.setting["generate_waves"].get("enabled_" + key):
+        if not get_all and not setting.get("enabled_" + key):
             continue
 
         for k, v in value.items():
@@ -83,8 +86,8 @@ def get_monsters_dict(get_id=False, get_all=False):
     return monsters
 
 
-MONSTERS_ID = get_monsters_dict(True)
-MONSTERS_NAME = get_monsters_dict()
+MONSTERS_ID = get_monsters_dict(True, True)
+MONSTERS_NAME = get_monsters_dict(get_all=True)
 
 
 def get_monsters_id(monster_name):

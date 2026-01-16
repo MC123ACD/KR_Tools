@@ -139,18 +139,18 @@ write_spawners_data_template = env.from_string(
 
 write_common_animations_data_template = env.from_string(
 """return {
-    {%- for name, anim_data in animatins_data.items() %}
-        {{name}} = {
-            {%- if anim_data["is_layer"] %}
-            layer_prefix = "{{anim_data["layer_prefix"]}}",
-            layer_to = {{anim_data["layer_to"]}},
-            layer_from = {{anim_data["layer_from"]}},
-            {%- else %}
-            prefix = "{{anim_data["prefix"]}}",
-            {%- endif %}
-            to = {{anim_data["to"]}},
-            from = {{anim_data["from"]}}
-        }{%- if not loop.last %},{% endif -%}
+    {%- for name, anim_data in animations_data.items() %}
+    {{name}} = {
+        {%- if anim_data["is_layer"] %}
+        layer_prefix = "{{anim_data["layer_prefix"]}}",
+        layer_to = {{anim_data["layer_to"]}},
+        layer_from = {{anim_data["layer_from"]}},
+        {%- else %}
+        prefix = "{{anim_data["prefix"]}}",
+        {%- endif %}
+        to = {{anim_data["to"]}},
+        from = {{anim_data["from"]}}
+    }{%- if not loop.last %},{% endif -%}
     {%- endfor %}
 }"""
 )
@@ -182,8 +182,9 @@ write_exos_animations_data_template = env.from_string(
                                 x = {{xform["x"]}},
                                 y = {{xform["y"]}},
                                 r = {{xform["r"]}}
-                            }{%- if not loop.last %},{% endif -%}
-                        }{%- endfor %}
+                            }
+                        }{%- if not loop.last %},{% endif -%}
+                        {%- endfor %}
                     }
                 }{%- if not loop.last %},{% endif -%}
                 {%- endfor %}

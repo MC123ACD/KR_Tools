@@ -13,6 +13,7 @@ import lib.log as log
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
 
+# 全局存储所有关卡的主要数据，键为关卡编号，值为该关卡的所有数据
 main_datas = {}
 
 
@@ -23,38 +24,49 @@ def get_lua_data(level_num, level_mode, plist_data):
     根据关卡模式（data/waves）调用不同的数据提取方法：
     - data模式：提取关卡基本数据（地形、实体、路径等）
     - waves模式：提取波次数据
+
+    Args:
+        level_num (str): 关卡编号
+        level_mode (str): 关卡模式，可以是'data'、'campaign'、'heroic'或'iron'
+        plist_data (dict): 从Plist文件解析出的数据
     """
 
     # 初始化当前关卡的数据结构
     if not main_datas.get(level_num):
         main_datas[level_num] = {
-            "level_data": {},  # 关卡基础数据
-            "paths_data": {},
-            "grids_data": {},
+            "level_data": {},  # 关卡基础数据（地形、实体、导航网格等）
+            "paths_data": {},  # 路径数据（连接、路径、曲线等）
+            "grids_data": {},  # 网格数据（地形单元格）
             "waves_data": [None] * 3,  # 三种模式波次数据 [campaign, heroic, iron]
             "spawners_data": [None] * 3,  # 三种模式刷怪点数据
         }
 
     main_data = main_datas[level_num]
-    base_name = f"level{setting["level_name_prefix"]}{level_num}"
+    # 基础文件名前缀，例如：level_001
+    base_name = f"level{setting['level_name_prefix']}{level_num}"
 
     # 根据模式调用不同的提取方法
     if level_mode == "data":
+        # 提取关卡基础数据
         main_data["level_data"] = extract_level_data(level_num, plist_data)
         main_data["level_data"]["name"] = f"{base_name}_data.lua"
+        # 提取路径数据
         main_data["paths_data"] = extract_paths_data(plist_data, main_data)
         main_data["paths_data"]["name"] = f"{base_name}_paths.lua"
+        # 提取网格数据
         main_data["grids_data"] = extract_grids_data(plist_data)
         main_data["grids_data"]["name"] = f"{base_name}_grid.lua"
         return
 
-    # 确保关卡数据已存在
+    # 确保关卡数据已存在（需要先处理data文件）
     if not main_data["level_data"].get("entities_list"):
         log.error(f"请放入level{level_num}_data.lua 文件")
         return
 
+    # 获取关卡模式对应的数字索引
     num_level_mode = get_num_level_mode(level_mode)
     waves_data = main_data["waves_data"]
+    # 提取波次数据
     waves_data[num_level_mode] = extract_waves_data(plist_data)
     waves_data[num_level_mode]["name"] = f"{base_name}_waves_{level_mode}.lua"
 
@@ -65,6 +77,7 @@ def get_lua_data(level_num, level_mode, plist_data):
     spawners_data = main_data["spawners_data"]
     spawner_data_name = f"{base_name}_spawner_{level_mode}.lua"
 
+    # 提取刷怪点数据
     spawners_data[num_level_mode] = extract_spawners_data(
         spawner_data_name, plist_data, main_data, num_level_mode
     )
@@ -72,24 +85,26 @@ def get_lua_data(level_num, level_mode, plist_data):
 
 
 def extract_level_data(level_num, plist_data):
-    """提取关卡基础数据"""
-
     """
-    获取完整的关卡数据
+    提取关卡基础数据（地形、实体、导航网格等）
+
+    Args:
+        level_num (str): 关卡编号
+        plist_data (dict): 从Plist文件解析出的数据
 
     Returns:
         dict: 包含关卡所有基础数据的字典
     """
     data = {
         "required_textures": [
-            f"go_stage{setting["level_name_prefix"]}{str(level_num).zfill(setting["level_name_leading_zero"])}"
+            f"go_stage{setting['level_name_prefix']}{str(level_num).zfill(setting['level_name_leading_zero'])}"
         ]
     }
 
     # 计算地形类型（带前缀和补零）
     terrain_type = int(
-        f"{setting["level_name_prefix"]}"
-        f"{str(plist_data["terrain"]).zfill(setting["level_name_leading_zero"])}"
+        f"{setting['level_name_prefix']}"
+        f"{str(plist_data['terrain']).zfill(setting['level_name_leading_zero'])}"
     )
 
     # 组装关卡数据
@@ -108,6 +123,9 @@ def get_hero_position(hero_position):
     Kingdom Rush 5支持双英雄位置，4代只有一个位置
     如果是KR5模式，复制同一位置作为第二个英雄位置
 
+    Args:
+        hero_position (dict): 英雄位置数据，包含x和y坐标
+
     Returns:
         list: 英雄位置列表，每个位置是{x, y}字典
     """
@@ -125,7 +143,9 @@ def get_level_data_entities(level_num, terrain_type, plist_data):
     提取关卡中的所有实体对象
 
     Args:
+        level_num (str): 关卡编号
         terrain_type (int): 地形类型编号
+        plist_data (dict): 从Plist文件解析出的数据
 
     Returns:
         list: 实体对象列表，每个实体是一个配置字典
@@ -137,7 +157,7 @@ def get_level_data_entities(level_num, terrain_type, plist_data):
         {
             "template": "decal_background",
             "render.sprites[1].z": 1000,  # 渲染层级
-            "render.sprites[1].name": f"Stage_{setting["level_name_prefix"]}{level_num}",
+            "render.sprites[1].name": f"Stage_{setting['level_name_prefix']}{level_num}",
             "pos": {"x": 512, "y": 384},  # 中心位置
         }
     )
@@ -429,7 +449,8 @@ def extract_paths_data(plist_data, main_data):
     提取关卡路径数据
 
     Args:
-        level_data (dict): 关卡数据，用于存储无效路径范围
+        plist_data (dict): 从Plist文件解析出的数据
+        main_data (dict): 当前关卡的主要数据
 
     Returns:
         dict: 路径数据，包含连接、路径、曲线、活动路径等信息
@@ -585,6 +606,9 @@ def extract_grids_data(plist_data):
     """
     提取关卡网格数据（地形单元格）
 
+    Args:
+        plist_data (dict): 从Plist文件解析出的数据
+
     Returns:
         dict: 网格数据，包含原点、单元格大小和网格数组
     """
@@ -635,6 +659,9 @@ def get_grid_columns(plist_data):
     """
     按列组织网格数据
 
+    Args:
+        plist_data (dict): 从Plist文件解析出的数据
+
     Returns:
         dict: 按列分组的网格数据
     """
@@ -656,6 +683,9 @@ def get_grid_columns(plist_data):
 def extract_waves_data(plist_data):
     """
     提取波次数据（常规怪物波次）
+
+    Args:
+        plist_data (dict): 从Plist文件解析出的数据
 
     Returns:
         dict: 波次数据，包含金币、波次列表等信息
@@ -703,6 +733,12 @@ def extract_spawners_data(spawner_data_name, plist_data, main_data, num_level_mo
     """
     获取自定义刷怪点数据
 
+    Args:
+        spawner_data_name (str): 刷怪点数据文件名
+        plist_data (dict): 从Plist文件解析出的数据
+        main_data (dict): 当前关卡的主要数据
+        num_level_mode (int): 关卡模式的数字表示
+
     Returns:
         dict: 刷怪点数据，包含点、组、波次等信息
     """
@@ -731,6 +767,9 @@ def get_num_level_mode(level_mode):
     """
     将关卡模式名称转换为数字代号，0-based索引
 
+    Args:
+        level_mode (str): 关卡模式名称
+
     Returns:
         int: 关卡模式对应的数字
             0 - campaign（战役模式）
@@ -750,7 +789,10 @@ def handle_spawners_entities(plist_data, main_data, spawner_data_name, num_level
     处理刷怪点相关实体
 
     Args:
+        plist_data (dict): 从Plist文件解析出的数据
+        main_data (dict): 当前关卡的主要数据
         spawner_data_name (str): 刷怪点数据文件名
+        num_level_mode (int): 关卡模式的数字表示
 
     Returns:
         dict: 按类型分组的实体数据
@@ -797,7 +839,7 @@ def get_custom_spawners_entity(i, obj, num_level_mode):
     Args:
         i (int): 对象编号
         obj (dict): 对象数据
-        game_mode (int): 游戏模式
+        num_level_mode (int): 关卡模式的数字表示
 
     Returns:
         dict: 刷怪点实体配置
@@ -818,7 +860,7 @@ def get_mega_spawner(spawner_data_name, num_level_mode):
 
     Args:
         spawner_data_name (str): 刷怪点数据文件名
-        num_level_mode (int): 游戏模式
+        num_level_mode (int): 关卡模式的数字表示
 
     Returns:
         dict: 主刷怪控制器配置
@@ -833,6 +875,9 @@ def get_mega_spawner(spawner_data_name, num_level_mode):
 def get_spawners_positions(plist_data):
     """
     提取所有自定义刷怪点的位置
+
+    Args:
+        plist_data (dict): 从Plist文件解析出的数据
 
     Returns:
         list: 位置列表，每个位置包含路径、x、y坐标
@@ -921,6 +966,7 @@ def get_spawners_waves(plist_data, points):
     创建刷怪点波次数据
 
     Args:
+        plist_data (dict): 从Plist文件解析出的数据
         points (list): 点数据
 
     Returns:
@@ -1092,7 +1138,7 @@ def write_waves_data_file(waves_data, waves_dir):
     写入波次数据文件
 
     Args:
-        waves_datas (list): 波次数据列表
+        waves_data (list): 波次数据列表
         waves_dir (Path): 输出目录
     """
     for waves_data in waves_data:
@@ -1107,12 +1153,13 @@ def write_waves_data_file(waves_data, waves_dir):
         with open(waves_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
 
+
 def write_spawners_data_file(spawners_data, levels_dir):
     """
     写入刷怪点数据文件
 
     Args:
-        spawners_datas (list): 刷怪点数据列表
+        spawners_data (list): 刷怪点数据列表
         levels_dir (Path): 输出目录
     """
     for spawners_data in spawners_data:
@@ -1192,13 +1239,6 @@ def main():
 
         log.info(f"🔧 找到 {len(files)} 个文件待转换")
 
-        # 创建转换器并执行转换
-        """
-        主处理函数
-        
-        Args:
-            files (list): 要处理的文件列表，每个元素是(level_num, level_mode, plist_data)元组
-        """
         # 处理所有文件
         for level_num, level_mode, plist_data in files:
             level_num = str(level_num).zfill(setting["level_name_leading_zero"])

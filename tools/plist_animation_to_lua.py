@@ -1,6 +1,7 @@
 import re, traceback, plistlib, math
 import lib.config as config
 from lib.classes import WriteLua
+from lib.templates import write_common_animations_data_template, write_exos_animations_data_template
 import lib.log as log
 
 log = log.setup_logging(config.log_level, config.log_file)
@@ -160,37 +161,13 @@ def get_animations_data(plist_data):
         return exoskeletons_data, True
 
 
-def gen_common_animations_data_lua_content(data):
-    is_layer = False
-
-    # 创建Lua写入器实例
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    a(0, "return {")
-
-    for anim_name, anim_data in data.items():
-        start(1, anim_name)
-
-        if anim_data["is_layer"]:
-            dict_v(2, "layer_prefix", anim_data["layer_prefix"])
-            dict_v(2, "layer_to", anim_data["layer_to"])
-            dict_v(2, "layer_from", anim_data["layer_from"])
-            is_layer = True
-        else:
-            dict_v(2, "prefix", anim_data["prefix"])
-
-        dict_v(2, "to", anim_data["to"])
-        dict_v(2, "from", anim_data["from"])
-        end(1)
-
-    end(0, False)
-
-    return writer.get_content(), is_layer
-
-
 def write_common_animations_data(data, filename):
-    lua_content, is_layer = gen_common_animations_data_lua_content()
+    for anim_data in data.values():
+        if anim_data["is_layer"]:
+            is_layer = True
+            break
+
+    lua_content, is_layer = write_common_animations_data_template.render(data)
     file = f"{filename}.lua"
 
     if is_layer and not re.search(r"layer_animations", filename):
@@ -204,70 +181,11 @@ def write_common_animations_data(data, filename):
     with open(output_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
 
-
-def gen_exos_data_lua_content(exos_data):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    a(0, "return {")
-
-    dict_v(1, "fps", exos_data["fps"])
-    dict_v(1, "partScaleCompensation", exos_data["partScaleCompensation"])
-
-    # 写入animations
-    start(1, "animations")
-    for anim in exos_data["animations"]:
-        start(2)
-
-        dict_v(3, "name", anim["name"])
-        start(3, "frames")
-        for af in anim["frames"]:
-            start(4)
-
-            start(5, "parts")
-            for p in af["parts"]:
-                start(6)
-
-                dict_v(7, "name", p["name"])
-                if p["alpha"]:
-                    dict_v(7, "alpha", p["alpha"])
-                start(7, "xform")
-
-                xform = p["xform"]
-                dict_v(8, "sx", xform["sx"])
-                dict_v(8, "sy", xform["sy"])
-                dict_v(8, "kx", xform["kx"])
-                dict_v(8, "ky", xform["ky"])
-                dict_v(8, "r", xform["r"])
-                dict_v(8, "x", xform["x"])
-                dict_v(8, "y", xform["y"])
-                end(7)
-                end(6)
-            end(5)
-            end(4)
-        end(3)
-        end(2)
-    end(1)
-    start(1, "parts")
-
-    # 写入parts
-    for name, part in exos_data["parts"].items():
-        start(2, name)
-        dict_v(3, "name", part["name"])
-        dict_v(3, "offsetX", part["offsetX"])
-        dict_v(3, "offsetY", part["offsetY"])
-        end(2)
-    end(1)
-    end(0, False)
-
-    return writer.get_content()
-
-
 def write_exos_data(exos_data, filename):
     """
     保存为Lua格式文件
     """
-    lua_content = gen_exos_data_lua_content(exos_data)
+    lua_content = write_exos_animations_data_template.render(exos_data)
     file = f"{filename}.lua"
 
     output_dir = config.output_path / "exoskeletons"

@@ -1,6 +1,13 @@
 import re, traceback, math, plistlib
 import lib.config as config
 from lib.classes import WriteLua
+from lib.templates import (
+    write_level_data_template,
+    write_waves_data_template,
+    write_spawners_data_template,
+    write_paths_data_template,
+    write_grids_data_template,
+)
 import lib.log as log
 
 # 设置日志记录
@@ -73,7 +80,9 @@ def extract_level_data(level_num, plist_data):
         dict: 包含关卡所有基础数据的字典
     """
     data = {
-        "bg_name": f"go_stage{setting["level_name_prefix"]}{str(level_num).zfill(setting["level_name_leading_zero"])}"
+        "required_textures": [
+            f"go_stage{setting["level_name_prefix"]}{str(level_num).zfill(setting["level_name_leading_zero"])}"
+        ]
     }
 
     # 计算地形类型（带前缀和补零）
@@ -657,7 +666,7 @@ def extract_waves_data(plist_data):
 
     # 处理每个波次
     for wave in plist_data["waves"]:
-        new_wave = {"interval": wave["interval"], "groups": []}
+        new_wave = {"wave_interval": wave["interval"], "groups": []}
 
         # 处理每个出怪组
         for group in wave["subwaves"]:
@@ -675,11 +684,8 @@ def extract_waves_data(plist_data):
                     "max": spawn["cant"],  # 总数量
                     "interval_next": spawn["interval_next_spawn"],  # 下一批延迟
                     "max_same": 0,  # 同时存在的最大数量
-                    "fixed_sub_path": (
-                        0 if spawn["fixed_sub_path"] < 0 else 1
-                    ),  # 固定子路径
-                    "path": (  # 实际使用路径
-                        3
+                    "subpath": (
+                        0
                         if spawn["fixed_sub_path"] < 0
                         else spawn["fixed_sub_path"] + 1
                     ),
@@ -1021,101 +1027,14 @@ def write_lua_files():
 
     # 遍历每个关卡的数据
     for level_num, datas in main_datas.items():
-        write_levels_data_file(datas["level_data"], levels_dir)
+        write_level_data_file(datas["level_data"], levels_dir)
         write_paths_data_file(datas["paths_data"], levels_dir)
         write_grids_data_file(datas["grids_data"], levels_dir)
         write_waves_data_file(datas["waves_data"], waves_dir)
         write_spawners_data_file(datas["spawners_data"], levels_dir)
 
 
-def gen_levels_data_lua_content(level_data):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    # 开始整个表
-    a(0, "return {")
-
-    # 基本关卡信息
-    dict_v(1, "level_terrain_type", level_data["terrain_type"], "地形类型")
-    dict_v(1, "locked_hero", False, "是否锁定英雄")
-    dict_v(1, "max_upgrade_level", 5, "最大升级等级")
-
-    # 自定义起始视角
-    start(1, "custom_start_pos", "自定义起始视角")
-    dict_v(2, "zoom", 1.3, "缩放级别")
-    start(2, "pos", "位置")
-    dict_v(3, "x", 512)
-    dict_v(3, "y", 384)
-    end(2)  # 结束pos
-    end(1)  # 结束custom_start_pos
-
-    dict_v(1, "level_mode_overrides", {}, "关卡模式覆盖")
-
-    # 英雄起始位置
-    start(1, "custom_spawn_pos")
-    for pos in level_data["hero_positions"]:
-        start(2)
-        start(3, "pos")
-        dict_v(4, "x", pos.get("x", 0))
-        dict_v(4, "y", pos.get("y", 0))
-        end(3)  # 结束pos
-        end(2)  # 结束一个位置
-    end(1)  # 结束custom_spawn_pos
-
-    # 实体列表
-    start(1, "entities_list")
-    for entity in level_data["entities_list"]:
-        start(2)
-        for key, value in entity.items():
-            if isinstance(value, dict):
-                # 位置等字典类型
-                start(3, key)
-                dict_v(4, "x", value.get("x", 0))
-                dict_v(4, "y", value.get("y", 0))
-                end(3)
-            else:
-                # 其他类型
-                dict_v(3, key, value)
-        end(2)  # 结束一个实体
-    end(1)  # 结束entities_list
-
-    # 导航网格
-    start(1, "nav_mesh")
-    for mesh in level_data["nav_mesh"]:
-        start(2)
-        for v in mesh:
-            list_v(3, v)
-        end(2)  # 结束一个网格
-    end(1)  # 结束nav_mesh
-
-    # 无效路径范围
-    if level_data["invalid_path_ranges"]:
-        start(1, "invalid_path_ranges")
-        for invalid_range in level_data["invalid_path_ranges"]:
-            start(2)
-            dict_v(3, "from", invalid_range["from"])
-            dict_v(3, "to", invalid_range["to"])
-            dict_v(3, "path_id", invalid_range["path_id"])
-            end(2)
-        end(1)  # 结束invalid_path_ranges
-    else:
-        dict_v(1, "invalid_path_ranges", {}, "无效路径范围")
-
-    # 资源
-    dict_v(1, "required_exoskeletons", {}, "加载的骨骼")
-    dict_v(1, "required_sounds", {}, "加载的音效")
-
-    start(1, "required_textures", "加载的纹理")
-    # 增加背景纹理
-    list_v(2, level_data["bg_name"])
-    end(1)  # 结束required_textures
-
-    end(0, False)  # 结束整个表
-
-    return writer.get_content()
-
-
-def write_levels_data_file(level_data, levels_dir):
+def write_level_data_file(level_data, levels_dir):
     """
     写入关卡数据文件
 
@@ -1123,69 +1042,13 @@ def write_levels_data_file(level_data, levels_dir):
         level_data (dict): 关卡数据
         levels_dir (Path): 输出目录
     """
-    lua_content = gen_levels_data_lua_content(level_data)
+    lua_content = write_level_data_template.render(level_data)
     file = level_data["name"]
 
     log.info(f"写入关卡数据{file}...")
 
     with open(levels_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
-
-
-def gen_paths_data_lua_content(paths_data):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    # 开始整个表
-    a(0, "return {")
-
-    # 活动路径
-    start(1, "active")
-    for active in paths_data["active_paths"]:
-        list_v(2, active)
-    end(1)  # 结束active
-
-    dict_v(1, "connections", {}, "连接关系")
-
-    # 路径数据
-    start(1, "paths")
-    for path in paths_data["paths"]:
-        start(2)
-        for subpath in path:
-            start(3)
-            for point in subpath:
-                start(4)
-                dict_v(5, "x", point["x"])
-                dict_v(5, "y", point["y"])
-                end(4)
-            end(3)
-        end(2)
-    end(1)  # 结束paths
-
-    # 路径曲线
-    start(1, "curves")
-    for curve in paths_data["curves"]:
-        start(2)
-        # 节点
-        start(3, "nodes")
-        for node in curve["nodes"]:
-            start(4)
-            dict_v(5, "x", node["x"])
-            dict_v(5, "y", node["y"])
-            end(4)
-        end(3)  # 结束nodes
-
-        # 宽度
-        start(3, "widths")
-        for w in curve["widths"]:
-            list_v(4, w)
-        end(3)  # 结束widths
-        end(2)
-    end(1)  # 结束curves
-
-    end(0, False)  # 结束整个表
-
-    return writer.get_content()
 
 
 def write_paths_data_file(paths_data, levels_dir):
@@ -1196,38 +1059,13 @@ def write_paths_data_file(paths_data, levels_dir):
         paths_data (dict): 路径数据
         levels_dir (Path): 输出目录
     """
-    lua_content = gen_paths_data_lua_content(paths_data)
+    lua_content = write_paths_data_template.render(paths_data)
     file = paths_data["name"]
 
     log.info(f"写入路径数据{file}...")
 
     with open(levels_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
-
-
-def gen_grids_data_lua_content(grids_data):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    # 开始整个表
-    a(0, "return {")
-
-    # 网格基本信息
-    dict_v(1, "ox", grids_data["ox"], "网格原点X")
-    dict_v(1, "oy", grids_data["oy"], "网格原点Y")
-    dict_v(1, "cell_size", grids_data["cell_size"], "单元格大小")
-
-    # 网格数据
-    start(1, "grid")
-    for column in grids_data["grid"]:
-        start(2)
-        for row_d in column:
-            list_v(3, row_d)
-        end(2)
-    end(1)  # 结束grid
-    end(0, False)  # 结束整个表
-
-    return writer.get_content()
 
 
 def write_grids_data_file(grids_data, levels_dir):
@@ -1238,67 +1076,13 @@ def write_grids_data_file(grids_data, levels_dir):
         grids_data (dict): 网格数据
         levels_dir (Path): 输出目录
     """
-    lua_content = gen_grids_data_lua_content(grids_data)
+    lua_content = write_grids_data_template.render(grids_data)
     file = grids_data["name"]
 
     log.info(f"写入网格数据{file}...")
 
     with open(levels_dir / file, "w", encoding="utf-8") as f:
         f.write(lua_content)
-
-
-def gen_waves_data_lua_content(waves_data):
-    writer = WriteLua()
-    a, start, end, dict_v, _ = writer.get_helpers()
-
-    # 开始整个表
-    a(0, "return {")
-    dict_v(1, "cash", waves_data["cash"], "初始金币")
-
-    # 开始波次组
-    start(1, "groups", "波次组")
-
-    # 遍历每个波次
-    for wave in waves_data["waves"]:
-        start(2)  # 开始一个波次
-        dict_v(3, "interval", wave["interval"], "波次间隔")
-
-        # 开始出怪组
-        start(3, "waves", "出怪组")
-
-        # 遍历每个出怪组
-        for group in wave["groups"]:
-            start(4)  # 开始一个出怪组
-            dict_v(5, "delay", group["delay"], "延迟")
-            dict_v(5, "path_index", group["path_index"], "路径索引")
-
-            # 开始怪物列表
-            start(5, "spawns", "怪物列表")
-
-            # 遍历每个怪物生成配置
-            for spawn in group["spawns"]:
-                start(6)  # 开始一个怪物配置
-                dict_v(7, "interval", spawn["interval"], "生成间隔")
-                dict_v(7, "creep", spawn["creep"], "怪物类型")
-                dict_v(7, "max", spawn["max"], "总数")
-                dict_v(7, "max_same", spawn["max_same"], "交替数量")
-                dict_v(7, "fixed_sub_path", spawn["fixed_sub_path"], "是否随机子路径")
-                dict_v(7, "path", spawn["path"], "子路径")
-                dict_v(
-                    7,
-                    "interval_next",
-                    spawn["interval_next"],
-                    "下一批间隔",
-                )
-                end(6)  # 结束怪物配置
-            end(5)  # 结束怪物列表
-            end(4)  # 结束出怪组
-        end(3)  # 结束出怪组
-        end(2)  # 结束一个波次
-    end(1)  # 结束波次组
-    end(0, False)  # 结束整个表
-
-    return writer.get_content()
 
 
 def write_waves_data_file(waves_data, waves_dir):
@@ -1313,7 +1097,7 @@ def write_waves_data_file(waves_data, waves_dir):
         if not waves_data:
             continue
 
-        lua_content = gen_waves_data_lua_content(waves_data)
+        lua_content = write_waves_data_template.render(waves_data)
 
         file = waves_data["name"]
         log.info(f"写入波次数据{file}...")

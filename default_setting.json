@@ -32,8 +32,8 @@
         }
     },
     "generate_waves": {
-        "time_to_s": false,
-        "Dove_spawn_criket": false,
+        "frames_to_seconds": false,
+        "dove_spawn_cricket": false,
         "enabled_monsters1": true,
         "enabled_monsters2": true,
         "enabled_monsters3": true,
@@ -41,33 +41,34 @@
         "enabled_monsters6": false,
         "default_wave_data": {
             "cash": 1000,
-            "groups": {
-                "wave_arrive_time": 1000
-            },
             "waves": {
+                "wave_interval": 1000
+            },
+            "spawns": {
                 "some_flying": false,
                 "delay": 0,
                 "path_index": 1
             },
-            "spawns": {
+            "spawn": {
                 "max_same": 1,
                 "max": 5,
                 "interval": 50,
-                "fixed_sub_path": -1,
+                "subpath": 0,
                 "interval_next": 50
             }
         },
-        "default_criket": {
+        "default_cricket_data": {
             "cash": 50000,
-            "waves": {
+            "spawns": {
+                "some_flying": false,
                 "delay": 5,
                 "path_index": 1
             },
-            "spawns": {
+            "spawn": {
                 "max_same": 1,
                 "max": 100,
                 "interval": 0.1,
-                "fixed_sub_path": 0,
+                "subpath": 0,
                 "interval_next": 50
             },
             "required_textures": [
@@ -425,12 +426,7 @@
         "delete_temporary_png": true,
         "trigger_several_efficiency": 0.35,
         "add_white_rect": true,
-        "white_rect_size": [
-            3,
-            3
-        ],
-        "max_size": 4096,
-        "generate_square": false
+        "max_size": 4096
     },
     "plist_level_to_lua": {
         "is_kr5": true,
@@ -439,7 +435,6 @@
         "level_name_leading_zero": 2
     },
     "measure_anchor": {
-        "use_light_bg": true,
         "presets": [
             [
                 "左上",
@@ -486,6 +481,7 @@
                 "w",
                 "h"
             ]
-        ]
+        ],
+        "use_light_bg": true
     }
 }

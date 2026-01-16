@@ -15,6 +15,8 @@ import lib.log as log
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
 
+DISABLED_MONSTER_KEY = set(["creep", "creep_aux"])
+
 
 def get_value_with_setting(default, criket):
     if setting["dove_spawn_cricket"]:
@@ -65,9 +67,9 @@ def get_monsters_dict(get_id=False, get_all=False):
     monsters = {}
 
     # 遍历配置中的怪物类型
-    for key, value in setting["monsters"].items():
+    for key, value in config.setting["generate_waves"]["monsters"].items():
         # 检查是否启用该怪物类型
-        if not get_all and not setting.get("enabled_" + key):
+        if not get_all and not config.setting["generate_waves"].get("enabled_" + key):
             continue
 
         for k, v in value.items():
@@ -79,6 +81,18 @@ def get_monsters_dict(get_id=False, get_all=False):
                 monsters[v] = k
 
     return monsters
+
+
+MONSTERS_ID = get_monsters_dict(True)
+MONSTERS_NAME = get_monsters_dict()
+
+
+def get_monsters_id(monster_name):
+    return MONSTERS_ID.get(monster_name, monster_name)
+
+
+def get_monsters_name(monster_id):
+    return MONSTERS_NAME.get(monster_id, monster_id)
 
 
 class GeneratorWave:
@@ -107,7 +121,7 @@ class GeneratorWave:
         """
         self.root = root
         self.root.title("波次生成")  # 窗口标题
-        self.root.geometry("1100x650")  # 窗口初始大小
+        self.root.geometry("1100x750")  # 窗口初始大小
 
         # 初始化波次数据结构
         self.waves_data = {
@@ -115,14 +129,16 @@ class GeneratorWave:
             "groups": [],  # 波次列表
         }
 
+        if check_cricket_open():
+            self.waves_data["required_textures"] = setting["default_cricket_data"][
+                "required_textures"
+            ]
+
         # 当前状态变量
         self.current_wave_index = 0  # 当前选中的波次索引
         self.last_listbox_selected = ""  # 上次选中的出怪组索引
         # 根据配置确定要加载的Lua文件名
         self.load_luafile = get_value_with_setting("level01_waves_campaign", "cricket")
-
-        self.monsters_id = get_monsters_dict(True)
-        self.monsters_name = get_monsters_dict()
 
         # 创建UI组件
         self.create_widgets()
@@ -146,12 +162,6 @@ class GeneratorWave:
 
     def set_current_wave(self, new_wave):
         self.waves_data["groups"][self.current_wave_index] = new_wave
-
-    def get_monsters_id(self, monster_name):
-        return self.monsters_id.get(monster_name, monster_name)
-
-    def get_monsters_name(self, monster_id):
-        return self.monsters_name.get(monster_id, monster_id)
 
     def get_selected_spawns_idx(self):
         curselection = self.spawns_listbox.curselection()
@@ -177,6 +187,17 @@ class GeneratorWave:
         spawns = self.get_selected_spawns()
 
         return spawns["spawns"][idx]
+
+    def get_monster_data(self, monster):
+        data_list = []
+
+        for key, value in monster.items():
+            if key in DISABLED_MONSTER_KEY:
+                continue
+
+            data_list.append(value)
+
+        return data_list
 
     def create_widgets(self):
         """创建所有UI组件"""
@@ -614,8 +635,8 @@ class GeneratorWave:
 
         # 定义表格列
         columns = (
-            "creep",  # 怪物类型
-            "creep_aux",  # 交替怪物
+            "creep_name",  # 怪物类型
+            "creep_aux_name",  # 交替怪物
             "max_same",  # 交替数量
             "max",  # 总数量
             "interval",  # 生成间隔
@@ -638,8 +659,8 @@ class GeneratorWave:
         style.configure("Treeview.Heading", font=(BASIC_FONT, 10, "bold"))
 
         # 设置列标题
-        self.monster_tree.heading("creep", text="怪物")
-        self.monster_tree.heading("creep_aux", text="交替怪物")
+        self.monster_tree.heading("creep_name", text="怪物")
+        self.monster_tree.heading("creep_aux_name", text="交替怪物")
         self.monster_tree.heading("max_same", text="交替数量")
         self.monster_tree.heading("max", text="总数量")
 
@@ -656,8 +677,10 @@ class GeneratorWave:
         self.monster_tree.heading("interval_next", text=interval_next_text)
 
         # 设置列宽和对齐方式
-        self.monster_tree.column("creep", width=120, anchor="center", minwidth=80)
-        self.monster_tree.column("creep_aux", width=120, anchor="center", minwidth=80)
+        self.monster_tree.column("creep_name", width=120, anchor="center", minwidth=80)
+        self.monster_tree.column(
+            "creep_aux_name", width=120, anchor="center", minwidth=80
+        )
         self.monster_tree.column("max_same", width=80, anchor="center", minwidth=60)
         self.monster_tree.column("max", width=80, anchor="center", minwidth=60)
         self.monster_tree.column("interval", width=80, anchor="center", minwidth=60)
@@ -1034,7 +1057,7 @@ class GeneratorWave:
         self.clear_monster_tree()
         for spawn in wave_group["spawns"]:
             # 提取怪物数据并显示
-            m = [m for m in spawn.values()]
+            m = self.get_monster_data(spawn)
             self.monster_tree.insert("", "end", values=(m))
 
     def add_monster(self):
@@ -1127,12 +1150,12 @@ class GeneratorWave:
 
         # 怪物类型选择
         self.create_monster_form_field(
-            form_frame, 0, "怪物:", monsters_keys, "creep", spawn, edit
+            form_frame, 0, "怪物:", monsters_keys, "creep_name", spawn, edit
         )
 
         # 交替怪物选择
         self.create_monster_form_field(
-            form_frame, 1, "交替怪物:", monsters_keys, "creep_aux", spawn, edit
+            form_frame, 1, "交替怪物:", monsters_keys, "creep_aux_name", spawn, edit
         )
 
         # 怪物参数设置
@@ -1358,7 +1381,7 @@ class GeneratorWave:
         new_spawn = self.load_monster_data()
 
         # 验证必填字段
-        if not new_spawn["creep"]:
+        if not new_spawn["creep_name"]:
             messagebox.showwarning("警告", "请选择怪物类型")
             return
 
@@ -1366,13 +1389,11 @@ class GeneratorWave:
         spawns["spawns"].append(new_spawn)
 
         # 更新表格显示
-        m = []
-        for v in new_spawn.values():
-            m.append(v)
+        m = self.get_monster_data(new_spawn)
         self.monster_tree.insert("", "end", values=(m))
         self.status_var.set("已添加怪物")
 
-        log.info(f"添加怪物: {new_spawn['creep']}")
+        log.info(f"添加怪物: {new_spawn['creep_name']}")
 
         # 关闭对话框
         if dialog:
@@ -1392,13 +1413,11 @@ class GeneratorWave:
     #     wave_group["spawns"].append(self.get_selected_spawns())
 
     #     # 更新表格显示
-    #     m = []
-    #     for v in new_spawn.values():
-    #         m.append(v)
+    #     m = self.get_monster_data(new_spawn)
     #     self.monster_tree.insert("", "end", values=(m))
     #     self.status_var.set("已复制怪物")
 
-    #     log.info(f"复制怪物: {new_spawn['creep']}")
+    #     log.info(f"复制怪物: {new_spawn['creep_name']}")
 
     def edit_update_monster(self, dialog=None):
         """更新编辑的怪物"""
@@ -1416,7 +1435,7 @@ class GeneratorWave:
         new_spawn = self.load_monster_data()
 
         # 验证必填字段
-        if not new_spawn["creep"]:
+        if not new_spawn["creep_name"]:
             messagebox.showwarning("警告", "请选择怪物类型")
             return
 
@@ -1424,13 +1443,13 @@ class GeneratorWave:
         wave_group["spawns"][monster_index] = new_spawn
 
         # 更新表格显示
-        m = [m for m in new_spawn.values()]
+        m = self.get_monster_data(new_spawn)
         self.monster_tree.item(
             self.monster_tree.get_children()[monster_index], values=(m)
         )
         self.status_var.set("已更新怪物")
 
-        log.info(f"更新怪物: {new_spawn['creep']}")
+        log.info(f"更新怪物: {new_spawn['creep_name']}")
 
         # 关闭对话框
         if dialog:
@@ -1444,20 +1463,24 @@ class GeneratorWave:
             dict: 怪物数据字典
         """
         try:
+            creep_combo_v = str(self.creep_name_combo.get())
+            creep_aux_combo_v = str(self.creep_aux_name_combo.get())
+            max_same_v = int(self.max_same_var.get() or 0)
+            max_v = int(self.max_var.get() or 0)
+            interval_v = int(self.interval_var.get() or 0)
+            subpath_v = int(self.subpath_var.get() or 0)
+            interval_next_v = int(self.interval_next_var.get() or 0)
+
             dictionary = {
-                "creep": self.creep_combo.get(),
-                "creep_aux": self.creep_aux_combo.get(),
-                "max_same": int(
-                    self.max_same_var.get() if self.max_same_var.get() else 0
-                ),
-                "max": int(self.max_var.get() if self.max_var.get() else 0),
-                "interval": int(
-                    self.interval_var.get() if self.interval_var.get() else 0
-                ),
-                "subpath": int(self.subpath_var.get() if self.subpath_var.get() else 0),
-                "interval_next": int(
-                    self.interval_next_var.get() if self.interval_next_var.get() else 0
-                ),
+                "creep_name": creep_combo_v,
+                "creep": get_monsters_id(creep_combo_v),
+                "creep_aux_name": creep_aux_combo_v,
+                "creep_aux": get_monsters_id(creep_aux_combo_v),
+                "max_same": max_same_v,
+                "max": max_v,
+                "interval": interval_v,
+                "subpath": subpath_v,
+                "interval_next": interval_next_v,
             }
             return dictionary
         except ValueError as e:
@@ -1514,17 +1537,14 @@ class GeneratorWave:
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 lua_data = config.lupa.execute(f.read())
 
-            # 获取怪物映射
-            monsters = get_monsters_dict(True, is_all=True)
-
             # 重置当前数据
             self.waves_data["cash"] = lua_data["cash"]
 
             # 根据模式加载数据
             if not check_cricket_open():
-                self.load_common_spawns(lua_data, monsters)
+                load_common_spawns(self.waves_data, lua_data)
             else:
-                self.dove_spawns_criket(lua_data, monsters)
+                dove_spawns_criket(self.waves_data, lua_data)
 
             # 更新UI状态
             self.current_wave_index = 0
@@ -1556,116 +1576,6 @@ class GeneratorWave:
         except Exception as e:
             messagebox.showerror("错误", f"加载文件时出错:\n{str(e)}")
             log.error(f"加载文件失败: {file_path} - {traceback.print_exc()}")
-
-    def load_common_spawns(self, data, monsters):
-        """
-        加载普通波次模式的数据
-
-        Args:
-            data: 从Lua文件解析的数据
-            monsters: 怪物映射数据
-        """
-        waves_data = self.waves_data
-        waves_data["cash"] = data["cash"]
-
-        waves_data["groups"] = []
-
-        # 遍历所有波次
-        for wave in data["groups"].values():
-            new_wave_data = {
-                "wave_interval": wave["interval"],
-                "spawns": [],
-            }
-
-            # 时间单位转换
-            if setting["frames_to_seconds"]:
-                new_wave_data["wave_interval"] = round(
-                    new_wave_data["wave_interval"] / 30, 2
-                )
-
-            # 遍历出怪组
-            for spawns in wave["waves"].values():
-                new_spawns_data = {
-                    "some_flying": (True if spawns.get("some_flying") else False),
-                    "delay": spawns["delay"],
-                    "path_index": spawns["path_index"],
-                    "spawns": [],
-                }
-
-                # 时间单位转换
-                if setting["frames_to_seconds"]:
-                    new_spawns_data["delay"] = round(new_spawns_data["delay"] / 30, 2)
-
-                # 遍历怪物
-                for spawn in spawns["spawns"].values():
-                    new_spawn_data = {
-                        "creep": monsters.get(spawn["creep"], spawn["creep"]),
-                        "creep_aux": (
-                            monsters.get(spawn["creep_aux"], spawn["creep_aux"])
-                            if spawn.get("creep_aux")
-                            else ""
-                        ),
-                        "max_same": (spawn["max_same"] if spawn["max_same"] else 0),
-                        "max": spawn["max"],
-                        "interval": spawn["interval"],
-                        "subpath": spawn["subpath"],
-                        "interval_next": spawn["interval_next"],
-                    }
-
-                    # 时间单位转换
-                    if setting["frames_to_seconds"]:
-                        new_spawn_data["interval"] = round(
-                            new_spawn_data["interval"] / 30, 2
-                        )
-                        new_spawn_data["interval_next"] = round(
-                            new_spawn_data["interval_next"] / 30, 2
-                        )
-
-                    new_spawns_data["spawns"].append(new_spawn_data)
-                new_wave_data["spawns"].append(new_spawns_data)
-            waves_data["groups"].append(new_wave_data)
-
-    def dove_spawns_criket(self, data, monsters):
-        """
-        加载斗蛐蛐波次模式的数据
-
-        Args:
-            data: 从Lua文件解析的数据
-            monsters: 怪物映射数据
-        """
-        waves_data = self.waves_data
-        waves_data["cash"] = data["cash"]
-
-        waves_data["groups"] = [{"wave_interval": 0, "spawns": []}]
-
-        # 遍历出怪组
-        for group in data["groups"].values():
-            new_group_data = {
-                "some_flying": (True if group.get("some_flying") else False),
-                "delay": group["delay"],
-                "path_index": group["path_index"],
-                "spawns": [],
-            }
-
-            # 遍历怪物
-            for spawn in group["spawns"].values():
-                new_spawn_data = {
-                    "creep": monsters.get(spawn["creep"], spawn["creep"]),
-                    "creep_aux": (
-                        monsters.get(spawn["creep_aux"], spawn["creep"])
-                        if spawn.get("creep_aux")
-                        else ""
-                    ),
-                    "max_same": (spawn["max_same"] if spawn["max_same"] else 0),
-                    "max": spawn["max"],
-                    "interval": spawn["interval"],
-                    "subpath": spawn["subpath"],
-                    "interval_next": spawn["interval_next"],
-                }
-
-                new_group_data["spawns"].append(new_spawn_data)
-
-            waves_data["groups"][0]["waves"].append(new_group_data)
 
     def save_initial_resource(self):
         """保存初始资源设置"""
@@ -1725,7 +1635,7 @@ class GeneratorWave:
                     else:
                         # 从UI更新数据结构
                         try:
-                            selected_spawn["delay"] = float(self.delay_var.get())
+                            selected_spawn["delay"] = int(self.delay_var.get())
                             selected_spawn["path_index"] = int(
                                 self.path_index_var.get()
                             )
@@ -1807,6 +1717,103 @@ class GeneratorWave:
         """
         entry.select_range(0, tk.END)
         entry.icursor(tk.END)  # 将光标移到末尾
+
+
+def load_monster_from_lua(spawn):
+    creep = spawn["creep"]
+    creep_aux = spawn["creep_aux"] or ""
+
+    return {
+        "creep": creep,
+        "creep_name": get_monsters_name(creep),
+        "creep_aux": creep_aux,
+        "creep_aux_name": get_monsters_name(creep_aux),
+        "max_same": spawn["max_same"] or 0,
+        "max": spawn["max"],
+        "interval": spawn["interval"],
+        "subpath": spawn["path"] if spawn["fixed_sub_path"] else 0,
+        "interval_next": spawn["interval_next"],
+    }
+
+
+def load_common_spawns(waves_data, lua_data):
+    """
+    加载普通波次模式的数据
+
+    Args:
+        data: 从Lua文件解析的数据
+    """
+    waves_data["groups"] = []
+
+    # 遍历所有波次
+    for wave in lua_data["groups"].values():
+        new_wave_data = {
+            "wave_interval": wave["interval"],
+            "spawns": [],
+        }
+
+        # 时间单位转换
+        if setting["frames_to_seconds"]:
+            new_wave_data["wave_interval"] = round(
+                new_wave_data["wave_interval"] / 30, 2
+            )
+
+        # 遍历出怪组
+        for spawns in wave["waves"].values():
+            new_spawns_data = {
+                "some_flying": spawns["some_flying"] or False,
+                "delay": spawns["delay"],
+                "path_index": spawns["path_index"],
+                "spawns": [],
+            }
+
+            # 时间单位转换
+            if setting["frames_to_seconds"]:
+                new_spawns_data["delay"] = round(new_spawns_data["delay"] / 30, 2)
+
+            # 遍历怪物
+            for spawn in spawns["spawns"].values():
+                new_spawn_data = load_monster_from_lua(spawn)
+
+                # 时间单位转换
+                if setting["frames_to_seconds"]:
+                    new_spawn_data["interval"] = round(
+                        new_spawn_data["interval"] / 30, 2
+                    )
+                    new_spawn_data["interval_next"] = round(
+                        new_spawn_data["interval_next"] / 30, 2
+                    )
+
+                new_spawns_data["spawns"].append(new_spawn_data)
+            new_wave_data["spawns"].append(new_spawns_data)
+        waves_data["groups"].append(new_wave_data)
+
+
+def dove_spawns_criket(waves_data, lua_data):
+    """
+    加载斗蛐蛐波次模式的数据
+
+    Args:
+        data: 从Lua文件解析的数据
+    """
+    waves_data["groups"] = [{"wave_interval": 0, "spawns": []}]
+
+    # 遍历出怪组
+    for group in lua_data["groups"].values():
+        new_group_data = {
+            "some_flying": group["some_flying"] or False,
+            "delay": group["delay"],
+            "path_index": group["path_index"],
+            "spawns": [],
+        }
+
+        # 遍历怪物
+        for spawn in group["spawns"].values():
+            new_spawn_data = load_monster_from_lua(spawn)
+
+            new_group_data["spawns"].append(new_spawn_data)
+
+        waves_data["groups"][0]["waves"].append(new_group_data)
 
 
 def write_common_spawns(waves_data, file_path):

@@ -15,20 +15,39 @@ import lib.log as log
 # 设置日志记录
 log = log.setup_logging(config.log_level, config.log_file)
 
+# 获取波次生成配置
 setting = config.setting["generate_waves"]
 
-
+# 在怪物数据中禁用的键名（不显示在UI中的字段）
 DISABLED_MONSTER_KEY = set(["creep", "creep_aux"])
 
 
-def get_value_with_setting(default, criket):
+def get_value_with_setting(default, cricket):
+    """
+    根据当前模式获取配置值
+    
+    根据是否为斗蛐蛐模式返回不同的配置值
+    
+    Args:
+        default: 普通模式下的默认值
+        cricket: 斗蛐蛐模式下的值
+        
+    Returns:
+        根据当前模式返回对应的值
+    """
     if setting["dove_spawn_cricket"]:
-        return criket
+        return cricket
 
     return default
 
 
 def check_frames_to_seconds():
+    """
+    检查是否启用了帧到秒的转换
+    
+    Returns:
+        bool: 如果启用了帧到秒转换或斗蛐蛐模式则返回True
+    """
     if setting["frames_to_seconds"] or check_cricket_open():
         return True
 
@@ -36,6 +55,12 @@ def check_frames_to_seconds():
 
 
 def check_cricket_open():
+    """
+    检查是否为斗蛐蛐模式
+    
+    Returns:
+        bool: 如果为斗蛐蛐模式则返回True
+    """
     if setting["dove_spawn_cricket"]:
         return True
 
@@ -43,6 +68,17 @@ def check_cricket_open():
 
 
 def get_default_setting(key=None):
+    """
+    获取默认配置值
+    
+    根据当前模式（普通/斗蛐蛐）返回对应的默认配置
+    
+    Args:
+        key: 配置键名，如果为None则返回整个配置字典
+        
+    Returns:
+        配置值或配置字典
+    """
     default_cricket_data = setting["default_cricket_data"]
 
     if key:
@@ -60,12 +96,15 @@ def get_default_setting(key=None):
 def get_monsters_dict(get_id=False, get_all=False):
     """
     加载怪物映射数据
-
+    
+    根据配置加载怪物名称和ID的映射关系
+    
     Args:
-        is_all: 是否加载所有怪物类型
-
+        get_id: 是否获取ID映射（名称->ID），否则获取名称映射（ID->名称）
+        get_all: 是否加载所有怪物类型，不考虑是否启用
+        
     Returns:
-        dict: 怪物映射字典，包含正向和反向映射
+        dict: 怪物映射字典
     """
     monsters = {}
 
@@ -86,15 +125,34 @@ def get_monsters_dict(get_id=False, get_all=False):
     return monsters
 
 
-MONSTERS_ID = get_monsters_dict(True, True)
-MONSTERS_NAME = get_monsters_dict(get_all=True)
+# 预加载怪物映射数据
+MONSTERS_ID = get_monsters_dict(True, True)  # 名称到ID的映射
+MONSTERS_NAME = get_monsters_dict(get_all=True)  # ID到名称的映射
 
 
 def get_monsters_id(monster_name):
+    """
+    根据怪物名称获取ID
+    
+    Args:
+        monster_name: 怪物名称
+        
+    Returns:
+        str: 怪物ID，如果找不到则返回原名称
+    """
     return MONSTERS_ID.get(monster_name, monster_name)
 
 
 def get_monsters_name(monster_id):
+    """
+    根据怪物ID获取名称
+    
+    Args:
+        monster_id: 怪物ID
+        
+    Returns:
+        str: 怪物名称，如果找不到则返回原ID
+    """
     return MONSTERS_NAME.get(monster_id, monster_id)
 
 
@@ -132,6 +190,7 @@ class GeneratorWave:
             "groups": [],  # 波次列表
         }
 
+        # 如果是斗蛐蛐模式，添加加载的纹理
         if check_cricket_open():
             self.waves_data["required_textures"] = setting["default_cricket_data"][
                 "required_textures"
@@ -153,9 +212,24 @@ class GeneratorWave:
         self.root.after(10, self.entry_focus, self.cash_entry)
 
     def get_groups(self):
+        """
+        获取所有波次数据
+        
+        Returns:
+            list: 波次数据列表
+        """
         return self.waves_data["groups"]
 
     def get_current_wave(self, key=None):
+        """
+        获取当前选中的波次数据
+        
+        Args:
+            key: 要获取的波次字段名，如果为None则返回整个波次数据
+            
+        Returns:
+            波次数据或指定字段的值
+        """
         wave = self.waves_data["groups"][self.current_wave_index]
 
         if key:
@@ -164,34 +238,75 @@ class GeneratorWave:
         return wave
 
     def set_current_wave(self, new_wave):
+        """
+        设置当前波次数据
+        
+        Args:
+            new_wave: 新的波次数据
+        """
         self.waves_data["groups"][self.current_wave_index] = new_wave
 
     def get_selected_spawns_idx(self):
+        """
+        获取当前选中的出怪组索引
+        
+        Returns:
+            tuple: 选中索引的元组，如果未选中则返回空元组
+        """
         curselection = self.spawns_listbox.curselection()
-
         return curselection
 
     def get_selected_spawns(self):
+        """
+        获取当前选中的出怪组数据
+        
+        Returns:
+            dict: 出怪组数据
+        """
         idx = self.spawns_listbox.curselection()[0]
         return self.get_current_wave("spawns")[idx]
 
     def get_selected_monster_id(self):
+        """
+        获取当前选中的怪物ID
+        
+        Returns:
+            tuple: 选中怪物ID的元组
+        """
         selected_monster_id = self.monster_tree.selection()
-
         return selected_monster_id
 
     def get_selected_monster_idx(self):
+        """
+        获取当前选中怪物的索引
+        
+        Returns:
+            int: 怪物在列表中的索引
+        """
         id = self.get_selected_monster_id()[0]
-
         return self.monster_tree.index(id)
 
     def get_selected_monster(self):
+        """
+        获取当前选中的怪物数据
+        
+        Returns:
+            dict: 怪物数据
+        """
         idx = self.get_selected_monster_idx()
         spawns = self.get_selected_spawns()
-
         return spawns["spawns"][idx]
 
     def get_monster_data(self, monster):
+        """
+        从怪物数据中提取要在表格中显示的数据
+        
+        Args:
+            monster: 怪物数据字典
+            
+        Returns:
+            list: 怪物数据显示值列表
+        """
         data_list = []
 
         for key, value in monster.items():
@@ -279,6 +394,7 @@ class GeneratorWave:
         """
 
         def show_tooltip(event):
+            """显示工具提示"""
             tooltip = tk.Toplevel()
             tooltip.wm_overrideredirect(True)  # 无边框窗口
             tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
@@ -291,6 +407,7 @@ class GeneratorWave:
             widget.tooltip = tooltip
 
         def hide_tooltip(event):
+            """隐藏工具提示"""
             if hasattr(widget, "tooltip"):
                 widget.tooltip.destroy()
                 delattr(widget, "tooltip")
@@ -1723,6 +1840,15 @@ class GeneratorWave:
 
 
 def load_monster_from_lua(spawn):
+    """
+    从Lua数据加载怪物信息
+    
+    Args:
+        spawn: Lua中的怪物数据
+        
+    Returns:
+        dict: 处理后的怪物数据
+    """
     creep = spawn["creep"]
     creep_aux = spawn["creep_aux"] or ""
 
@@ -1744,7 +1870,8 @@ def load_common_spawns(waves_data, lua_data):
     加载普通波次模式的数据
 
     Args:
-        data: 从Lua文件解析的数据
+        waves_data: 波次数据字典（将被更新）
+        lua_data: 从Lua文件解析的数据
     """
     waves_data["groups"] = []
 
@@ -1797,7 +1924,8 @@ def dove_spawns_criket(waves_data, lua_data):
     加载斗蛐蛐波次模式的数据
 
     Args:
-        data: 从Lua文件解析的数据
+        waves_data: 波次数据字典（将被更新）
+        lua_data: 从Lua文件解析的数据
     """
     waves_data["groups"] = [{"wave_interval": 0, "spawns": []}]
 
@@ -1824,8 +1952,8 @@ def write_common_spawns(waves_data, file_path):
     写入普通波次模式的Lua文件
 
     Args:
+        waves_data: 波次数据
         file_path: 文件路径
-        monsters: 怪物映射数据
     """
     lua_content = write_waves_data_template.render(waves_data)
 
@@ -1839,8 +1967,8 @@ def write_dove_spawns_criket(waves_data, file_path):
     写入斗蛐蛐波次模式的Lua文件
 
     Args:
+        waves_data: 波次数据
         file_path: 文件路径
-        monsters: 怪物映射数据
     """
     groups = waves_data["groups"][0]["waves"]
 

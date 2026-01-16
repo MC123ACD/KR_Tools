@@ -833,7 +833,7 @@ class GeneratorWave:
         monster_btn_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
 
         # 配置按钮框架的网格权重
-        for i in range(3):
+        for i in range(4):
             monster_btn_frame.columnconfigure(i, weight=1)
 
         # 添加怪物按钮
@@ -845,7 +845,7 @@ class GeneratorWave:
             fg="white",
             font=(BASIC_FONT, 9),
             relief=tk.RAISED,
-            padx=10,
+            padx=5,
             pady=2,
         )
         self.add_monster_btn.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
@@ -861,12 +861,28 @@ class GeneratorWave:
             fg="white",
             font=(BASIC_FONT, 9),
             relief=tk.RAISED,
-            padx=10,
+            padx=5,
             pady=2,
         )
         self.edit_monster_btn.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
 
         self.create_tooltip(self.edit_monster_btn, "编辑当前选中的怪物配置")
+        
+        # 复制怪物按钮
+        self.copy_monster_btn = tk.Button(
+            monster_btn_frame,
+            text="复制怪物",
+            command=self.copy_monster,
+            bg="#9b59b6",  # 紫色背景
+            fg="white",
+            font=(BASIC_FONT, 9),
+            relief=tk.RAISED,
+            padx=5,
+            pady=2,
+        )
+        self.copy_monster_btn.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
+
+        self.create_tooltip(self.copy_monster_btn, "复制当前选中的怪物")
 
         # 移除怪物按钮
         self.remove_monster_btn = tk.Button(
@@ -877,10 +893,10 @@ class GeneratorWave:
             fg="white",
             font=(BASIC_FONT, 9),
             relief=tk.RAISED,
-            padx=10,
+            padx=5,
             pady=2,
         )
-        self.remove_monster_btn.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
+        self.remove_monster_btn.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
 
         self.create_tooltip(self.remove_monster_btn, "移除当前选中的怪物配置")
 
@@ -1207,6 +1223,35 @@ class GeneratorWave:
         # 创建编辑怪物对话框
         self.add_monster_dialog(selected_spawns[0], spawn, edit=True)
 
+    def copy_monster(self):
+        """复制怪物"""
+        selected_spawns = self.get_selected_spawns_idx()
+        if not selected_spawns:
+            messagebox.showwarning("警告", "请先选择一个出怪组")
+            return
+
+        selected_monster = self.get_selected_monster_id()
+        if not selected_monster:
+            messagebox.showwarning("警告", "请先选择一个怪物")
+            return
+
+        spawns_index = selected_spawns[0]
+
+        wave_group = self.get_current_wave("spawns")[spawns_index]
+
+        new_spawn = self.get_selected_monster()
+
+        # 添加新怪物
+        wave_group["spawns"].append(new_spawn)
+
+        # 更新表格显示
+        m = self.get_monster_data(new_spawn)
+        self.monster_tree.insert("", "end", values=(m))
+        self.status_var.set("已复制怪物")
+
+        log.info(f"复制怪物: {new_spawn['creep_name']}")
+
+
     def remove_monster(self):
         """移除当前选中的怪物"""
         selected = self.get_selected_spawns_idx()
@@ -1518,26 +1563,6 @@ class GeneratorWave:
         # 关闭对话框
         if dialog:
             dialog.destroy()
-
-    # def copy_monster(self):
-    #     """复制怪物"""
-    #     selected = self.get_selected_spawns_idx()
-    #     if not selected:
-    #         return
-
-    #     spawns_index = selected[0]
-
-    #     wave_group = self.get_current_wave("spawns")[spawns_index]
-
-    #     # 添加新怪物
-    #     wave_group["spawns"].append(self.get_selected_spawns())
-
-    #     # 更新表格显示
-    #     m = self.get_monster_data(new_spawn)
-    #     self.monster_tree.insert("", "end", values=(m))
-    #     self.status_var.set("已复制怪物")
-
-    #     log.info(f"复制怪物: {new_spawn['creep_name']}")
 
     def edit_update_monster(self, dialog=None):
         """更新编辑的怪物"""

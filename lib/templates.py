@@ -1,9 +1,12 @@
 from jinja2 import Template, Environment, FileSystemLoader
+from lib.utils import key_to_lua, value_to_lua
 
 # 正确配置环境
 env = Environment(
     loader=FileSystemLoader("lib"),  # 指定模板目录
 )
+env.globals["key_to_lua"] = key_to_lua
+env.globals["value_to_lua"] = value_to_lua
 
 write_waves_data_template = env.from_string(
     """return {
@@ -90,7 +93,49 @@ write_dove_spawns_criket_data_template = env.from_string(
 
 
 write_spawners_data_template = env.from_string(
-"""return {}
+"""return {
+    groups = {
+        {%- for group in groups %}
+        {%- for key, value in group.items() %}
+        {{key_to_lua(key)}} = {
+            {%- for i in value %}
+            {{value_to_lua(i)}}{%- if not loop.last %},{% endif -%}
+            {%- endfor %}
+        }{%- if not loop.last %},{% endif -%}
+        {%- endfor %}
+        {%- endfor %}
+    },
+    points = {
+        {%- for point in points %}
+        {
+            path = {{point["path"]}},
+            from = {
+                x = {{point["from"]["x"]}},
+                y = {{point["from"]["y"]}}
+            },
+            to = {
+                x = {{point["to"]["x"]}},
+                y = {{point["to"]["y"]}}
+            }
+        }{%- if not loop.last %},{% endif -%}
+        {%- endfor %}
+    },
+    waves = {
+        {
+            {%- for wave_idx, wave_data in waves.items() %}
+            {{key_to_lua(wave_idx)}} = {
+                {%- for entries in wave_data %}
+                {
+                    {%- for entrie in entries %}
+                    {{value_to_lua(entrie)}}{%- if not loop.last %},{% endif -%}
+                    {%- endfor %}
+                }{%- if not loop.last %},{% endif -%}
+                {%- endfor %}
+            }{%- if not loop.last %},{% endif -%}
+            {%- endfor %}
+        }
+    }
+}
 """
 )
 
@@ -167,7 +212,7 @@ write_level_data_template = env.from_string(
     max_upgrade_level = 5,
     custom_start_pos = {
         zoom = 1.3,
-        pos {
+        pos = {
             x = 512,
             y = 384
         }
@@ -187,13 +232,13 @@ write_level_data_template = env.from_string(
         {%- for entity in entities_list %}
         {
             {%- for key, value in entity.items() %}
-            {%- if value is dict %}
-            {{key}} = {
+            {%- if value is mapping %}
+            {{key_to_lua(key)}} = {
                 x = {{value.get("x", 0)}},
                 y = {{value.get("y", 0)}}
             }
             {%- else %}
-            {{key}} = {{value}}{%- if not loop.last %},{% endif -%}
+            {{key_to_lua(key)}} = {{value_to_lua(value)}}{%- if not loop.last %},{% endif -%}
             {% endif -%}
             {%- endfor %}
         }{%- if not loop.last %},{% endif -%}
@@ -203,7 +248,7 @@ write_level_data_template = env.from_string(
         {%- for mesh in nav_mesh %}
         {
             {%- for v in mesh %}
-                {{v}}{%- if not loop.last %},{% endif -%}
+            {{v}}{%- if not loop.last %},{% endif -%}
             {%- endfor %}
         }{%- if not loop.last %},{% endif -%}
         {%- endfor %}
@@ -236,7 +281,7 @@ write_paths_data_template = env.from_string(
 """return {
     active = {
         {%- for active in active_paths %}
-        {{active}}{%- if not loop.last %},{% endif -%}
+        {{value_to_lua(active)}}{%- if not loop.last %},{% endif -%}
         {%- endfor %}
     },
     connections = {},
@@ -269,7 +314,7 @@ write_paths_data_template = env.from_string(
             },
             widths = {
                 {%- for w in curve["widths"] %}
-                    {{w}}{%- if not loop.last %},{% endif -%}
+                {{w}}{%- if not loop.last %},{% endif -%}
                 {%- endfor %}
             }
         }{%- if not loop.last %},{% endif -%}

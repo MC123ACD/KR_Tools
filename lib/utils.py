@@ -1,7 +1,5 @@
 import traceback, subprocess, time, re
 from pathlib import Path
-from abc import ABC, ABCMeta
-from typing import ClassVar, TypeVar, Generic, Any
 import tkinter as tk
 import lib.config as config
 import lib.log as log
@@ -10,7 +8,6 @@ log = log.setup_logging(config.log_level, config.log_file)
 
 input_path = config.input_path
 output_path = config.output_path
-
 
 
 def indent(level):
@@ -181,6 +178,14 @@ def save_to_dds(target_file, output_path, bc, delete_temporary_png=False):
 
     return result
 
+
+def all_letters_uppercase(s):
+    for char in s:
+        if char.isalpha() and not char.isupper():
+            return False
+    return True
+
+
 def key_to_lua(key):
     key = escape_lua_string(key)
 
@@ -188,6 +193,7 @@ def key_to_lua(key):
         return f"[{key}]"
 
     return f'["{key}"]' if not is_simple_key(key) else key
+
 
 def value_to_lua(value):
     value = escape_lua_string(value)
@@ -202,6 +208,7 @@ def value_to_lua(value):
         formatted_value = str(value)
 
     return formatted_value
+
 
 def is_simple_key(key: str):
     """

@@ -660,40 +660,40 @@ def extract_waves_data(plist_data):
         dict: 波次数据，包含金币、波次列表等信息
     """
     data = {
-        "cash": int(plist_data["gold"]),  # 初始金币
-        "waves": [],
+        "cash": plist_data["gold"],  # 初始金币
+        "groups": [],
     }
 
     # 处理每个波次
     for wave in plist_data["waves"]:
-        new_wave = {"wave_interval": wave["interval"], "groups": []}
+        new_wave = {"wave_interval": wave["interval"], "spawns": []}
 
         # 处理每个出怪组
-        for group in wave["subwaves"]:
-            new_group = {
-                "delay": group["interval"],  # 延迟时间
-                "path_index": group["path_index"] + 1,  # 路径索引
+        for spawns in wave["subwaves"]:
+            new_spawns = {
+                "delay": spawns["interval"],  # 延迟时间
+                "path_index": spawns["path_index"] + 1,  # 路径索引
                 "spawns": [],  # 怪物列表
             }
 
             # 处理每个怪物生成点
-            for spawn in group["spawns"]:
+            for spawn in spawns["spawns"]:
                 new_spawn = {
-                    "interval": spawn["interval"],  # 生成间隔
                     "creep": "enemy_" + spawn["enemy"],  # 怪物类型
                     "max": spawn["cant"],  # 总数量
-                    "interval_next": spawn["interval_next_spawn"],  # 下一批延迟
                     "max_same": 0,  # 同时存在的最大数量
+                    "interval": spawn["interval"],  # 生成间隔
                     "subpath": (
                         0
                         if spawn["fixed_sub_path"] < 0
                         else spawn["fixed_sub_path"] + 1
                     ),
+                    "interval_next": spawn["interval_next_spawn"],  # 下一批延迟
                 }
 
-                new_group["spawns"].append(new_spawn)
-            new_wave["groups"].append(new_group)
-        data["waves"].append(new_wave)
+                new_spawns["spawns"].append(new_spawn)
+            new_wave["spawns"].append(new_spawns)
+        data["groups"].append(new_wave)
 
     return data
 
@@ -905,7 +905,7 @@ def get_spawners_groups(points, entities):
 
     # 1. 为每个点创建数字组 {1}, {2}...
     for i in range(1, len(points) + 1):
-        groups.append([i])
+        groups.append({f"{i}": [i]})
 
     # 2. 为每个刷怪点实体创建命名组 {som1: ["object1"]}, ...
     for i, entity in enumerate(spawner_entities, 1):
@@ -1105,70 +1105,6 @@ def write_waves_data_file(waves_data, waves_dir):
         with open(waves_dir / file, "w", encoding="utf-8") as f:
             f.write(lua_content)
 
-
-def gen_spawners_data_lua_content(spawners_data):
-    writer = WriteLua()
-    a, start, end, dict_v, list_v = writer.get_helpers()
-
-    # 开始整个表
-    a(0, "return {")
-
-    # 刷怪点组
-    start(1, "groups")
-    for group in spawners_data["groups"]:
-        if isinstance(group, dict):
-            # 命名组 {som1: ["object1"]}
-            group_name = next(iter(group))
-            start(2, group_name)
-            for name in group[group_name]:
-                list_v(3, name)
-            end(2)
-        else:
-            # 数字组 {1}
-            start(2)
-            list_v(3, group[0])
-            end(2)
-    end(1)  # 结束groups
-
-    # 刷怪点位置
-    start(1, "points")
-    for point in spawners_data["points"]:
-        start(2)
-        dict_v(3, "path", point["path"], "路径")
-
-        start(3, "from", "起始点")
-        dict_v(4, "x", point["from"]["x"])
-        dict_v(4, "y", point["from"]["y"])
-        end(3)  # 结束from
-
-        start(3, "to", "结束点")
-        dict_v(4, "x", point["to"]["x"])
-        dict_v(4, "y", point["to"]["y"])
-        end(3)  # 结束to
-
-        end(2)
-    end(1)  # 结束points
-
-    # 波次数据
-    start(1, "waves")
-    start(2)
-    for wave_idx, wave_data in spawners_data["waves"].items():
-        start(3, f"{wave_idx}", f"第{wave_idx}波")
-
-        for entries in wave_data:
-            start(4)
-            for entrie in entries:
-                list_v(5, entrie)
-            end(4)
-        end(3)
-    end(2)  # 结束内部表
-    end(1)  # 结束waves
-
-    end(0, False)  # 结束整个表
-
-    return writer.get_content()
-
-
 def write_spawners_data_file(spawners_data, levels_dir):
     """
     写入刷怪点数据文件
@@ -1181,7 +1117,7 @@ def write_spawners_data_file(spawners_data, levels_dir):
         if not spawners_data:
             continue
 
-        lua_content = gen_spawners_data_lua_content(spawners_data)
+        lua_content = write_spawners_data_template.render(spawners_data)
         file = spawners_data["name"]
 
         log.info(f"写入特殊出怪数据{file}...")

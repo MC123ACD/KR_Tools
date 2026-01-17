@@ -4,11 +4,10 @@ import traceback
 from pathlib import Path
 import lib.config as config
 from lib.utils import run_app, run_decompiler
-from lib.classes import WriteLua
 from lib.constants import BASIC_FONT
 from lib.templates import (
     write_waves_data_template,
-    write_dove_spawns_criket_data_template,
+    write_dove_criket_data_template,
 )
 import lib.log as log
 
@@ -256,15 +255,23 @@ class GeneratorWave:
         curselection = self.spawns_listbox.curselection()
         return curselection
 
-    def get_selected_spawns(self):
+    def get_selected_spawns(self, idx=None):
         """
         获取当前选中的出怪组数据
+
+        Args:
+            idx: 怪物索引
         
         Returns:
             dict: 出怪组数据
         """
-        idx = self.spawns_listbox.curselection()[0]
-        return self.get_current_wave("spawns")[idx]
+        selected_idx = self.spawns_listbox.curselection()[0]
+        spawns = self.get_current_wave("spawns")[selected_idx]
+
+        if idx:
+            return spawns[idx]
+        
+        return spawns
 
     def get_selected_monster_id(self):
         """
@@ -445,6 +452,22 @@ class GeneratorWave:
 
         self.create_tooltip(self.add_wave_btn, "添加一个新的波次")
 
+        # 复制波次按钮
+        self.copy_wave_btn = tk.Button(
+            control_frame,
+            text="复制波次",
+            command=self.copy_wave,
+            bg="#9b59b6",  # 蓝色背景
+            fg="white",
+            font=(BASIC_FONT, 10),
+            relief=tk.RAISED,
+            padx=15,
+            pady=2,
+        )
+        self.copy_wave_btn.pack(side="left", padx=5)
+
+        self.create_tooltip(self.copy_wave_btn, "添加一个新的波次")
+
         # 删除波次按钮
         self.delete_wave_btn = tk.Button(
             control_frame,
@@ -611,6 +634,22 @@ class GeneratorWave:
         self.add_spawns_btn.pack(side="left", fill="x", expand=True, padx=2)
 
         self.create_tooltip(self.add_spawns_btn, "在当前波次中添加一个新的出怪组")
+
+        # 复制出怪组按钮
+        self.copy_spawns_btn = tk.Button(
+            btn_frame,
+            text="复制出怪组",
+            command=self.copy_spawns,
+            bg="#9b59b6",
+            fg="white",
+            font=(BASIC_FONT, 9),
+            relief=tk.RAISED,
+            padx=5,
+            pady=3,
+        )
+        self.copy_spawns_btn.pack(side="left", fill="x", expand=True, padx=2)
+
+        self.create_tooltip(self.copy_spawns_btn, "在当前波次中复制出怪组")
 
         # 移除出怪组按钮
         self.remove_group_btn = tk.Button(
@@ -998,6 +1037,29 @@ class GeneratorWave:
         self.status_var.set(f"已添加第{self.current_wave_index+1}波")
 
         log.info(f"添加第{self.current_wave_index+1}波次")
+    
+    def copy_wave(self):
+        """复制波次"""
+        groups = self.get_groups()
+
+        # 添加到波次列表
+        groups.append(groups[self.current_wave_index])
+        self.current_wave_index = len(groups) - 1
+
+        log.info(f"复制第{self.current_wave_index}波")
+
+        if not check_cricket_open():
+            # 更新UI
+            self.wave_interval_var.set(self.get_current_wave("wave_interval"))
+            self.update_wave_buttons()
+            self.clear_spawns_list()
+            self.select_wave(self.current_wave_index)
+
+            # 设置焦点到波次到来时间输入框
+            self.root.after(3, self.entry_focus, self.wave_interval_entry)
+
+        # 更新状态栏
+        self.status_var.set(f"已复制第{self.current_wave_index}波")
 
     def delete_wave(self):
         """删除当前波次"""
@@ -1007,33 +1069,35 @@ class GeneratorWave:
             messagebox.showwarning("警告", "至少需要保留一个波次")
             return
 
-        if len(groups):
-            # 保存当前状态
-            self.last_listbox_selected = ""
-            self.save_initial_resource()
+        if not len(groups):
+            return
+        
+        # 保存当前状态
+        self.last_listbox_selected = ""
+        self.save_initial_resource()
 
-            # 删除当前波次
-            del groups[self.current_wave_index]
-            self.current_wave_index = max(0, self.current_wave_index - 1)
+        # 删除当前波次
+        del groups[self.current_wave_index]
+        self.current_wave_index = max(0, self.current_wave_index - 1)
 
-            # 更新UI
-            self.update_wave_buttons()
-            self.load_current_wave()
+        # 更新UI
+        self.update_wave_buttons()
+        self.load_current_wave()
 
-            # 恢复选择
-            if self.spawns_listbox.size() > 0:
-                self.spawns_listbox.selection_clear(0, tk.END)
-                self.spawns_listbox.selection_set(0)
-                self.on_spawns_select()
+        # 恢复选择
+        if self.spawns_listbox.size() > 0:
+            self.spawns_listbox.selection_clear(0, tk.END)
+            self.spawns_listbox.selection_set(0)
+            self.on_spawns_select()
 
-            # 设置焦点
-            if not check_cricket_open():
-                self.entry_focus(self.wave_interval_entry)
+        # 设置焦点
+        if not check_cricket_open():
+            self.entry_focus(self.wave_interval_entry)
 
-            # 更新状态栏
-            self.status_var.set(f"已删除第{self.current_wave_index+1}波")
+        # 更新状态栏
+        self.status_var.set(f"已删除第{self.current_wave_index+1}波")
 
-            log.info(f"删除波次，当前为第{self.current_wave_index+1}波")
+        log.info(f"删除波次，当前为第{self.current_wave_index+1}波")
 
     def select_wave(self, index):
         """选择指定索引的波次"""
@@ -1125,6 +1189,35 @@ class GeneratorWave:
         self.status_var.set(f"已添加出怪组 {selected_index+1}")
 
         log.info(f"在第{self.current_wave_index+1}波次中添加出怪组{selected_index+1}")
+
+    def copy_spawns(self):
+        """在当前波次中复制出怪组"""
+        if self.current_wave_index < 0:
+            messagebox.showwarning("警告", "请先选择或添加一个波次")
+            return
+
+        selected_index = self.get_selected_spawns_idx()
+
+        if not selected_index:
+            messagebox.showwarning("警告", "请先选择一个出怪组")
+            return
+
+        spawns = self.get_current_wave("spawns")
+
+        # 添加到当前波次
+        spawns.append(spawns[selected_index[0]])
+        selected_index = len(spawns) - 1
+
+        # 更新UI
+        self.spawns_listbox.insert(tk.END, f"出怪组 {selected_index+1}")
+        self.spawns_listbox.selection_clear(0, tk.END)
+        self.spawns_listbox.selection_set(selected_index)
+        self.on_spawns_select()
+
+        # 更新状态栏
+        self.status_var.set(f"已复制出怪组 {selected_index}")
+
+        log.info(f"在第{self.current_wave_index+1}波次中复制出怪组{selected_index}")
 
     def remove_group(self):
         """移除当前选中的出怪组"""
@@ -1447,15 +1540,15 @@ class GeneratorWave:
         self.create_param_field(
             parent_frame,
             5,
-            "出怪子路径:",
+            "子路径:",
             "subpath",
             spawn,
             (get_default_setting("spawn")["subpath"]),
         )
 
-        # 下一出怪延迟
+        # 下一批间隔
         interval_next_label = (
-            "下一出怪延迟(秒):" if check_frames_to_seconds() else "下一出怪延迟:"
+            "下一批间隔(秒):" if check_frames_to_seconds() else "下一批间隔:"
         )
         self.create_param_field(
             parent_frame,
@@ -1659,8 +1752,8 @@ class GeneratorWave:
             log.info(f"保存波次配置到: {file_path}")
 
         except Exception as e:
-            messagebox.showerror("错误", f"保存文件时出错:\n{str(e)}")
             log.error(f"保存文件失败: {traceback.print_exc()}")
+            messagebox.showerror("错误", f"保存文件时出错:\n{str(e)}")
 
     def load_from_lua(self):
         """从Lua文件加载配置"""
@@ -1695,11 +1788,13 @@ class GeneratorWave:
             self.current_wave_index = 0
             self.cash_var.set(lua_data["cash"])
 
+            groups = self.get_groups()
+
             if not check_cricket_open():
-                groups = self.get_groups()
                 self.update_wave_buttons()
-                if groups:
-                    self.wave_interval_var.set(groups[0]["wave_interval"])
+                self.wave_interval_var.set(groups[0]["wave_interval"])
+
+            self.delay_var.set(self.get_selected_spawns(0)["delay"])
 
             # 加载数据到UI
             self.load_current_wave()
@@ -1719,31 +1814,33 @@ class GeneratorWave:
             log.info(f"从文件加载波次配置: {file_path}")
 
         except Exception as e:
-            messagebox.showerror("错误", f"加载文件时出错:\n{str(e)}")
             log.error(f"加载文件失败: {file_path} - {traceback.print_exc()}")
+            messagebox.showerror("错误", f"加载文件时出错:\n{str(e)}")
 
     def save_initial_resource(self):
         """保存初始资源设置"""
         waves_data = self.waves_data
         group = waves_data["groups"]
 
-        if group:
-            wave = group[self.current_wave_index]
+        if not group:
+            return
+        
+        wave = group[self.current_wave_index]
 
-            # 保存金币
+        # 保存金币
+        try:
+            waves_data["cash"] = int(self.cash_var.get())
+        except ValueError:
+            waves_data["cash"] = 0
+            self.cash_var.set(0)
+
+        # 保存波次间隔（非斗蛐蛐模式）
+        if not check_cricket_open():
             try:
-                waves_data["cash"] = int(self.cash_var.get())
+                wave["wave_interval"] = self.wave_interval_var.get()
             except ValueError:
-                waves_data["cash"] = 0
-                self.cash_var.set(0)
-
-            # 保存波次间隔（非斗蛐蛐模式）
-            if not check_cricket_open():
-                try:
-                    wave["wave_interval"] = self.wave_interval_var.get()
-                except ValueError:
-                    wave["wave_interval"] = 0
-                    self.wave_interval_var.set(0)
+                wave["wave_interval"] = 0
+                self.wave_interval_var.set(0)
 
     def save_wave(self, set_origin=True):
         """
@@ -1752,44 +1849,50 @@ class GeneratorWave:
         Args:
             set_origin: 是否从UI加载数据到数据结构
         """
-        if self.get_groups():
-            wave = self.get_current_wave()
-            spawns = wave["spawns"]
+        if not self.get_groups():
+            return
+        
+        wave = self.get_current_wave()
+        spawns = wave["spawns"]
 
-            if spawns:
-                # 保存上次选择的出怪组数据
-                if set_origin and self.last_listbox_selected != "":
-                    try:
-                        last_spawns = spawns[self.last_listbox_selected]
-                        last_spawns["delay"] = int(self.delay_var.get())
-                        last_spawns["path_index"] = int(self.path_index_var.get())
-                    except ValueError:
-                        pass  # 保持原值
+        if not spawns:
+            return
+        
+        # 保存上次选择的出怪组数据
+        if set_origin and self.last_listbox_selected != "":
+            try:
+                last_spawns = spawns[self.last_listbox_selected]
+                last_spawns["delay"] = int(self.delay_var.get())
+                last_spawns["path_index"] = int(self.path_index_var.get())
+            except ValueError:
+                pass  # 保持原值
 
-                selected_spawns = self.get_selected_spawns_idx()
+        selected_spawns = self.get_selected_spawns_idx()
 
-                # 更新当前选择的出怪组
-                if selected_spawns:
-                    selected_spawn = self.get_selected_spawns()
+        # 更新当前选择的出怪组
+        if not selected_spawns:
+            return
+        
+        selected_spawn = self.get_selected_spawns()
 
-                    if set_origin:
-                        # 从数据结构更新UI
-                        self.is_flying_check_var.set(selected_spawn["some_flying"])
-                        self.delay_var.set(selected_spawn["delay"])
-                        self.path_index_var.set(selected_spawn["path_index"])
-                    else:
-                        # 从UI更新数据结构
-                        try:
-                            selected_spawn["delay"] = int(self.delay_var.get())
-                            selected_spawn["path_index"] = int(
-                                self.path_index_var.get()
-                            )
-                        except ValueError:
-                            pass  # 保持原值
+        if set_origin:
+            # 从数据结构更新UI
+            self.is_flying_check_var.set(selected_spawn["some_flying"])
+            self.delay_var.set(selected_spawn["delay"])
+            self.path_index_var.set(selected_spawn["path_index"])
+        else:
+            # 从UI更新数据结构
+            try:
+                selected_spawn["delay"] = int(self.delay_var.get())
+                selected_spawn["path_index"] = int(
+                    self.path_index_var.get()
+                )
+            except ValueError:
+                pass  # 保持原值
 
-                        # 清空UI（用于切换时）
-                        self.delay_var.set("")
-                        self.path_index_var.set("")
+            # 清空UI（用于切换时）
+            self.delay_var.set("")
+            self.path_index_var.set("")
 
     def on_enter(self, event, next_widget, index):
         """
@@ -1997,7 +2100,7 @@ def write_dove_spawns_criket(waves_data, file_path):
     """
     groups = waves_data["groups"][0]["waves"]
 
-    lua_content = write_dove_spawns_criket_data_template.render(groups)
+    lua_content = write_dove_criket_data_template.render(groups)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(lua_content)
 

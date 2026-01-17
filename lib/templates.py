@@ -48,7 +48,7 @@ write_waves_data_template = env.from_string(
 }"""
 )
 
-write_dove_spawns_criket_data_template = env.from_string(
+write_dove_criket_data_template = env.from_string(
 """return {
     on = true,
     cash = {{cash}},

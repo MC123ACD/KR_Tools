@@ -20,17 +20,22 @@ setting = config.setting["generate_waves"]
 # 在怪物数据中禁用的键名（不显示在UI中的字段）
 DISABLED_MONSTER_KEY = set(["creep", "creep_aux"])
 
+
 def warning_not_selected_wave():
     messagebox.showwarning("警告", "请先选择一个波次")
+
 
 def warning_not_selected_spawns():
     messagebox.showwarning("警告", "请先选择一个出怪组")
 
+
 def warning_not_selected_monster():
     messagebox.showwarning("警告", "请先选择一个怪物")
 
+
 def warning_not_monster_creep():
     messagebox.showwarning("警告", "请选择怪物类型")
+
 
 def get_value_with_setting(default, cricket):
     """
@@ -276,7 +281,7 @@ class GeneratorWave:
         if idx is not None or get_current:
             if not spawns:
                 return None
-            
+
             if get_current:
                 selected_spawns_idx = self.get_selected_spawns_idx()
                 if selected_spawns_idx is None:
@@ -311,7 +316,7 @@ class GeneratorWave:
             monster_id = self.get_selected_monster_id()
             if monster_id is None:
                 return None
-            
+
             id = monster_id
 
         return self.monster_tree.index(id)
@@ -326,7 +331,7 @@ class GeneratorWave:
         spawns = self.get_spawns(get_current=True)
         if not spawns:
             return None
-        
+
         if id:
             idx = self.get_monster_idx(id)
         else:
@@ -334,10 +339,10 @@ class GeneratorWave:
 
         if id is None:
             return None
-        
+
         if idx is None:
             idx = self.get_monster_idx(id)
-            
+
         return spawns["spawns"][idx]
 
     def get_monster_data(self, monster):
@@ -858,7 +863,9 @@ class GeneratorWave:
         ).grid(row=0, column=2, sticky="e", padx=5, pady=5)
 
         # 路径索引输入框
-        self.path_index_var = tk.IntVar(value=get_default_setting("spawns")["path_index"])
+        self.path_index_var = tk.IntVar(
+            value=get_default_setting("spawns")["path_index"]
+        )
         self.path_index_entry = ttk.Entry(
             param_frame,
             textvariable=self.path_index_var,
@@ -1122,7 +1129,7 @@ class GeneratorWave:
         # 添加到波次列表
         groups.append(new_wave)
         wave_idx = len(groups) - 1
-        
+
         # 自动添加一个出怪组到新波次
         self.add_spawns(wave_idx)
 
@@ -1268,7 +1275,7 @@ class GeneratorWave:
         if selected_spawns_idx is None:
             warning_not_selected_spawns()
             return
-        
+
         self.save_spawns()
 
         spawns = self.get_spawns()
@@ -1284,7 +1291,9 @@ class GeneratorWave:
         # 更新状态栏
         self.status_var.set(f"已复制出怪组 {selected_spawns_idx}")
 
-        log.info(f"在第{self.current_wave_index+1}波次中复制出怪组{selected_spawns_idx}")
+        log.info(
+            f"在第{self.current_wave_index+1}波次中复制出怪组{selected_spawns_idx}"
+        )
 
     def remove_spawns(self):
         """移除当前选中的出怪组"""
@@ -1299,7 +1308,9 @@ class GeneratorWave:
             return
 
         # 确认删除
-        if not messagebox.askyesno("确认", f"确定要删除出怪组 {selected_spawns_idx+1} 吗？"):
+        if not messagebox.askyesno(
+            "确认", f"确定要删除出怪组 {selected_spawns_idx+1} 吗？"
+        ):
             return
 
         # 删除出怪组
@@ -1318,7 +1329,9 @@ class GeneratorWave:
             new_selection = min(selected_spawns_idx, self.spawns_listbox.size() - 1)
             self.set_selected_spawns(new_selection, False)
 
-        log.info(f"移除第{self.current_wave_index+1}波次的出怪组{selected_spawns_idx+1}")
+        log.info(
+            f"移除第{self.current_wave_index+1}波次的出怪组{selected_spawns_idx+1}"
+        )
 
     def renumber_all_groups(self):
         """重新编号所有出怪组显示名称"""

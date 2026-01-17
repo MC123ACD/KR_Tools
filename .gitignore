@@ -1,2 +1,4 @@
-**/output/
-**/input/
+output
+input
+lib/__pycache__/
+tools/__pycache__/

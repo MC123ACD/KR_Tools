@@ -324,19 +324,20 @@ def get_input_files():
 def set_img_size(img):
     """设置图片尺寸"""
     size = setting_var["size_var"]
+    new_size = Size(size.w, size.h)
 
     use_percent_size = setting_var["use_percent_size_var"]
 
     if use_percent_size:
-        size.w /= 100
-        size.h /= 100
+        new_size.w /= 100
+        new_size.h /= 100
 
-    if size.w == 1 and size.h == 1:
-        return img
+        if new_size == 1 and new_size == 1:
+            return img
 
     width, height = img.size
-    new_width = round(width * size.w)
-    new_height = round(height * size.h)
+    new_width = round(width * new_size.w)
+    new_height = round(height * new_size.h)
 
     img = img.resize((new_width, new_height))
     log.info(f"🔎 缩放图片大小，从{width}x{height}到{new_width}x{new_height}")

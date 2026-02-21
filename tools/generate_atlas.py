@@ -719,7 +719,7 @@ def write_atlas(images, result):
             bottom_border += 4 - (bottom_border % 4)
 
             atlas = atlas.crop(
-                (left, top, right + right_border, bottom + bottom_border)
+                (left - border, top - border, right + right_border, bottom + bottom_border)
             )
 
         # 保存PNG文件

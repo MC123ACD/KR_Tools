@@ -4,7 +4,7 @@ import tkinter as tk
 import lib.config as config
 import lib.log as log
 
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 input_path = config.input_path
 output_path = config.output_path

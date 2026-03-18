@@ -5,7 +5,7 @@ from lib.classes import WriteLua
 import lib.log as log
 
 # 初始化日志系统
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 
 def process_table(file: str) -> tuple[dict, list]:

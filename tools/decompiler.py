@@ -1,7 +1,7 @@
 import subprocess, subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-
+from lib.utils import run_decompiler, run_app
 
 class LuaJITDecompiler:
 
@@ -35,35 +35,16 @@ class LuaJITDecompiler:
             self.folder_entry.insert(0, folder)
 
     def run_decompiler(self):
-        """反编译lua文件"""
         target_folder = self.folder_entry.get()
 
-        try:
-            subprocess.run(
-                [
-                    "luajit-decompiler-v2.exe",
-                    str(target_folder),
-                    "-s",  # 禁用错误弹窗
-                    "-f",  # 始终替换
-                    "-o",
-                    str("output"),  # 输出目录
-                ],
-                capture_output=True,
-                text=True,
-            )
-            messagebox.showinfo("完成", "反编译完毕")
-        except Exception as e:
-            messagebox.showerror("错误", f"无法进行反编译: {str(e)}")
+        run_decompiler(target_folder)
+        messagebox.showinfo("完成", "反编译完毕")
 
 
-def main():
-    # style = ttk.Style()
-    # style.configure("TButton", padding=6)
-    # style.configure("TEntry", padding=5)
+def main(root=None):
+    run_app(root, LuaJITDecompiler)
 
-    root = tk.Tk()
-    app = LuaJITDecompiler(root)
-    root.mainloop()
+
 
 if __name__ == "__main__":
     main()

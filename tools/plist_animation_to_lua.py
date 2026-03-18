@@ -5,7 +5,7 @@ from lib.templates import write_common_animations_data_template, write_exos_anim
 import lib.log as log
 
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 
 def matrix_to_transform_params(matrix):

@@ -7,10 +7,21 @@ import lib.config as config
 from lib.constants import BASIC_FONT
 
 # 导入所有工具模块
-from tools import generate_waves, process_images, sort_table, split_atlas, generate_atlas, measure_anchor, plist_level_to_lua, plist_animation_to_lua
+from tools import (
+    decompiler,
+    generate_waves,
+    process_images,
+    sort_table,
+    split_atlas,
+    generate_atlas,
+    measure_anchor,
+    plist_level_to_lua,
+    plist_animation_to_lua,
+    drag_rename,
+)
 
 # 初始化日志系统，使用配置文件中的日志级别和日志文件路径
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 
 def get_tools_data():
@@ -34,6 +45,11 @@ def get_tools_data():
             }
     """
     return {
+        "decompiler": {
+            "name": "反编译",
+            "module": decompiler,
+            "has_gui": True,  # 具有独立的GUI界面
+        },
         "generate_waves": {
             "name": "生成波次",
             "module": generate_waves,
@@ -73,6 +89,11 @@ def get_tools_data():
             "name": "四代动画数据转换",
             "module": plist_animation_to_lua,
             "has_gui": False,
+        },
+        "drag_rename": {
+            "name": "拖拽重命名",
+            "module": drag_rename,
+            "has_gui": True,
         },
     }
 
@@ -123,13 +144,14 @@ class MainApplication:
 
         self.buttons_frame.columnconfigure(0, weight=1)
 
-        i = 0
+        column = 0
+        row = 0
         # 遍历所有工具，为每个工具创建按钮
         for key, value in get_tools_data().items():
             name = value["name"]
 
             btn_frame = ttk.Frame(self.buttons_frame)
-            btn_frame.grid(row=0, column=i, sticky="nsew")
+            btn_frame.grid(row=row, column=column, sticky="nsew")
             btn_frame.columnconfigure(0, weight=1)
 
             # 创建运行工具的按钮
@@ -141,20 +163,24 @@ class MainApplication:
                 ),
                 width=15,
             )
-            btn.grid(row=0, column=i, padx=5, pady=5)
+            btn.grid(row=row, column=column, padx=5, pady=5)
             btn.columnconfigure(0, weight=1)
 
             # 如果该工具在配置中有设置项，则创建设置按钮
             if config.setting.get(key):
                 setting_btn = ttk.Button(
                     btn_frame,
-                    text=name + "设置",
+                    text="设置",
                     command=lambda k=key: self.open_setting(k),
                     width=15,
                 )
-                setting_btn.grid(row=1, column=i, padx=5, pady=5)
+                setting_btn.grid(row=row + 1, column=column, padx=5, pady=5)
                 setting_btn.columnconfigure(0, weight=1)
-            i += 1
+            column += 1
+
+            if column == 8:
+                row += 1
+                column = 0
 
     def create_texts(self):
         """创建文档显示区域（README和LICENSE）"""

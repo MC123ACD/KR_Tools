@@ -8,7 +8,7 @@ from lib.utils import save_to_dds, run_app
 from lib.classes import Size
 import lib.log as log
 
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 
 class ImageProcessor:

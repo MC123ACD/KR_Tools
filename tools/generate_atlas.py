@@ -9,7 +9,7 @@ from lib.utils import run_app, save_to_dds
 from lib.classes import WriteLua, Point, Size, Rectangle, Bounds
 import lib.log as log
 
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 # 最小面积策略标识
 MIN_AREA = "min_area"
@@ -232,7 +232,7 @@ def process_single_image(image_file, hash_groups):
     """
     image_file_name = image_file.stem
 
-    # 5. 优化：先检查文件大小再计算哈希（快速跳过）
+    # 先检查文件大小再计算哈希（快速跳过）
     file_size = image_file.stat().st_size
     if file_size == 0:
         log.warning(f"跳过空文件: {image_file.name}")
@@ -285,7 +285,7 @@ def process_directory(directory_path, padding):
     hash_groups = {}  # 用于检测重复图片
     images = []
 
-    # 预收集所有图片文件路径
+    # 1. 预收集所有图片文件路径
     image_files = list(directory_path.glob("*.*"))
     image_files = [
         f for f in image_files if f.suffix.lower() in {".png", ".jpg", ".jpeg"}

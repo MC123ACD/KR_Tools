@@ -12,7 +12,7 @@ from lib.templates import (
 import lib.log as log
 
 # 设置日志记录
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 # 获取波次生成配置
 setting = config.setting["generate_waves"]

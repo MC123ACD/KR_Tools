@@ -8,7 +8,7 @@ from lib.classes import Point, Size, Rectangle, Bounds
 from lib.utils import run_decompiler, indent
 
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 
 def get_lua_data(file_content):

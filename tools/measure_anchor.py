@@ -8,7 +8,7 @@ from lib.utils import clamp, run_app
 from lib.classes import Point, Rectangle, Bounds
 import lib.log as log
 
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 CTRL_MASK = 0x0004
 SHIFT_MASK = 0x0001

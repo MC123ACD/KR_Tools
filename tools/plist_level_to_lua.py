@@ -11,7 +11,7 @@ from lib.templates import (
 import lib.log as log
 
 # 设置日志记录
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 # 全局存储所有关卡的主要数据，键为关卡编号，值为该关卡的所有数据
 main_datas = {}

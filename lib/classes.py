@@ -7,7 +7,7 @@ from typing import ClassVar
 import lib.log as log
 
 # 初始化日志系统，使用配置文件中的日志级别和日志文件路径
-log = log.setup_logging(config.log_level, config.log_file)
+log = log.setup_logging()
 
 class WriteLua:
     def __init__(self, init_content=None):

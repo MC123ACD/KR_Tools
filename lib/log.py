@@ -1,20 +1,17 @@
 import logging
 from typing import Optional
+import lib.config as config
 
-
-def setup_logging(
-    log_level: str = "INFO", log_file: Optional[str] = None
-) -> logging.Logger:
+def setup_logging() -> logging.Logger:
     """
     设置日志配置
-
-    Args:
-        log_level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: 日志文件路径，如果为None则不保存到文件
 
     Returns:
         Logger对象
     """
+    log_level = config.log_level
+    log_file = config.log_file
+
     # 创建logger
     logger = logging.getLogger("atlas_generator")
 

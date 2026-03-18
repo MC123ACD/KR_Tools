@@ -24,78 +24,58 @@ from tools import (
 log = log.setup_logging()
 
 
-def get_tools_data():
-    """
-    获取所有可用工具的数据定义
-
-    定义每个工具模块的基本信息，包括：
-    - 显示名称
-    - 对应的模块对象
-    - 是否具有独立的GUI界面
-
-    Returns:
-        dict: 工具数据字典，格式为：
-            {
-                "module_key": {
-                    "name": "工具显示名称",
-                    "module": 模块对象,
-                    "has_gui": bool  # 是否有独立GUI
-                },
-                ...
-            }
-    """
-    return {
-        "decompiler": {
-            "name": "反编译",
-            "module": decompiler,
-            "has_gui": True,  # 具有独立的GUI界面
-        },
-        "generate_waves": {
-            "name": "生成波次",
-            "module": generate_waves,
-            "has_gui": True,  # 具有独立的GUI界面
-        },
-        "process_images": {
-            "name": "处理图像",
-            "module": process_images,
-            "has_gui": True,
-        },
-        "sort_table": {
-            "name": "排序表",
-            "module": sort_table,
-            "has_gui": False,  # 无GUI，直接运行
-        },
-        "split_atlas": {
-            "name": "拆分图集",
-            "module": split_atlas,
-            "has_gui": False,
-        },
-        "generate_atlas": {
-            "name": "合并图集",
-            "module": generate_atlas,
-            "has_gui": True,
-        },
-        "measure_anchor": {
-            "name": "测量锚点",
-            "module": measure_anchor,
-            "has_gui": True,
-        },
-        "plist_level_to_lua": {
-            "name": "四代关卡数据转换",
-            "module": plist_level_to_lua,
-            "has_gui": False,
-        },
-        "plist_animation_to_lua": {
-            "name": "四代动画数据转换",
-            "module": plist_animation_to_lua,
-            "has_gui": False,
-        },
-        "drag_rename": {
-            "name": "拖拽重命名",
-            "module": drag_rename,
-            "has_gui": True,
-        },
-    }
+tool_data = {
+    "decompiler": {
+        "name": "反编译",
+        "module": decompiler,
+        "has_gui": True,  # 具有独立的GUI界面
+    },
+    "generate_waves": {
+        "name": "生成波次",
+        "module": generate_waves,
+        "has_gui": True,  # 具有独立的GUI界面
+    },
+    "process_images": {
+        "name": "处理图像",
+        "module": process_images,
+        "has_gui": True,
+    },
+    "sort_table": {
+        "name": "排序表",
+        "module": sort_table,
+        "has_gui": False,  # 无GUI，直接运行
+    },
+    "split_atlas": {
+        "name": "拆分图集",
+        "module": split_atlas,
+        "has_gui": False,
+    },
+    "generate_atlas": {
+        "name": "合并图集",
+        "module": generate_atlas,
+        "has_gui": True,
+    },
+    "measure_anchor": {
+        "name": "测量锚点",
+        "module": measure_anchor,
+        "has_gui": True,
+    },
+    "plist_level_to_lua": {
+        "name": "四代关卡数据转换",
+        "module": plist_level_to_lua,
+        "has_gui": False,
+    },
+    "plist_animation_to_lua": {
+        "name": "四代动画数据转换",
+        "module": plist_animation_to_lua,
+        "has_gui": False,
+    },
+    "drag_rename": {
+        "name": "拖拽重命名",
+        "module": drag_rename,
+        "has_gui": True,
+    },
+}
 
 
 class MainApplication:
@@ -147,7 +127,7 @@ class MainApplication:
         column = 0
         row = 0
         # 遍历所有工具，为每个工具创建按钮
-        for key, value in get_tools_data().items():
+        for key, value in tool_data.items():
             name = value["name"]
 
             btn_frame = ttk.Frame(self.buttons_frame)
@@ -323,10 +303,12 @@ class MainApplication:
         Creates:
             tk.Toplevel: 设置编辑窗口，包含JSON编辑器
         """
+        tool_name = tool_data["setting_key"]["name"]
+
         # 创建模态对话框
         setting_window = tk.Toplevel(self.root)
         setting_window.title(
-            f"{get_tools_data().get(setting_key, {}).get('name', '未知工具')} - 设置"
+            f"{tool_name} - 设置"
         )
         setting_window.geometry("800x800")
         setting_window.transient(self.root)  # 设置为父窗口的临时窗口
@@ -338,11 +320,11 @@ class MainApplication:
         # 创建主框架
         main_frame = ttk.Frame(setting_window, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
-
+        
         # 创建标题标签
         title_label = ttk.Label(
             main_frame,
-            text=f"编辑 {get_tools_data().get(setting_key, {}).get('name', '未知工具')} 配置",
+            text=f"编辑 {tool_name} 配置",
             font=("Arial", 14, "bold"),
         )
         title_label.pack(anchor=tk.W, pady=(0, 10))

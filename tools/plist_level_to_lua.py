@@ -43,6 +43,7 @@ def get_lua_data(level_num, level_mode, plist_data):
 
     main_data = main_datas[level_num]
     # 基础文件名前缀，例如：level_001
+    
     base_name = f"level{setting['level_name_prefix']}{level_num}"
 
     # 根据模式调用不同的提取方法
@@ -305,9 +306,8 @@ def get_obj_repeat_forever_entity(obj):
         if "animations_file" in animations:
             sprite_name = re.sub(r"^Stage_\d+_", "", animations["animations_file"])
             # 提取动画名称并添加_run后缀
-            entity["render.sprites[1].name"] = (
-                f"{re.sub(r"_animations\.plist$", "", sprite_name)}_run"
-            )
+            base_name = re.sub(r"_animations\.plist$", "", sprite_name)
+            entity["render.sprites[1].name"] = f"{base_name}_run"
             entity["render.sprites[1].animated"] = True  # 启用动画
 
         # 动画延迟参数

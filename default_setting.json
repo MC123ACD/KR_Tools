@@ -483,5 +483,8 @@
             ]
         ],
         "use_light_bg": true
+    },
+    "drag_rename": {
+        "drag_threshold": 5
     }
 }

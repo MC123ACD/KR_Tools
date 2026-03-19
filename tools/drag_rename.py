@@ -92,7 +92,7 @@ class DragRenameApp:
     def browse_assoc_file(self):
         """打开文件对话框选择关联文件"""
         filename = filedialog.askopenfilename(
-            title="选择关联文件", filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
+            title="选择关联文件", filetypes=[("所有文件", "*.*")]
         )
         if filename:
             self.assoc_path.set(filename)
@@ -156,16 +156,17 @@ class DragRenameApp:
             temp_name = f"__temp_{uuid.uuid4().hex}_{path2.name}"
             temp_path = config.input_path / temp_name
 
+            # 执行文本交换
+            assoc_file = self.assoc_path.get().strip()
+            if assoc_file and os.path.isfile(assoc_file):
+                if not self.swap_in_assoc_file(path1, path2, assoc_file):
+                    return
+
             os.replace(path1, temp_path)
             os.replace(path2, path1)
             os.replace(temp_path, path2)
 
             log.info(f"交换：{path1.name} <-> {path2.name}")
-
-            # 执行文本交换
-            assoc_file = self.assoc_path.get().strip()
-            if assoc_file and os.path.isfile(assoc_file):
-                self.swap_in_assoc_file(path1, path2, assoc_file)
 
             # 重新加载文件列表以反映新文件名
             self.load_folder()
@@ -181,21 +182,29 @@ class DragRenameApp:
         """
         file_pattern = self.file_pattern.get()
         target_pattern = self.target_pattern.get()
+        replace1 = replace2 = None
+        target1 = target2 = None
 
         try:
             # 1. 确定实际要交换的字符串
             if file_pattern:
                 regex = re.compile(file_pattern)
-                match1 = regex.search(text1.name)
-                match2 = regex.search(text2.name)
+                match1 = regex.search(text1.stem)
+                match2 = regex.search(text2.stem)
                 if match1 and match2:
                     replace1 = match1.group(0)
                     replace2 = match2.group(0)
             else:
                 replace1, replace2 = text1.stem, text2.stem
 
+            if not replace1 or not replace2:
+                err_msg = f"{file_pattern} 文件正则未匹配: {text2.stem}"
+                log.error(err_msg)
+                messagebox.showerror("匹配失败", err_msg)
+                return False
+
             if replace1 == replace2:
-                return  # 无需替换
+                return False    # 无需替换
 
             # 2. 读取关联文件内容
             with open(assoc_path, "r", encoding="utf-8") as f:
@@ -220,6 +229,12 @@ class DragRenameApp:
                     target2 = match2.group()
             else:
                 target1, target2 = text1.stem, text2.stem
+
+            if not replace1 or not replace2:
+                err_msg = f"{file_pattern} 目标正则未匹配"
+                log.error(err_msg)
+                messagebox.showerror("匹配失败", err_msg)
+                return False
 
             if self.replace_string.get():
                 splited_replace_string = self.replace_string.get().split("%X")
@@ -247,6 +262,7 @@ class DragRenameApp:
         except Exception as e:
             log.error(f"❌ 关联文件替换失败: {e} - {traceback.format_exc()}")
             messagebox.showerror("替换失败", f"关联文件替换失败：{e}")
+            return False
 
 
 def main(root=None):

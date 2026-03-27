@@ -486,7 +486,7 @@
     },
     "drag_rename": {
         "drag_threshold": 5,
-        "thumbnail_size": [64, 64],
+        "thumbnail_size": [48, 48],
         "preview_assoc_replace": true
     }
 }

@@ -17,7 +17,7 @@ class DragRenameApp:
     def __init__(self, root):
         self.root = root
         self.root.title("拖拽重命名工具")
-        self.root.geometry("750x550")
+        self.root.geometry("1130x720")
 
         self.style = ttk.Style()
         self.style.configure("Treeview", rowheight=setting["thumbnail_size"][1])
@@ -56,11 +56,15 @@ class DragRenameApp:
 
     def create_widgets(self):
         main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.grid(row=0, column=0)
+        
+        # ---- 文件列表区域----
+        editor_frame = ttk.Frame(main_frame)
+        editor_frame.grid(row=0, column=0, padx=5, pady=5)
 
         # ---- 工具栏（排序 + 过滤 + 刷新）----
-        tool_frame = ttk.Frame(main_frame)
-        tool_frame.pack(fill=tk.X, pady=5)
+        tool_frame = ttk.Frame(editor_frame)
+        tool_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # 排序下拉
         ttk.Label(tool_frame, text="排序:").pack(side=tk.LEFT, padx=(0, 5))
@@ -83,15 +87,15 @@ class DragRenameApp:
 
         # 撤销按钮
         undo_btn = ttk.Button(tool_frame, text="撤销", command=self.undo_last_swap)
-        undo_btn.pack(side=tk.RIGHT)
+        undo_btn.pack(side=tk.RIGHT, padx=5)
 
         # 刷新按钮
         refresh_btn = ttk.Button(tool_frame, text="刷新", command=self.load_folder)
-        refresh_btn.pack(side=tk.RIGHT)
+        refresh_btn.pack(side=tk.RIGHT, padx=5)
 
-        # ---- 文件列表区域（使用 Treeview 替代 Listbox）----
-        list_frame = ttk.Frame(main_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        # --------------
+        list_frame = ttk.Frame(editor_frame)
+        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(5, 5))
 
         scrollbar = ttk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -102,10 +106,9 @@ class DragRenameApp:
             show="tree",
             selectmode="browse",  # 单选模式
             yscrollcommand=scrollbar.set,
-            height=20,
             style="Custom.Treeview"
         )
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 5))
         scrollbar.config(command=self.tree.yview)
 
         # 绑定鼠标事件（拖拽视觉反馈）
@@ -115,14 +118,17 @@ class DragRenameApp:
 
         # ---- 关联文件替换区域 ----
         assoc_frame = ttk.LabelFrame(main_frame, text="关联文件替换", padding="5")
-        assoc_frame.pack(fill=tk.X, pady=5)
+        assoc_frame.grid(row=0, column=1, sticky="n")
+
+        entry_width = 30
+        ipady = 3
 
         # 文件路径
         ttk.Label(assoc_frame, text="文件路径:").grid(
             row=0, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.assoc_path, width=40).grid(
-            row=0, column=1, sticky=tk.W, padx=5, pady=2
+        ttk.Entry(assoc_frame, textvariable=self.assoc_path, width=entry_width).grid(
+            row=0, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady
         )
         ttk.Button(assoc_frame, text="浏览", command=self.browse_assoc_file).grid(
             row=0, column=2, padx=5, pady=2
@@ -132,24 +138,24 @@ class DragRenameApp:
         ttk.Label(assoc_frame, text="文件名正则:").grid(
             row=1, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.file_pattern, width=40).grid(
-            row=1, column=1, sticky=tk.W, padx=5, pady=2
+        ttk.Entry(assoc_frame, textvariable=self.file_pattern, width=entry_width).grid(
+            row=1, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady
         )
 
         # 目标模式
         ttk.Label(assoc_frame, text="目标模式:").grid(
             row=2, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.target_pattern, width=40).grid(
-            row=2, column=1, sticky=tk.W, padx=5, pady=2
+        ttk.Entry(assoc_frame, textvariable=self.target_pattern, width=entry_width).grid(
+            row=2, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady
         )
 
         # 前后缀
         ttk.Label(assoc_frame, text="前后缀 (用%X分隔):").grid(
             row=3, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.extra_string, width=40).grid(
-            row=3, column=1, sticky=tk.W, padx=5, pady=2
+        ttk.Entry(assoc_frame, textvariable=self.extra_string, width=entry_width).grid(
+            row=3, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady
         )
 
     def browse_assoc_file(self):

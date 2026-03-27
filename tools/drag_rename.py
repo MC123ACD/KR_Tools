@@ -24,7 +24,7 @@ class DragRenameApp:
         self.assoc_path = tk.StringVar()
         self.file_pattern = tk.StringVar()
         self.target_pattern = tk.StringVar()
-        self.replace_string = tk.StringVar()
+        self.extra_string = tk.StringVar()
 
         self.create_widgets()
         self.load_folder()
@@ -74,18 +74,18 @@ class DragRenameApp:
         )
 
         # 第三行：目标正则输入
-        ttk.Label(assoc_frame, text="目标正则:").grid(
+        ttk.Label(assoc_frame, text="目标模式:").grid(
             row=2, column=0, sticky=tk.W, padx=5, pady=2
         )
         ttk.Entry(assoc_frame, textvariable=self.target_pattern, width=40).grid(
             row=2, column=1, sticky=tk.W, padx=5, pady=2
         )
 
-        # 第四行：替换后增加的字符串
-        ttk.Label(assoc_frame, text="替换后增加的字符串:").grid(
+        # 第四行：前后缀
+        ttk.Label(assoc_frame, text="前后缀:").grid(
             row=3, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.replace_string, width=40).grid(
+        ttk.Entry(assoc_frame, textvariable=self.extra_string, width=40).grid(
             row=3, column=1, sticky=tk.W, padx=5, pady=2
         )
 
@@ -175,92 +175,98 @@ class DragRenameApp:
             log.error(f"❌ 交换失败: {e} - {traceback.format_exc()}")
             messagebox.showerror("交换失败", f"无法交换文件：{e}")
 
-    def swap_in_assoc_file(self, text1, text2, assoc_path):
+    def swap_in_assoc_file(self, path1, path2, assoc_path) -> bool:
         """
-        在关联文件中安全地交换 text1 和 text2 两个字符串。
-        若提供了正则表达式，则用其从 text1/text2 中提取实际要交换的子串。
+        在关联文件中交换与两个文件名相关的字符串。
+        返回 True 表示成功，False 表示无需交换或出错。
         """
-        file_pattern = self.file_pattern.get()
-        target_pattern = self.target_pattern.get()
-        replace1 = replace2 = None
-        target1 = target2 = None
+        file_pattern = self.file_pattern.get().strip()
+        target_pattern = self.target_pattern.get().strip()
+        extra = self.extra_string.get().strip()
 
         try:
-            # 1. 确定实际要交换的字符串
+            # 1. 从文件名提取核心信息（支持捕获组）
+            stem1, stem2 = path1.stem, path2.stem
             if file_pattern:
                 regex = re.compile(file_pattern)
-                match1 = regex.search(text1.stem)
-                match2 = regex.search(text2.stem)
-                if match1 and match2:
-                    replace1 = match1.group(0)
-                    replace2 = match2.group(0)
+                match1 = regex.search(stem1)
+                match2 = regex.search(stem2)
+                if not match1 or not match2:
+                    err_msg = f"文件名正则未匹配: {stem1} 或 {stem2}"
+                    log.error(err_msg)
+                    messagebox.showerror("匹配失败", err_msg)
+                    return False
+                # 提取所有捕获组，如果没有组则用整个匹配
+                groups1 = match1.groups() or (match1.group(0))
+                groups2 = match2.groups() or (match2.group(0))
             else:
-                replace1, replace2 = text1.stem, text2.stem
+                # 未提供文件名正则，则使用整个文件名作为核心信息
+                groups1 = stem1
+                groups2 = stem2
 
-            if not replace1 or not replace2:
-                err_msg = f"{file_pattern} 文件正则未匹配: {text2.stem}"
-                log.error(err_msg)
-                messagebox.showerror("匹配失败", err_msg)
+            # 2. 如果提供了目标模式，则用它构建实际要查找的字符串
+            if target_pattern:
+                # 用提取的组格式化目标模式（支持 {0}, {1} 等）
+                try:
+                    target_str1 = target_pattern.format(*groups1)
+                    target_str2 = target_pattern.format(*groups2)
+                except IndexError:
+                    err_msg = "目标模式中使用了超出范围的捕获组索引"
+                    log.error(err_msg)
+                    messagebox.showerror("参数错误", err_msg)
+                    return False
+            else:
+                # 未提供目标模式，则直接使用核心字符串作为目标
+                target_str1 = groups1[0]  # 使用第一个组（或整个字符串）
+                target_str2 = groups2[0]
+
+            # 如果两个目标字符串相同，则无需交换
+            if target_str1 == target_str2:
                 return False
 
-            if replace1 == replace2:
-                return False    # 无需替换
+            # 3. 处理前后缀（extra 中可包含 %X 分隔前缀和后缀）
+            if extra:
+                parts = extra.split("%X")
+                prefix = parts[0]
+                suffix = parts[1] if len(parts) > 1 else ""
+                # 对要插入的字符串添加前后缀（注意：这里交换的是核心组，不是目标字符串）
+                # 通常我们交换的是从文件名提取的核心信息，所以对 groups 应用前后缀
+                insert1 = prefix + groups1[0] + suffix
+                insert2 = prefix + groups2[0] + suffix
+            else:
+                insert1 = groups1[0]
+                insert2 = groups2[0]
 
-            # 2. 读取关联文件内容
+            # 4. 读取关联文件内容
             with open(assoc_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # 3. 处理目标正则
-            if target_pattern:
-                number_match = re.search(r"\d+$", text1.stem)
-                if number_match:
-                    number = number_match.group()
-                    target1_pattern = target_pattern.replace("%X", number)
-
-                number_match = re.search(r"\d+$", text2.stem)
-                if number_match:
-                    number = number_match.group()
-                    target2_pattern = target_pattern.replace("%X", number)
-
-                match1 = re.search(target1_pattern, content)
-                match2 = re.search(target2_pattern, content)
-                if match1 and match2:
-                    target1 = match1.group()
-                    target2 = match2.group()
-            else:
-                target1, target2 = text1.stem, text2.stem
-
-            if not replace1 or not replace2:
-                err_msg = f"{file_pattern} 目标正则未匹配"
+            if not content.find(target_str1) or not content.find(target_str2):
+                err_msg = f"目标模式未匹配: {target_str1} 或 {target_str2}"
                 log.error(err_msg)
                 messagebox.showerror("匹配失败", err_msg)
                 return False
 
-            if self.replace_string.get():
-                splited_replace_string = self.replace_string.get().split("%X")
-                if len(splited_replace_string) >= 1:
-                    replace1 = splited_replace_string[0] + replace1
-                    replace2 = splited_replace_string[0] + replace2
+            # 5. 安全交换（使用临时占位符）
+            # 注意：这里我们交换的是 target_str1 和 target_str2 这两个文本片段，
+            # 将它们分别替换为 insert2 和 insert1（交叉替换）
+            placeholder = f"__TEMP_{uuid.uuid4().hex}__"
+            # 先替换第一个目标为占位符
+            new_content = content.replace(target_str1, placeholder, 1)
+            # 再替换第二个目标为 insert1
+            new_content = new_content.replace(target_str2, insert1, 1)
+            # 最后将占位符替换为 insert2
+            new_content = new_content.replace(placeholder, insert2, 1)
 
-                if len(splited_replace_string) == 2:
-                    replace1 += splited_replace_string[1]
-                    replace2 += splited_replace_string[1]
-
-            # 4. 安全交换（使用临时占位符）
-            target1_placeholder = f"__TEMP_{uuid.uuid4().hex}__"
-            new_content = content.replace(target1, target1_placeholder, 1)
-
-            new_content = new_content.replace(target2, replace1, 1)
-            new_content = new_content.replace(target1_placeholder, replace2, 1)
-
-            # 4. 写回文件
+            # 6. 写回文件
             with open(assoc_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
-            log.info(f"关联文件 {assoc_path} 中已交换 '{target1}' <-> '{target2}'")
+            log.info(f"关联文件交换成功：'{target_str1}' <-> '{target_str2}'")
+            return True
 
         except Exception as e:
-            log.error(f"❌ 关联文件替换失败: {e} - {traceback.format_exc()}")
+            log.error(f"关联文件替换失败: {e}\n{traceback.format_exc()}")
             messagebox.showerror("替换失败", f"关联文件替换失败：{e}")
             return False
 

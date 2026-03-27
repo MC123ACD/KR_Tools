@@ -485,6 +485,8 @@
         "use_light_bg": true
     },
     "drag_rename": {
-        "drag_threshold": 5
+        "drag_threshold": 5,
+        "thumbnail_size": [64, 64],
+        "preview_assoc_replace": true
     }
 }

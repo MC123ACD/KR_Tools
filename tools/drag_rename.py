@@ -5,6 +5,7 @@ import uuid
 import traceback
 import re
 from pathlib import Path
+from PIL import Image, ImageTk  # 新增：用于生成缩略图
 import lib.config as config
 from lib.utils import run_app
 import lib.log as log
@@ -18,11 +19,12 @@ class DragRenameApp:
         self.root.title("拖拽重命名工具")
         self.root.geometry("750x550")
 
-        # 从配置读取拖拽阈值
-        self.drag_threshold = setting["drag_threshold"]
+        self.style = ttk.Style()
+        self.style.configure("Treeview", rowheight=setting["thumbnail_size"][1])
+        self.style.configure("Custom.Treeview", rowheight=setting["thumbnail_size"][1], font=("Microsoft YaHei", 11))
 
         # 拖拽状态
-        self.source_index = None
+        self.source_item = None  # 源 Treeview item ID
         self.press_x = None
         self.press_y = None
         self.scroll_pos = None
@@ -32,6 +34,9 @@ class DragRenameApp:
         self.all_files = []  # 原始文件列表（用于过滤）
         self.sort_by = "name"  # 排序字段: name, mtime, size
         self.filter_text = ""  # 过滤文本
+
+        # 缩略图缓存（保持 PhotoImage 对象的引用）
+        self.thumb_cache = {}
 
         # 撤销栈 (保存 (path1, path2) 元组)
         self.undo_stack = []
@@ -84,26 +89,29 @@ class DragRenameApp:
         refresh_btn = ttk.Button(tool_frame, text="刷新", command=self.load_folder)
         refresh_btn.pack(side=tk.RIGHT)
 
-        # ---- 文件列表区域 ----
+        # ---- 文件列表区域（使用 Treeview 替代 Listbox）----
         list_frame = ttk.Frame(main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
 
         scrollbar = ttk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.listbox = tk.Listbox(
+        # 创建 Treeview，只显示树列（左侧图标 + 文本）
+        self.tree = ttk.Treeview(
             list_frame,
+            show="tree",
+            selectmode="browse",  # 单选模式
             yscrollcommand=scrollbar.set,
-            selectmode=tk.SINGLE,
-            font=("Microsoft YaHei", 12),
+            height=20,
+            style="Custom.Treeview"
         )
-        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.listbox.yview)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.tree.yview)
 
         # 绑定鼠标事件（拖拽视觉反馈）
-        self.listbox.bind("<ButtonPress-1>", self.on_press)
-        self.listbox.bind("<B1-Motion>", self.on_motion)  # 实时高亮目标
-        self.listbox.bind("<ButtonRelease-1>", self.on_release)
+        self.tree.bind("<ButtonPress-1>", self.on_press)
+        self.tree.bind("<B1-Motion>", self.on_motion)
+        self.tree.bind("<ButtonRelease-1>", self.on_release)
 
         # ---- 关联文件替换区域 ----
         assoc_frame = ttk.LabelFrame(main_frame, text="关联文件替换", padding="5")
@@ -151,18 +159,49 @@ class DragRenameApp:
         if filename:
             self.assoc_path.set(filename)
 
+    # ---------- 缩略图生成 ----------
+    def get_thumbnail(self, filepath):
+        """生成文件的缩略图，返回 PhotoImage 对象，并缓存"""
+        size = setting["thumbnail_size"]
+
+        # 使用文件路径作为缓存键
+        cache_key = str(filepath)
+        if cache_key in self.thumb_cache:
+            return self.thumb_cache[cache_key]
+
+        # 默认缩略图（空白图片）
+        default_img = Image.new("RGBA", size, (240, 240, 240, 0))
+        photo = ImageTk.PhotoImage(default_img)
+
+        # 仅对常见图片格式生成缩略图
+        ext = filepath.suffix.lower()
+        if ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff"):
+            try:
+                with Image.open(filepath) as img:
+                    # 转换为 RGBA 以支持透明度
+                    if img.mode not in ("RGBA", "RGB"):
+                        img = img.convert("RGBA")
+                    img.thumbnail(size, Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+            except Exception as e:
+                log.warning(f"无法生成缩略图 {filepath}: {e}")
+
+        # 缓存并返回
+        self.thumb_cache[cache_key] = photo
+        return photo
+
     # ---------- 文件列表管理 ----------
     def load_folder(self):
         """扫描文件夹，获取所有文件，应用排序和过滤后刷新列表"""
         # 保存滚动位置
-        self.scroll_pos = self.listbox.yview()[0]
+        self.scroll_pos = self.tree.yview()[0]
 
         # 获取所有文件
         self.all_files = list(config.input_path.glob("*.*"))
         self.apply_sort_filter()
 
     def apply_sort_filter(self):
-        """根据当前排序和过滤条件更新 self.files 和列表框"""
+        """根据当前排序和过滤条件更新 self.files 和 Treeview"""
         # 1. 过滤
         self.filter_text = self.filter_entry.get().strip()
         if self.filter_text:
@@ -181,37 +220,53 @@ class DragRenameApp:
             files.sort(key=lambda f: f.stat().st_size)
 
         self.files = files
-        self.update_listbox()
+        self.refresh_treeview()
 
-    def update_listbox(self):
-        self.listbox.delete(0, tk.END)
-        for i, file in enumerate(self.files, start=1):
-            self.listbox.insert(tk.END, f"{i}. {file.name}")
+    def refresh_treeview(self):
+        """清空 Treeview 并根据 self.files 重新填充，显示缩略图和文件名"""
+        self.tree.delete(*self.tree.get_children())
+        for file in self.files:
+            thumb = self.get_thumbnail(file)
+            # 插入项，text 显示文件名，image 显示缩略图
+            item_id = self.tree.insert(
+                "",
+                "end",
+                text=file.name,
+                image=thumb,
+                values=(str(file),),  # 可存储路径，但此处未使用
+            )
+        # 恢复滚动位置
         if self.scroll_pos is not None:
-            self.listbox.yview_moveto(self.scroll_pos)
+            self.tree.yview_moveto(self.scroll_pos)
 
     # ---------- 拖拽交互 ----------
     def on_press(self, event):
-        self.source_index = self.listbox.nearest(event.y)
-        if 0 <= self.source_index < len(self.files):
-            self.listbox.selection_clear(0, tk.END)
-            self.listbox.selection_set(self.source_index)
-            self.listbox.activate(self.source_index)
+        # 获取鼠标下的项
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.source_item = item
+            self.tree.selection_set(item)  # 选中源项
+            self.tree.focus(item)
         self.press_x = event.x
         self.press_y = event.y
-        self.listbox.config(cursor="fleur")
+        self.tree.config(cursor="fleur")
         return "break"
 
     def on_motion(self, event):
-        """拖拽过程中高亮当前悬停项"""
-        idx = self.listbox.nearest(event.y)
-        if 0 <= idx < len(self.files):
-            self.listbox.selection_clear(0, tk.END)
-            self.listbox.selection_set(idx)
+        """拖拽过程中高亮当前悬停项（与源项同时高亮）"""
+        if self.source_item is None:
+            return
+        target = self.tree.identify_row(event.y)
+        if target:
+            # 同时高亮源项和目标项
+            self.tree.selection_set((self.source_item, target))
+        else:
+            # 移出列表范围，只高亮源项
+            self.tree.selection_set(self.source_item)
 
     def on_release(self, event):
-        self.listbox.config(cursor="")
-        if self.source_index is None or self.press_x is None:
+        self.tree.config(cursor="")
+        if self.source_item is None or self.press_x is None:
             return
 
         # 计算移动距离
@@ -219,16 +274,23 @@ class DragRenameApp:
         dy = event.y - self.press_y
         distance = (dx**2 + dy**2) ** 0.5
 
-        target_index = self.listbox.nearest(event.y)
-        if distance >= self.drag_threshold:
-            if target_index != self.source_index and 0 <= target_index < len(
-                self.files
-            ):
-                self.swap_files(self.source_index, target_index)
+        target_item = self.tree.identify_row(event.y)
+        if (
+            distance >= setting["drag_threshold"]
+            and target_item
+            and target_item != self.source_item
+        ):
+            # 获取源和目标在 Treeview 中的索引（与 self.files 顺序一致）
+            idx1 = self.tree.index(self.source_item)
+            idx2 = self.tree.index(target_item)
+            if 0 <= idx1 < len(self.files) and 0 <= idx2 < len(self.files):
+                self.swap_files(idx1, idx2)
 
         # 重置状态
-        self.source_index = None
+        self.source_item = None
         self.press_x = self.press_y = None
+        # 恢复选择为无（或保持最后一项，可选）
+        self.tree.selection_remove(self.tree.selection())
 
     # ---------- 文件交换核心 ----------
     def swap_files(self, idx1, idx2):
@@ -257,7 +319,7 @@ class DragRenameApp:
             # 压入撤销栈
             self.push_undo((path1, path2))
 
-            # 重新加载列表
+            # 重新加载列表（刷新缩略图）
             self.load_folder()
 
         except PermissionError as e:
@@ -282,11 +344,7 @@ class DragRenameApp:
             return
 
         path1, path2 = self.undo_stack.pop()
-        # 由于交换是可逆的，直接再次交换这两个文件即可
-        # 需要找到它们在当前文件列表中的索引（可能在过滤/排序后位置不同）
         try:
-            # 在 all_files 中找索引（用于恢复关联文件）
-            # 但撤销时我们重新交换物理文件，不需要索引
             self.swap_two_files(path1, path2)
             self.load_folder()
         except Exception as e:
@@ -310,10 +368,8 @@ class DragRenameApp:
         log.info(f"撤销交换：{path1.name} <-> {path2.name}")
 
     # ---------- 关联文件交换（带预览）----------
-    def swap_in_assoc_file(self, path1, path2, assoc_path, preview=True) -> bool:
-        """在关联文件中交换两个文件名相关的字符串。
-        如果 preview=True，则显示确认对话框。
-        """
+    def swap_in_assoc_file(self, path1, path2, assoc_path) -> bool:
+        """在关联文件中交换两个文件名相关的字符串。"""
         file_pattern = self.file_pattern.get().strip()
         target_pattern = self.target_pattern.get().strip()
         extra = self.extra_string.get().strip()
@@ -372,7 +428,7 @@ class DragRenameApp:
                 return False
 
             # 预览模式：显示将要进行的替换，请求确认
-            if preview:
+            if setting["preview_assoc_replace"]:
                 preview_msg = (
                     f"将在关联文件中进行以下替换：\n\n"
                     f"'{target_str1}' → '{insert2}'\n"

@@ -13,11 +13,12 @@ class DragRenameApp:
     def __init__(self, root):
         self.root = root
         self.root.title("拖拽重命名工具")
-        self.root.geometry("700x400")
+        self.root.geometry("700x500")
 
         self.source_index = None  # 拖拽起始项的索引
         self.press_x = None  # 按下时的鼠标 X 坐标
         self.press_y = None  # 按下时的鼠标 Y 坐标
+        self.scroll_pos = None  # 滚动位置
         self.files = []  # 存储当前目录下的文件列表
 
         # 关联文件替换相关变量
@@ -33,6 +34,12 @@ class DragRenameApp:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
+        folder_frame = ttk.Frame(main_frame)
+        folder_frame.pack(fill=tk.X, pady=5)
+
+        refresh_btn = ttk.Button(folder_frame, text="刷新", command=self.load_folder)
+        refresh_btn.pack(side=tk.RIGHT)
+
         # 文件列表（带滚动条）
         list_frame = ttk.Frame(main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
@@ -41,7 +48,7 @@ class DragRenameApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.listbox = tk.Listbox(
-            list_frame, yscrollcommand=scrollbar.set, selectmode=tk.SINGLE
+            list_frame, yscrollcommand=scrollbar.set, selectmode=tk.SINGLE, font=("Microsoft YaHei", 12)
         )
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -99,6 +106,8 @@ class DragRenameApp:
 
     def load_folder(self):
         """扫描文件夹，获取所有文件（排除子目录），按名称排序后更新列表"""
+        self.scroll_pos = self.listbox.yview()[0]
+
         self.files = list(config.input_path.glob("*.*"))
         self.update_listbox()
 
@@ -106,6 +115,9 @@ class DragRenameApp:
         self.listbox.delete(0, tk.END)
         for i, file in enumerate(self.files, start=1):
             self.listbox.insert(tk.END, f"{i}. {file.name}")
+
+        if self.scroll_pos is not None:
+            self.listbox.yview_moveto(self.scroll_pos)
 
     def on_press(self, event):
         """鼠标按下：记录起始项和坐标，并手动选中该项"""

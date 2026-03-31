@@ -21,7 +21,11 @@ class DragRenameApp:
 
         self.style = ttk.Style()
         self.style.configure("Treeview", rowheight=setting["thumbnail_size"][1])
-        self.style.configure("Custom.Treeview", rowheight=setting["thumbnail_size"][1], font=("Microsoft YaHei", 11))
+        self.style.configure(
+            "Custom.Treeview",
+            rowheight=setting["thumbnail_size"][1],
+            font=("Microsoft YaHei", 11),
+        )
 
         # 拖拽状态
         self.source_item = None  # 源 Treeview item ID
@@ -57,7 +61,7 @@ class DragRenameApp:
     def create_widgets(self):
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0)
-        
+
         # ---- 文件列表区域----
         editor_frame = ttk.Frame(main_frame)
         editor_frame.grid(row=0, column=0, padx=5, pady=5)
@@ -106,7 +110,8 @@ class DragRenameApp:
             show="tree",
             selectmode="browse",  # 单选模式
             yscrollcommand=scrollbar.set,
-            style="Custom.Treeview"
+            height=13,
+            style="Custom.Treeview",
         )
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 5))
         scrollbar.config(command=self.tree.yview)
@@ -146,9 +151,9 @@ class DragRenameApp:
         ttk.Label(assoc_frame, text="目标模式:").grid(
             row=2, column=0, sticky=tk.W, padx=5, pady=2
         )
-        ttk.Entry(assoc_frame, textvariable=self.target_pattern, width=entry_width).grid(
-            row=2, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady
-        )
+        ttk.Entry(
+            assoc_frame, textvariable=self.target_pattern, width=entry_width
+        ).grid(row=2, column=1, sticky=tk.W, padx=5, pady=2, ipady=ipady)
 
         # 前后缀
         ttk.Label(assoc_frame, text="前后缀 (用%X分隔):").grid(
@@ -171,7 +176,7 @@ class DragRenameApp:
         size = setting["thumbnail_size"]
 
         # 使用文件路径作为缓存键
-        cache_key = str(filepath)
+        cache_key = filepath.name
         if cache_key in self.thumb_cache:
             return self.thumb_cache[cache_key]
 
@@ -230,11 +235,13 @@ class DragRenameApp:
 
     def refresh_treeview(self):
         """清空 Treeview 并根据 self.files 重新填充，显示缩略图和文件名"""
+        self.thumb_cache.clear()
+
         self.tree.delete(*self.tree.get_children())
         for file in self.files:
             thumb = self.get_thumbnail(file)
             # 插入项，text 显示文件名，image 显示缩略图
-            item_id = self.tree.insert(
+            self.tree.insert(
                 "",
                 "end",
                 text=file.name,
@@ -253,6 +260,7 @@ class DragRenameApp:
             self.source_item = item
             self.tree.selection_set(item)  # 选中源项
             self.tree.focus(item)
+
         self.press_x = event.x
         self.press_y = event.y
         self.tree.config(cursor="fleur")
@@ -262,6 +270,7 @@ class DragRenameApp:
         """拖拽过程中高亮当前悬停项（与源项同时高亮）"""
         if self.source_item is None:
             return
+
         target = self.tree.identify_row(event.y)
         if target:
             # 同时高亮源项和目标项
@@ -289,6 +298,7 @@ class DragRenameApp:
             # 获取源和目标在 Treeview 中的索引（与 self.files 顺序一致）
             idx1 = self.tree.index(self.source_item)
             idx2 = self.tree.index(target_item)
+
             if 0 <= idx1 < len(self.files) and 0 <= idx2 < len(self.files):
                 self.swap_files(idx1, idx2)
 
@@ -298,9 +308,8 @@ class DragRenameApp:
         # 恢复选择为无（或保持最后一项，可选）
         self.tree.selection_remove(self.tree.selection())
 
-    # ---------- 文件交换核心 ----------
     def swap_files(self, idx1, idx2):
-        """交换两个文件，并处理关联文件替换。成功则压入撤销栈"""
+        """交换两个文件，并处理关联文件替换。成功则压入撤销栈并更新界面"""
         path1 = self.files[idx1]
         path2 = self.files[idx2]
 
@@ -325,8 +334,8 @@ class DragRenameApp:
             # 压入撤销栈
             self.push_undo((path1, path2))
 
-            # 重新加载列表（刷新缩略图）
-            self.load_folder()
+            # 更新列表（仅更新两个项目）
+            self._update_swap_items(idx1, idx2)
 
         except PermissionError as e:
             log.error(f"权限错误: {e}")
@@ -336,6 +345,68 @@ class DragRenameApp:
         except Exception as e:
             log.error(f"❌ 交换失败: {e} - {traceback.format_exc()}")
             messagebox.showerror("交换失败", f"无法交换文件：{e}")
+
+    def swap_two_files(self, path1, path2):
+        """仅交换两个物理文件，用于撤销。成功则更新界面"""
+        temp_name = f"__temp_{uuid.uuid4().hex}_{path2.name}"
+        temp_path = config.input_path / temp_name
+
+        # 关联文件交换（撤销时直接交换，不预览）
+        assoc_file = self.assoc_path.get().strip()
+        if assoc_file and os.path.isfile(assoc_file):
+            if not self.swap_in_assoc_file(path1, path2, assoc_file, preview=False):
+                return
+
+        os.replace(path1, temp_path)
+        os.replace(path2, path1)
+        os.replace(temp_path, path2)
+        log.info(f"撤销交换：{path1.name} <-> {path2.name}")
+
+        # 更新列表（仅更新两个项目）
+        self._update_swap_by_paths(path1, path2)
+
+    # ---------- 列表更新辅助方法 ----------
+    def _update_swap_items(self, idx1, idx2):
+        """交换 self.files 中两个元素，并更新 Treeview 中对应的两项"""
+        if idx1 == idx2:
+            return
+        
+        # 交换 Treeview 中的两个项
+        # 获取 Treeview 中所有项 ID（顺序与 self.files 一致）
+        items = self.tree.get_children()
+        if idx1 >= len(items) or idx2 >= len(items):
+            log.warning("索引超出 Treeview 范围，跳过更新")
+            return
+        
+        item1 = items[idx1]
+        item2 = items[idx2]
+        file1 = self.files[idx1]
+        file2 = self.files[idx2]
+
+        # 清除缓存（因为两个文件的内容已互换）
+        self.thumb_cache.pop(file1.name, None)
+        self.thumb_cache.pop(file2.name, None)
+
+        name1 = self.files[idx1].name
+        thumb1 = self.get_thumbnail(file2)
+        name2 = self.files[idx2].name
+        thumb2 = self.get_thumbnail(file1)
+
+        # 更新 item1
+        self.tree.item(item1, text=name1, image=thumb2)
+        # 更新 item2
+        self.tree.item(item2, text=name2, image=thumb1)
+
+    def _update_swap_by_paths(self, path1, path2):
+        """根据两个路径，交换 self.files 中的对应元素并更新 Treeview"""
+        try:
+            idx1 = self.files.index(path1)
+            idx2 = self.files.index(path2)
+        except ValueError:
+            log.warning(f"路径不在列表中: {path1}, {path2}，执行全量刷新")
+            self.load_folder()  # 回退到全量刷新
+            return
+        self._update_swap_items(idx1, idx2)
 
     def push_undo(self, swap_info):
         """压入撤销栈，限制大小"""
@@ -352,7 +423,6 @@ class DragRenameApp:
         path1, path2 = self.undo_stack.pop()
         try:
             self.swap_two_files(path1, path2)
-            self.load_folder()
         except Exception as e:
             log.error(f"撤销失败: {e}")
             messagebox.showerror("撤销失败", f"无法撤销交换：{e}")
@@ -372,6 +442,8 @@ class DragRenameApp:
         os.replace(path2, path1)
         os.replace(temp_path, path2)
         log.info(f"撤销交换：{path1.name} <-> {path2.name}")
+
+        self._update_swap_by_paths(path1, path2)
 
     # ---------- 关联文件交换（带预览）----------
     def swap_in_assoc_file(self, path1, path2, assoc_path) -> bool:

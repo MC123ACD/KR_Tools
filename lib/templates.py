@@ -171,9 +171,9 @@ write_exos_animations_data_template = env.from_string(
                         {
                             name = "{{p["name"]}}",
                             {%- if p.get("alpha") %}
-                            alpha = {{p["alpha"]}}
-                            {% endif -%}
-                            {% set xform = p["xform"] %}
+                            alpha = {{p["alpha"]}},
+                            {%- endif %}
+                            {%- set xform = p["xform"] %}
                             xform = {
                                 sx = {{xform["sx"]}},
                                 sy = {{xform["sy"]}},

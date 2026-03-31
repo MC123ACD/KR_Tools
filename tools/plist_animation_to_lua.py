@@ -7,96 +7,40 @@ import lib.log as log
 # 设置日志记录，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging()
 
-
 def matrix_to_transform_params(matrix):
     """
-    将仿射变换矩阵转换为变换参数
-    
-    假设变换顺序为：缩放(sx,sy) → 倾斜(k) → 旋转(r) → 平移(tx,ty)
-    矩阵形式: [a, b, tx; c, d, ty]
-    
-    该函数将6个矩阵元素(a,b,c,d,tx,ty)分解为平移、缩放、旋转和倾斜参数
+    将仿射变换矩阵转换为变换参数（平移、缩放、水平倾斜、旋转）。
+    变换顺序：缩放(sx,sy) → 水平倾斜(kx) → 旋转(r) → 平移(tx,ty)
+    垂直倾斜 ky 不需要考虑，固定为 0。
 
     Args:
-        matrix (list): 包含6个元素的仿射变换矩阵列表 [a, b, c, d, tx, ty]
+        matrix (list): [a, b, c, d, tx, ty]
 
     Returns:
-        dict: 包含变换参数的字典，包含以下键：
-            - x: X轴平移量
-            - y: Y轴平移量
-            - sx: X轴缩放因子
-            - sy: Y轴缩放因子
-            - r: 旋转角度（弧度）
-            - kx: X方向倾斜角度（弧度）
-            - ky: Y方向倾斜角度（弧度）
+        dict: {x, y, sx, sy, r, kx, ky}，其中 ky = 0
     """
-    # 提取矩阵元素
-    a, b, c, d, tx, ty = matrix
-
-    # 计算平移
-    x, y = tx, ty
-
-    # 计算行列式（用于检查是否有反射和奇异矩阵）
-    det = a * d - b * c
-
-    # 处理奇异矩阵（行列式接近0的情况）
-    if abs(det) < 1e-10:
-        # 接近奇异矩阵时使用近似值
-        if abs(a) < 1e-10 and abs(d) < 1e-10:
-            # 当a和d都接近0时，可能是纯倾斜变换
-            sx = math.hypot(b, c)
-            sy = 0
-            r = 0
-            kx = 0
-            ky = math.atan2(c, b) if b != 0 else 0
-        else:
-            # 一般奇异矩阵情况
-            sx = math.hypot(a, c)
-            sy = math.hypot(b, d)
-            r = math.atan2(c, a) if a != 0 else 0
-            kx = math.atan2(b, d) if d != 0 else 0
-            ky = 0
-    else:
-        # 正常矩阵情况：去除旋转影响以提取缩放和倾斜
-        # 计算旋转角度（atan2返回的是 -π 到 π 之间的值）
-        r = math.atan2(b - c, a + d) / 2
-
-        # 计算去除旋转后的矩阵
-        cos_r = math.cos(r)
-        sin_r = math.sin(r)
-
-        # 构建旋转矩阵的逆
-        # 计算 M_rot_inv = [cos(r), sin(r); -sin(r), cos(r)]
-        # 然后计算 M_no_rot = M * M_rot_inv
-        a_prime = a * cos_r + c * sin_r
-        b_prime = b * cos_r + d * sin_r
-        c_prime = -a * sin_r + c * cos_r
-        d_prime = -b * sin_r + d * cos_r
-
-        # 提取缩放和倾斜
-        sx = math.copysign(math.hypot(a_prime, c_prime), det)
-        sy = math.copysign(math.hypot(b_prime, d_prime), det)
-
-        # 计算倾斜角度（通常倾斜是相同的，但这里保持kx,ky分离以匹配你的需求）
-        # 注意：通常倾斜矩阵是上三角或下三角形式
-        if abs(sx) > 1e-10:
-            kx = math.atan2(b_prime, sx)
-        else:
-            kx = 0
-
-        if abs(sy) > 1e-10:
-            ky = math.atan2(c_prime, sy)
-        else:
-            ky = 0
+    a, b, c, d, x, y = matrix
+    
+    # 计算基础变换参数
+    r = math.atan2(b, a)               # 旋转角
+    sx = math.hypot(a, b)              # X轴缩放
+    sy = math.hypot(c, d)              # Y轴缩放（可能被覆盖）
+    test_r = -math.atan2(c, d)           # 测试角
+    
+    # 根据条件决定是否修正 kx 和 sy
+    kx = 0.0
+    if not test_r - r < 1e-9 and not math.isclose(sx, 0.0):
+        kx = (a * c + b * d) / sx
+        sy = (a * d - b * c) / sx
 
     return {
-        "x": x,  # 平移X
-        "y": y,  # 平移Y
-        "sx": sx,  # 缩放X
-        "sy": sy,  # 缩放Y
-        "r": r,  # 旋转角度（弧度）
-        "kx": kx,  # X方向倾斜角度
-        "ky": ky,  # Y方向倾斜角度
+        "x": x,
+        "y": y,
+        "sx": sx,
+        "sy": sy,
+        "r": r,
+        "kx": kx,
+        "ky": 0.0,      # 固定为 0
     }
 
 

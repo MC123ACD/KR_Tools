@@ -406,7 +406,23 @@
                 "魔牛精": "enemy_demon_minotaur",
                 "避水金晴兽": "enemy_golden_eyed",
                 "业火妖道": "enemy_hellfire_warlock",
-                "boss 牛魔王": "boss_bull_king"
+                "boss 牛魔王": "boss_bull_king",
+                "余烬幼龙": "enemy_basic_lava",
+                "电光幼龙": "enemy_basic_storm",
+                "怒锋龙": "enemy_tanky_draconian",
+                "腐源魔龙": "enemy_alfa_acid",
+                "腐蚀飞龙": "enemy_evolved_acid",
+                "酸蚀幼龙": "enemy_basic_acid",
+                "烈火飞龙": "enemy_evolved_lava",
+                "熔岩魔龙": "enemy_alfa_lava",
+                "boss 墨尔古伦": "boss_murglum",
+                "暗影幼龙": "enemy_basic_shadow",
+                "永夜魔龙": "enemy_alfa_shadow",
+                "幽影飞龙": "enemy_evolved_shadow",
+                "雷暴魔龙": "enemy_alfa_storm",
+                "风暴飞龙": "enemy_evolved_storm",
+                "雷罚龙": "enemy_executioner_storm",
+                "原初共生体": "enemy_miniboss_stage_39"
             },
             "monsters6": {
                 "萨雷格兹主母": "enemy_sarelgaz_big",
@@ -486,7 +502,10 @@
     },
     "drag_rename": {
         "drag_threshold": 5,
-        "thumbnail_size": [48, 48],
+        "thumbnail_size": [
+            48,
+            48
+        ],
         "preview_assoc_replace": true
     }
 }

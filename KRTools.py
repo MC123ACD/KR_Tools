@@ -239,8 +239,8 @@ class MainApplication:
             wrap=tk.NONE,
             relief=tk.FLAT,
             borderwidth=0,
-            padx=5,
-            pady=5,
+            padx=10,
+            pady=10,
         )
         line_numbers.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -306,7 +306,7 @@ class MainApplication:
             text_widget: 主文本控件
             line_numbers: 行号文本控件
         """
-        # 获取当前行数
+        # 获取总行数
         line_count = text_widget.index(tk.END).split(".")[0]
 
         # 生成行号文本
@@ -321,7 +321,7 @@ class MainApplication:
         # 同步滚动
         top, _ = text_widget.yview()
         line_numbers.yview_moveto(top)
-
+        
     def reset_tool_setting(self, tool_key, text_widget):
         """将指定工具的设置重置为默认值"""
         if not messagebox.askyesno(

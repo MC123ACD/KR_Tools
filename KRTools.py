@@ -5,77 +5,10 @@ from pathlib import Path
 import lib.log as log
 import lib.config as config
 from lib.constants import BASIC_FONT
-
-# 导入所有工具模块
-from tools import (
-    decompiler,
-    generate_waves,
-    process_images,
-    sort_table,
-    split_atlas,
-    generate_atlas,
-    measure_anchor,
-    plist_level_to_lua,
-    plist_animation_to_lua,
-    drag_rename,
-)
+from lib.tool_datas import tool_datas
 
 # 初始化日志系统，使用配置文件中的日志级别和日志文件路径
 log = log.setup_logging()
-
-
-tool_datas = {
-    "decompiler": {
-        "name": "反编译",
-        "module": decompiler,
-        "has_gui": True,  # 具有独立的GUI界面
-    },
-    "generate_waves": {
-        "name": "生成波次",
-        "module": generate_waves,
-        "has_gui": True,  # 具有独立的GUI界面
-    },
-    "process_images": {
-        "name": "处理图像",
-        "module": process_images,
-        "has_gui": True,
-    },
-    "sort_table": {
-        "name": "排序表",
-        "module": sort_table,
-        "has_gui": False,  # 无GUI，直接运行
-    },
-    "split_atlas": {
-        "name": "拆分图集",
-        "module": split_atlas,
-        "has_gui": False,
-    },
-    "generate_atlas": {
-        "name": "合并图集",
-        "module": generate_atlas,
-        "has_gui": True,
-    },
-    "measure_anchor": {
-        "name": "测量锚点",
-        "module": measure_anchor,
-        "has_gui": True,
-    },
-    "plist_level_to_lua": {
-        "name": "四代关卡数据转换",
-        "module": plist_level_to_lua,
-        "has_gui": False,
-    },
-    "plist_animation_to_lua": {
-        "name": "四代动画数据转换",
-        "module": plist_animation_to_lua,
-        "has_gui": False,
-    },
-    "drag_rename": {
-        "name": "拖拽重命名",
-        "module": drag_rename,
-        "has_gui": True,
-    },
-}
 
 
 class MainApplication:
@@ -150,14 +83,88 @@ class MainApplication:
                 row += 1
                 column = 0
 
-        # 在按钮区域下方添加“全局设置”按钮
+        bottom_btn_frame = ttk.Frame(self.buttons_frame)
+        bottom_btn_frame.grid(row=row + 1, column=0, columnspan=8, pady=(10, 0))
+
+        help_btn = ttk.Button(
+            bottom_btn_frame,
+            text="❓ 帮助",
+            command=self.open_help,
+            width=15,
+        )
+        help_btn.pack(side=tk.LEFT, padx=5)
+
         settings_btn = ttk.Button(
-            self.buttons_frame,
+            bottom_btn_frame,
             text="⚙️ 全局设置",
             command=self.open_global_settings,
             width=15,
         )
-        settings_btn.grid(row=row + 1, column=0, columnspan=8, pady=(10, 0))
+        settings_btn.pack(side=tk.LEFT, padx=5)
+
+    def open_help(self):
+        help_win = tk.Toplevel(self.root)
+        help_win.title("KRTools 帮助")
+        help_win.geometry("900x700")
+        help_win.transient(self.root)
+        help_win.grab_set()
+        self.center_window(help_win)
+
+        notebook = ttk.Notebook(help_win)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        common_tab = ttk.Frame(notebook)
+        notebook.add(common_tab, text="通用")
+
+        common_text = (
+            "通用说明\n"
+            "\n"
+            "1. input 目录：放入需要处理的文件/文件夹\n"
+            "2. output 目录：工具输出结果默认写入此目录\n"
+            "3. 全局设置：每个工具的参数都可以在“⚙️ 全局设置”里统一修改\n"
+            "4. 无界面工具：点击按钮后会直接执行，处理过程看日志输出，结果写入 output\n"
+        )
+        self.create_help_text(common_tab, common_text)
+
+        for key, tool_info in tool_datas.items():
+            tab = ttk.Frame(notebook)
+            notebook.add(tab, text=tool_info["name"])
+            help_text = tool_info.get("help")
+            if not help_text:
+                main_func = getattr(tool_info.get("module"), "main", None)
+                help_text = (getattr(main_func, "__doc__", "") or "").strip()
+                if not help_text:
+                    help_text = "暂无帮助说明"
+            self.create_help_text(tab, help_text)
+
+        btn_frame = ttk.Frame(help_win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        close_btn = ttk.Button(btn_frame, text="关闭", command=help_win.destroy)
+        close_btn.pack(side=tk.RIGHT)
+
+    def create_help_text(self, parent, content):
+        frame = ttk.Frame(parent)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        text_widget = tk.Text(
+            frame,
+            wrap=tk.WORD,
+            font=(BASIC_FONT, 12),
+            spacing1=5,
+            spacing3=5,
+        )
+        text_widget.grid(row=0, column=0, sticky="nsew")
+
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=text_widget.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        text_widget.config(yscrollcommand=scrollbar.set)
+
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        text_widget.insert("1.0", content)
+        text_widget.config(state=tk.DISABLED)
 
     def open_global_settings(self):
         """打开集中设置窗口"""

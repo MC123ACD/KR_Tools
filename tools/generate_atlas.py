@@ -373,31 +373,6 @@ def calculate_score(rect, strategy):
     return 0
 
 
-def calculate_optimal_size(rectangles):
-    """
-    计算最优的图集尺寸
-
-    通过尝试不同尺寸，找到空间利用率最高的图集尺寸
-
-    Args:
-        rectangles: 矩形数据列表
-
-    Returns:
-        tuple: 最佳尺寸 Vector(width, height)
-    """
-    total_area = sum(rect[2].area() for rect in rectangles)
-    sqrt_area = int(total_area**0.5 * 1.1)
-
-    size = 1 << sqrt_area.bit_length()
-
-    if size > setting_var["max_size_var"]:
-        size = setting_var["max_size_var"]
-
-    size = Size(size, size)
-
-    return size
-
-
 def find_position(free_rectangles, rect):
     """
     在空闲区域中寻找最佳放置位置
@@ -634,11 +609,8 @@ def create_atlas(baisic_atlas_name, rectangles, images):
     while True:
         # 生成图集名称（多图集时添加序号）
         atlas_name = baisic_atlas_name + f"-{idx}"
-
-        # 计算最优尺寸
-        atlas_size = calculate_optimal_size(rectangles)
-
-        log.info(f"🏁 计算{atlas_name}尺寸: {atlas_size}")
+        max_size = setting_var["max_size_var"]
+        atlas_size = Size(max_size, max_size)
 
         # 使用Guillotine算法进行排列
         result_rectangles = guillotine_packing(rectangles, atlas_size)
